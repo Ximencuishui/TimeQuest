@@ -1,0 +1,107 @@
+import { invoke } from "@tauri-apps/api/core";
+import type {
+  ActualLog,
+  AvgRatingRow,
+  CompleteSessionInput,
+  CompleteSessionResult,
+  CompletionRate,
+  MethodShareRow,
+  Note,
+  PlanVsActualRow,
+  RescheduleInput,
+  TagTypeRow,
+  Task,
+  TaskSession,
+  UserAchievement,
+  UserStats,
+} from "../types";
+
+export const api = {
+  // tasks
+  listTasks: (includeArchived = false) =>
+    invoke<Task[]>("list_tasks", { includeArchived }),
+  getTask: (id: number) => invoke<Task>("get_task", { id }),
+  createTask: (payload: Partial<Task> & { title: string; type: string }) =>
+    invoke<Task>("create_task", { payload }),
+  updateTask: (id: number, payload: Partial<Task>) =>
+    invoke<Task>("update_task", { id, payload }),
+  archiveTask: (id: number, archived: boolean) =>
+    invoke<void>("archive_task", { id, archived }),
+  advanceRound: (id: number) => invoke<Task>("advance_round", { id }),
+  taskProgress: (id: number) =>
+    invoke<{ round_units: number; total_units_done: number }>("task_progress", {
+      id,
+    }),
+
+  // sessions
+  listSessionsByDate: (date: string) =>
+    invoke<TaskSession[]>("list_sessions_by_date", { date }),
+  listSessionsByTask: (taskId: number) =>
+    invoke<TaskSession[]>("list_sessions_by_task", { taskId }),
+  createSession: (payload: {
+    taskId: number;
+    date: string;
+    startTime: string;
+    endTime: string;
+    round?: number;
+    plannedUnits?: number;
+  }) => invoke<TaskSession>("create_session", { payload }),
+  completeSession: (input: CompleteSessionInput) =>
+    invoke<CompleteSessionResult>("complete_session", { input }),
+  rescheduleSession: (input: RescheduleInput) =>
+    invoke<CompleteSessionResult>("reschedule_session", { input }),
+  findOverlaps: (date: string, startTime: string, endTime: string, excludeId?: number) =>
+    invoke<TaskSession[]>("find_overlaps", {
+      date,
+      startTime,
+      endTime,
+      excludeId: excludeId ?? null,
+    }),
+
+  // logs
+  createLog: (payload: {
+    date: string;
+    startAt?: string | null;
+    endAt?: string | null;
+    durationMin?: number | null;
+    subject?: string | null;
+    method?: string | null;
+    tagType?: string;
+    note?: string | null;
+  }) => invoke<ActualLog>("create_log", { payload }),
+  listLogs: (from: string, to: string) =>
+    invoke<ActualLog[]>("list_logs", { from, to }),
+
+  // stats
+  planVsActual: (from: string, to: string) =>
+    invoke<PlanVsActualRow[]>("stats_plan_vs_actual", { from, to }),
+  methodShare: (from: string, to: string) =>
+    invoke<MethodShareRow[]>("stats_method_share", { from, to }),
+  tagTypeTotals: (from: string, to: string) =>
+    invoke<TagTypeRow[]>("stats_tag_type_totals", { from, to }),
+  completionRate: (from: string, to: string) =>
+    invoke<CompletionRate>("stats_completion_rate", { from, to }),
+  avgRatings: (from: string, to: string) =>
+    invoke<AvgRatingRow[]>("stats_avg_ratings", { from, to }),
+
+  // notes
+  listNotes: () => invoke<Note[]>("list_notes"),
+  createNote: (content: string, color: string) =>
+    invoke<Note>("create_note", { content, color }),
+  updateNote: (
+    id: number,
+    payload: { content?: string; color?: string; pinned?: boolean },
+  ) => invoke<Note>("update_note", { id, payload }),
+  deleteNote: (id: number) => invoke<void>("delete_note", { id }),
+
+  // gamification / user
+  getUserStats: () => invoke<UserStats>("get_user_stats"),
+  listAchievements: () => invoke<UserAchievement[]>("list_user_achievements"),
+
+  // data
+  exportJson: () => invoke<string>("export_json"),
+  importJson: (json: string) => invoke<void>("import_json", { json }),
+  getDbPath: () => invoke<string>("get_db_path"),
+  setCloseToTray: (enabled: boolean) =>
+    invoke<void>("set_close_to_tray", { enabled }),
+};

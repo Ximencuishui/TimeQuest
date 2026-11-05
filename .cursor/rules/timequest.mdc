@@ -1,0 +1,20 @@
+---
+description: TimeQuest architecture and product conventions
+globs:
+alwaysApply: true
+---
+
+# TimeQuest
+
+Single-machine local-first desktop app (Tauri 2 + React 19 + SQLite). No accounts, no cloud.
+
+## Rules
+
+- Progress = sum(actual_units); never maintain a separate completed counter.
+- Reschedule keeps the original session as `rescheduled`; do not delete history.
+- XP only for actual_units; idempotent complete (no double XP / logs).
+- React never opens SQLite directly — use Tauri commands.
+- Put XP/level/streak/achievement math in `src/lib/gamification.ts` as pure functions with tests.
+- Aggregate stats in SQL/Rust, not in the frontend.
+- Brand strings come from `src/lib/constants.ts` (`APP_NAME`, etc.).
+- Theme: dark base + sprint orange accent. No purple gradients.
