@@ -94,8 +94,8 @@ describe("Dashboard countdown store sync", () => {
     expect(screen.getByText(`目标日 ${DATE_B}`)).toBeInTheDocument();
     expect(daysText()).toBe(daysFor(DATE_B));
     expect(daysText()).not.toBe(daysFor(DATE_A));
-    expect(clearIntervalSpy.mock.calls.map((call: Parameters<typeof window.clearInterval>) => call[0])).toContain(oldId);
-    expect(setIntervalSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+    expect(setIntervalSpy.mock.results[0]?.value).toBe(oldId);
     expect(consoleError).not.toHaveBeenCalled();
   });
 

@@ -234,3 +234,108 @@ pub struct DailyUnitsRow {
     pub date: String,
     pub units: i64,
 }
+
+fn score_chinese() -> i64 {
+    120
+}
+fn score_math() -> i64 {
+    130
+}
+fn score_english() -> i64 {
+    120
+}
+fn score_science() -> i64 {
+    80
+}
+
+/// Per-subject gaokao goals. Stored as one JSON object on `user_profile`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SubjectTargets {
+    #[serde(default = "score_chinese")]
+    pub chinese: i64,
+    #[serde(default = "score_math")]
+    pub math: i64,
+    #[serde(default = "score_english")]
+    pub english: i64,
+    #[serde(default = "score_science")]
+    pub physics: i64,
+    #[serde(default = "score_science")]
+    pub chemistry: i64,
+    #[serde(default = "score_science")]
+    pub biology: i64,
+}
+
+impl Default for SubjectTargets {
+    fn default() -> Self {
+        Self {
+            chinese: score_chinese(),
+            math: score_math(),
+            english: score_english(),
+            physics: score_science(),
+            chemistry: score_science(),
+            biology: score_science(),
+        }
+    }
+}
+
+impl SubjectTargets {
+    pub fn sum(&self) -> i64 {
+        self.chinese + self.math + self.english + self.physics + self.chemistry + self.biology
+    }
+}
+
+/// Singleton row `user_profile.id = 1`. `avatar` is a data URL or a local path.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct UserProfile {
+    pub avatar: Option<String>,
+    pub grade: String,
+    pub region: String,
+    pub total_target: i64,
+    pub subject_targets: SubjectTargets,
+}
+
+impl Default for UserProfile {
+    fn default() -> Self {
+        let subject_targets = SubjectTargets::default();
+        Self {
+            avatar: None,
+            grade: "高三".to_string(),
+            region: String::new(),
+            total_target: subject_targets.sum(),
+            subject_targets,
+        }
+    }
+}
+
+/// One sitting. A missing subject score is `None` (that paper was not taken).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExamRecord {
+    pub id: i64,
+    pub exam_name: String,
+    pub exam_date: String,
+    pub chinese_score: Option<i64>,
+    pub math_score: Option<i64>,
+    pub english_score: Option<i64>,
+    pub physics_score: Option<i64>,
+    pub chemistry_score: Option<i64>,
+    pub biology_score: Option<i64>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CreateExamRecordPayload {
+    pub exam_name: String,
+    pub exam_date: String,
+    #[serde(default)]
+    pub chinese_score: Option<i64>,
+    #[serde(default)]
+    pub math_score: Option<i64>,
+    #[serde(default)]
+    pub english_score: Option<i64>,
+    #[serde(default)]
+    pub physics_score: Option<i64>,
+    #[serde(default)]
+    pub chemistry_score: Option<i64>,
+    #[serde(default)]
+    pub biology_score: Option<i64>,
+}

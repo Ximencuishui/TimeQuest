@@ -12,6 +12,9 @@ type Props = {
   session: TaskSession;
   onComplete?: () => void;
   onReschedule?: () => void;
+  onFocus?: () => void;
+  /** Whole-card click. Dashboard uses this to open the session on Today. */
+  onClick?: () => void;
   compact?: boolean;
   /** Wall-clock phase on the Today timeline; omit elsewhere. */
   timePhase?: SessionTimePhase;
@@ -21,6 +24,8 @@ export function SessionCard({
   session,
   onComplete,
   onReschedule,
+  onFocus,
+  onClick,
   compact,
   timePhase,
 }: Props) {
@@ -38,6 +43,9 @@ export function SessionCard({
       ? "animate-pulse border-orange-500 bg-orange-500/10"
       : "border-white/5 bg-surface-2/90",
     isPast ? "opacity-50" : "",
+    onClick
+      ? "cursor-pointer transition duration-200 hover:-translate-y-0.5 hover:border-orange-500/40"
+      : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -59,6 +67,19 @@ export function SessionCard({
       }
       data-time-phase={timePhase}
       data-session-id={session.id}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -73,40 +94,61 @@ export function SessionCard({
               : ""}
           </div>
         </div>
-        {showActiveBadge ? (
-          <span
-            className="shrink-0 rounded-md bg-orange-500/20 px-1.5 py-0.5 text-[10px] font-medium leading-none text-orange-300"
-            data-testid="active-badge"
-          >
-            进行中
-          </span>
-        ) : (
-          <span
-            className={`shrink-0 rounded-md px-2 py-0.5 text-xs ${
-              session.status === "done"
-                ? "bg-emerald-500/15 text-emerald-300"
-                : session.status === "rescheduled"
-                  ? "bg-white/10 text-ink-muted"
-                  : "bg-accent/15 text-accent-soft"
-            }`}
-          >
-            {STATUS_LABEL[session.status] ?? session.status}
-          </span>
-        )}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {canAct && onFocus ? (
+            <button
+              type="button"
+              aria-label="开始专注"
+              className="rounded-md px-2 py-1 text-xs text-accent-soft hover:bg-white/5"
+              onClick={(event) => {
+                event.stopPropagation();
+                onFocus?.();
+              }}
+            >
+              ▶ 开始专注
+            </button>
+          ) : null}
+          {showActiveBadge ? (
+            <span
+              className="shrink-0 rounded-md bg-orange-500/20 px-1.5 py-0.5 text-[10px] font-medium leading-none text-orange-300"
+              data-testid="active-badge"
+            >
+              进行中
+            </span>
+          ) : (
+            <span
+              className={`shrink-0 rounded-md px-2 py-0.5 text-xs ${
+                session.status === "done"
+                  ? "bg-emerald-500/15 text-emerald-300"
+                  : session.status === "rescheduled"
+                    ? "bg-white/10 text-ink-muted"
+                    : "bg-accent/15 text-accent-soft"
+              }`}
+            >
+              {STATUS_LABEL[session.status] ?? session.status}
+            </span>
+          )}
+        </div>
       </div>
       {!compact && canAct ? (
         <div className="mt-3 flex gap-2">
           <button
             type="button"
             className="rounded-lg bg-accent px-3 py-1.5 text-sm text-white hover:bg-accent-soft"
-            onClick={onComplete}
+            onClick={(event) => {
+              event.stopPropagation();
+              onComplete?.();
+            }}
           >
             完成 ✓
           </button>
           <button
             type="button"
             className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-ink-muted hover:bg-white/5"
-            onClick={onReschedule}
+            onClick={(event) => {
+              event.stopPropagation();
+              onReschedule?.();
+            }}
           >
             改期 ↻
           </button>

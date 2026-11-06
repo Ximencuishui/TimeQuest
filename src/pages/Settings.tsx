@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -12,6 +13,8 @@ import { useAppSetting, useSetSetting } from "../hooks/useAppSetting";
 import { todayStr } from "../lib/date";
 import { dailyMotivation } from "../lib/motivation";
 import { format } from "date-fns";
+import { ProfileSetting } from "../components/ProfileSetting";
+import { useHasMockData } from "../hooks/useMockData";
 
 const MOTIVATION_KEY = "motivation_text";
 
@@ -101,6 +104,9 @@ export function Settings() {
   const setNotificationsEnabled = useUiStore((s) => s.setNotificationsEnabled);
   const { data: stats } = useUserStats();
   const { data: achievements = [] } = useAchievements();
+  const { data: hasMock } = useHasMockData();
+  const queryClient = useQueryClient();
+  const mockHighlighted = hasMock === true;
 
   const [newName, setNewName] = useState("");
   const [newDate, setNewDate] = useState("");
@@ -174,12 +180,37 @@ export function Settings() {
     }
   };
 
+  const clearMock = async () => {
+    if (
+      !window.confirm(
+        "将删除所有演示任务、排期和考试成绩。真实记录会保留。如果除此之外没有真实记录，经验和连击会回到起点。确认清除？",
+      )
+    ) {
+      return;
+    }
+    try {
+      await api.clearMockData();
+      await queryClient.invalidateQueries({ queryKey: ["hasMockData"] });
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      await queryClient.invalidateQueries({ queryKey: ["sessions"] });
+      await queryClient.invalidateQueries({ queryKey: ["sessions-range"] });
+      await queryClient.invalidateQueries({ queryKey: ["user-stats"] });
+      await queryClient.invalidateQueries({ queryKey: ["examRecords"] });
+      await queryClient.invalidateQueries({ queryKey: ["stats"] });
+      setMsg("演示数据已清除。");
+    } catch (e) {
+      setMsg(`清除失败：${String(e)}`);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-2xl space-y-8">
       <div>
         <h1 className="font-display text-2xl">设置</h1>
         <p className="mt-1 text-sm text-ink-muted">{APP_FULL_NAME}</p>
       </div>
+
+      <ProfileSetting />
 
       <section className="rounded-2xl border border-white/5 bg-surface-2/80 p-4">
         <h2 className="font-display text-lg">考试目标</h2>
@@ -324,6 +355,9 @@ export function Settings() {
         <p className="mt-1 text-xs text-ink-muted">
           导出文件包含个人学习数据，请勿随意分享。
         </p>
+        <p className="mt-1 text-xs text-ink-muted">
+          应用已为您开启每日自动备份，保留最近 7 天的数据。
+        </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
@@ -339,7 +373,24 @@ export function Settings() {
           >
             导入 JSON
           </button>
+          <button
+            type="button"
+            data-highlighted={mockHighlighted ? "true" : "false"}
+            className={
+              mockHighlighted
+                ? "rounded-lg bg-accent px-3 py-2 text-sm text-white"
+                : "rounded-lg border border-white/15 px-3 py-2 text-sm text-ink-muted"
+            }
+            onClick={() => void clearMock()}
+          >
+            清除所有演示数据
+          </button>
         </div>
+        {mockHighlighted ? (
+          <p className="mt-2 text-xs text-accent-soft">
+            当前有演示数据。清除只会去掉这些演示记录。
+          </p>
+        ) : null}
         {msg ? <p className="mt-3 text-sm text-ink-muted">{msg}</p> : null}
       </section>
 

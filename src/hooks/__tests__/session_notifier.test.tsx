@@ -87,9 +87,9 @@ describe("useSessionNotifier", () => {
     vi.spyOn(window, "setInterval").mockImplementation((handler, timeout, ...args) => {
       if (timeout === 60_000) {
         ticks.push(handler as () => void);
-        return 987654 as unknown as ReturnType<typeof setInterval>;
+        return 987654 as unknown as NodeJS.Timeout;
       }
-      return realSetInterval(handler as TimerHandler, timeout, ...args);
+      return realSetInterval(handler as TimerHandler, timeout, ...args) as unknown as NodeJS.Timeout;
     });
     vi.spyOn(window, "clearInterval").mockImplementation((id) => {
       if (id === 987654) return;

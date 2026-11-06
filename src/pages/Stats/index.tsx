@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   endOfMonth,
   endOfWeek,
@@ -11,13 +11,20 @@ import { useCreateLog } from "../../hooks/useLogs";
 import {
   useAvgRatings,
   useCompletionRate,
+  useDailyUnits,
   useMethodShare,
   usePlanVsActual,
   useTagTypeTotals,
+  useUserStats,
 } from "../../hooks/useStats";
 import { METHODS, SUBJECTS, TAG_TYPES } from "../../lib/constants";
 import { todayStr } from "../../lib/date";
+import {
+  generateLearningReport,
+  type ReportData,
+} from "../../lib/reportGenerator";
 import { ChartEmptyState } from "./ChartEmptyState";
+import { LearningReportDialog } from "./LearningReportDialog";
 import {
   toMethodDonut,
   toPlanVsActualBars,
@@ -45,11 +52,22 @@ function rangeFor(mode: RangeMode) {
 export function Stats() {
   const [mode, setMode] = useState<RangeMode>("week");
   const range = useMemo(() => rangeFor(mode), [mode]);
-  const { data: pva = [] } = usePlanVsActual(range.from, range.to);
+  const { data: pva = [], isFetched: planFetched } = usePlanVsActual(
+    range.from,
+    range.to,
+  );
   const { data: methods = [] } = useMethodShare(range.from, range.to);
-  const { data: tags = [] } = useTagTypeTotals(range.from, range.to);
+  const { data: tags = [], isFetched: tagsFetched } = useTagTypeTotals(
+    range.from,
+    range.to,
+  );
   const { data: rate } = useCompletionRate(range.from, range.to);
   const { data: ratings = [] } = useAvgRatings(range.from, range.to);
+  const { data: dailyRows, isFetched: unitsFetched } = useDailyUnits(
+    range.from,
+    range.to,
+  );
+  const { data: userStats, isFetched: userFetched } = useUserStats();
   const createLog = useCreateLog();
   const [logOpen, setLogOpen] = useState(false);
   const [logForm, setLogForm] = useState({
@@ -61,6 +79,39 @@ export function Stats() {
     tagType: "study",
     note: "",
   });
+  const [reportView, setReportView] = useState<{
+    markdown: string;
+    period: string;
+    rangeLabel: string;
+  } | null>(null);
+  const closeReport = useCallback(() => setReportView(null), []);
+
+  const reportReady = planFetched && tagsFetched && unitsFetched && userFetched;
+  const reportData = useMemo<ReportData>(() => {
+    const studyMinutes =
+      tags.find((row) => row.tag_type === "study")?.duration_min ?? 0;
+    const totalUnits = (dailyRows ?? []).reduce(
+      (sum, row) => sum + (Number.isFinite(row.units) ? row.units : 0),
+      0,
+    );
+    return {
+      range: mode,
+      totalMinutes: studyMinutes,
+      totalUnits,
+      subjects: pva
+        .filter((row) => row.actual_min > 0 && (row.subject ?? "").trim() !== "")
+        .map((row) => ({ subject: row.subject, minutes: row.actual_min })),
+      comparisons: pva
+        .filter((row) => (row.subject ?? "").trim() !== "")
+        .map((row) => ({
+          subject: row.subject,
+          plannedMinutes: row.planned_min,
+          actualMinutes: row.actual_min,
+        })),
+      currentStreak: userStats?.current_streak ?? 0,
+      longestStreak: userStats?.longest_streak ?? 0,
+    };
+  }, [mode, tags, dailyRows, pva, userStats]);
 
   const subjectSlices = useMemo(() => toSubjectDonut(pva), [pva]);
   const methodSlices = useMemo(() => toMethodDonut(methods), [methods]);
@@ -69,7 +120,23 @@ export function Stats() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-2xl">统计</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="font-display text-2xl">统计</h1>
+          <button
+            type="button"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-[0_8px_24px_-12px_rgba(249,115,22,0.9)] hover:brightness-110 disabled:cursor-wait disabled:opacity-60"
+            disabled={!reportReady}
+            onClick={() => {
+              setReportView({
+                markdown: generateLearningReport(reportData),
+                period: mode === "week" ? "本周" : "本月",
+                rangeLabel: `${range.from} ~ ${range.to}`,
+              });
+            }}
+          >
+            生成复盘报告
+          </button>
+        </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg bg-surface-2 p-1">
             {(["week", "month"] as RangeMode[]).map((m) => (
@@ -98,6 +165,14 @@ export function Stats() {
       <p className="text-xs text-ink-muted">
         {range.from} ~ {range.to}
       </p>
+
+      <LearningReportDialog
+        open={reportView !== null}
+        period={reportView?.period ?? ""}
+        rangeLabel={reportView?.rangeLabel ?? ""}
+        markdown={reportView?.markdown ?? ""}
+        onClose={closeReport}
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatTile

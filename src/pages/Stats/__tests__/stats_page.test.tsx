@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   Children,
   cloneElement,
@@ -161,5 +161,74 @@ describe("Stats page charts", () => {
     const body = document.body.textContent ?? "";
     expect(body).not.toMatch(/\bNaN\b/);
     expect(body).not.toMatch(/\bInfinity\b/);
+  });
+
+  it("stats_page_report_dialog_renders_focus_and_gap", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const previousClipboard = navigator.clipboard;
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    mockedInvoke.mockImplementation(async (cmd) => {
+      const c = String(cmd);
+      if (c === "stats_plan_vs_actual") {
+        return [
+          { subject: "数学", planned_min: 600, actual_min: 600 },
+          { subject: "英语", planned_min: 300, actual_min: 60 },
+        ];
+      }
+      if (c === "stats_tag_type_totals") {
+        return [{ tag_type: "study", duration_min: 660 }];
+      }
+      if (c === "stats_daily_units") {
+        return [{ date: "2026-11-02", units: 8 }];
+      }
+      if (c === "get_user_stats") {
+        return {
+          id: 1,
+          total_xp: 40,
+          current_level: 1,
+          current_streak: 4,
+          longest_streak: 9,
+          last_done_date: "2026-11-06",
+        };
+      }
+      return emptyStatsInvoke(c);
+    });
+
+    try {
+      renderStats();
+
+      const open = await screen.findByRole("button", { name: "生成复盘报告" });
+      await waitFor(() => expect(open).toBeEnabled());
+      fireEvent.click(open);
+
+      const dialog = await screen.findByRole("dialog");
+      const text = dialog.textContent ?? "";
+      expect(text).toContain("数学依然是你最专注的阵地");
+      expect(text).toContain("注意");
+      expect(text).toContain("完成了 8 课");
+      expect(text).toContain("目前你已连续打卡 4 天");
+      expect(screen.getByRole("button", { name: "复制文本" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "关闭" })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "复制文本" }));
+      await waitFor(() => expect(writeText).toHaveBeenCalled());
+      const copied = String(writeText.mock.calls[0]?.[0] ?? "").replace(/\*\*/g, "");
+      expect(copied).toContain("数学依然是你最专注的阵地");
+      expect(copied).toContain("本周学习复盘");
+
+      fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+      await waitFor(() => {
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      });
+    } finally {
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: previousClipboard,
+      });
+    }
   });
 });

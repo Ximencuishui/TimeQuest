@@ -3,6 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useUiStore } from "../../store/ui";
 import { CountdownPanel } from "../CountdownPanel";
 
+const { todaySessions } = vi.hoisted(() => ({
+  todaySessions: [] as {
+    status: string;
+    start_time: string;
+    end_time: string;
+    task_title?: string;
+  }[],
+}));
+
+vi.mock("../../hooks/useSessions", () => ({
+  useSessionsByDate: () => ({ data: todaySessions, isLoading: false }),
+}));
+
 /** C 段确认：`useEffect` 内 `window.setInterval(..., 1000)`，清理在 effect return；依赖见组件。 */
 
 function seedPrimary(date: string, name = "高考") {
@@ -12,7 +25,7 @@ function seedPrimary(date: string, name = "高考") {
 }
 
 function clockText(): string {
-  const el = document.querySelector(".font-mono");
+  const el = document.querySelector("[data-testid='today-remaining-clock']");
   if (!el) throw new Error("countdown clock not found");
   return (el.textContent ?? "").trim();
 }
@@ -23,6 +36,7 @@ function MountGate({ show }: { show: boolean }) {
 
 describe("CountdownPanel interval lifecycle", () => {
   beforeEach(() => {
+    todaySessions.splice(0, todaySessions.length);
     seedPrimary("2027-06-07");
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-04T12:00:30"));
@@ -36,6 +50,7 @@ describe("CountdownPanel interval lifecycle", () => {
 
   it("countdown_panel_does_not_tick_after_unmount", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    todaySessions.push({ status: "planned", start_time: "11:00", end_time: "13:00", task_title: "英语" });
 
     const { rerender } = render(<MountGate show />);
 
@@ -81,7 +96,7 @@ describe("CountdownPanel interval lifecycle", () => {
     expect(clearedIds).toContain(firstId);
   });
 
-  it("countdown_panel_recreates_interval_on_target_change", async () => {
+  it("countdown_panel_updates_days_without_restarting_the_clock", async () => {
     const setIntervalSpy = vi.spyOn(window, "setInterval");
     const clearIntervalSpy = vi.spyOn(window, "clearInterval");
 
@@ -102,10 +117,10 @@ describe("CountdownPanel interval lifecycle", () => {
     expect(daysAfter).toBeDefined();
     expect(daysAfter).not.toBe(daysBefore);
 
-    // a/b：目标日变化时应清理旧 interval 并重建（常见泄漏点）。
-    expect(clearIntervalSpy).toHaveBeenCalled();
-    expect(clearIntervalSpy.mock.calls.map((c) => c[0])).toContain(oldId);
-    expect(setIntervalSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
+    // 墙钟 interval 不跟目标日走，换日期不能再开一条。
+    expect(clearIntervalSpy).not.toHaveBeenCalled();
+    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+    expect(setIntervalSpy.mock.results[0]?.value).toBe(oldId);
   });
 
   it("countdown_panel_past_target_shows_arrived_not_negative", () => {
@@ -115,7 +130,7 @@ describe("CountdownPanel interval lifecycle", () => {
 
     const text = document.body.textContent ?? "";
     expect(text).toContain("已到达");
-    expect(clockText()).toBe("00:00:00");
+    expect(screen.getByTestId("today-remaining")).toHaveTextContent("今日任务全部完成");
     assertNoNegativeOrGarbage(text);
 
     cleanup();
@@ -123,14 +138,13 @@ describe("CountdownPanel interval lifecycle", () => {
   });
 
   it("countdown_panel_transitions_to_arrived_at_target_moment", async () => {
-    // 锚点是目标日本地零点，不是字符串里的 09:00。
-    // 零点前 1.5 秒显示 00:00:01；下一次 1 秒 tick 落在零点前 0.5 秒。
-    // 若这一拍是 00:00:00 且大字仍是天数，断言失败。
+    // 锚点是目标日本地零点。零点前 1.5 秒大字仍是天数；
+    // 下一次 1 秒 tick 落在零点前 0.5 秒，直接变成「已到达」。
     seedPrimary("2026-06-11");
     vi.setSystemTime(new Date("2026-06-10T23:59:58.500"));
     render(<CountdownPanel />);
 
-    expect(clockText()).toBe("00:00:01");
+    expect(screen.getByTestId("today-remaining")).toHaveTextContent("今日任务全部完成");
     expect(headlineText()).not.toBe("");
     expect(screen.queryByText("已到达")).not.toBeInTheDocument();
     assertNoNegativeOrGarbage(document.body.textContent ?? "");
@@ -142,7 +156,7 @@ describe("CountdownPanel interval lifecycle", () => {
     const text = document.body.textContent ?? "";
     expect(text.trim()).not.toBe("");
     expect(headlineText()).toBe("已到达");
-    expect(clockText()).toBe("00:00:00");
+    expect(screen.getByTestId("today-remaining")).toHaveTextContent("今日任务全部完成");
     expect(document.querySelector(".text-accent-soft")).not.toBeInTheDocument();
     assertNoNegativeOrGarbage(text);
   });
@@ -173,7 +187,7 @@ describe("CountdownPanel interval lifecycle", () => {
     render(<CountdownPanel />);
 
     expect(screen.getByText("已到达")).toBeInTheDocument();
-    expect(clockText()).toBe("00:00:00");
+    expect(screen.getByTestId("today-remaining")).toHaveTextContent("今日任务全部完成");
     expect(screen.queryByText("天")).not.toBeInTheDocument();
     expect(screen.getByText("0 周")).toBeInTheDocument();
     expect(screen.getByText("0 月")).toBeInTheDocument();

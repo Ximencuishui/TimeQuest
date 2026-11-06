@@ -1,5 +1,7 @@
 use crate::commands::notes::normalize_color;
+use crate::commands::profile::{upsert_user_profile_row, user_profile_from_export};
 use crate::db::{db_path, with_db, DbState};
+use crate::models::UserProfile;
 use rusqlite::{params, Connection};
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -87,7 +89,7 @@ pub fn set_close_to_tray(prefs: State<'_, AppPrefs>, enabled: bool) -> Result<()
 pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
     let tasks: Vec<Value> = {
         let mut stmt = conn
-            .prepare("SELECT id, title, type, subject, textbook, unit_name, total_units, total_rounds, current_round, color, archived, created_at FROM tasks")
+            .prepare("SELECT id, title, type, subject, textbook, unit_name, total_units, total_rounds, current_round, color, archived, created_at, is_mock FROM tasks")
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |r| {
@@ -104,6 +106,7 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
                     "color": r.get::<_, Option<String>>(9)?,
                     "archived": r.get::<_, i64>(10)?,
                     "created_at": r.get::<_, String>(11)?,
+                    "is_mock": r.get::<_, i64>(12)?,
                 }))
             })
             .map_err(|e| e.to_string())?
@@ -114,7 +117,7 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
 
     let sessions: Vec<Value> = {
         let mut stmt = conn
-            .prepare("SELECT id, task_id, date, start_time, end_time, round, status, planned_units, actual_units, self_rating, self_note, rescheduled_to, xp_awarded, created_at FROM task_sessions")
+            .prepare("SELECT id, task_id, date, start_time, end_time, round, status, planned_units, actual_units, self_rating, self_note, rescheduled_to, xp_awarded, created_at, is_mock FROM task_sessions")
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |r| {
@@ -133,6 +136,7 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
                     "rescheduled_to": r.get::<_, Option<i64>>(11)?,
                     "xp_awarded": r.get::<_, i64>(12)?,
                     "created_at": r.get::<_, String>(13)?,
+                    "is_mock": r.get::<_, i64>(14)?,
                 }))
             })
             .map_err(|e| e.to_string())?
@@ -245,6 +249,50 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         rows
     };
 
+    let user_profile: Value = {
+        let (avatar, grade, region, total_target, targets, updated_at): (
+            Option<String>,
+            String,
+            String,
+            i64,
+            String,
+            String,
+        ) = conn
+            .query_row(
+                "SELECT avatar, grade, region, total_target, subject_targets, updated_at
+                 FROM user_profile WHERE id = 1",
+                [],
+                |r| {
+                    Ok((
+                        r.get(0)?,
+                        r.get(1)?,
+                        r.get(2)?,
+                        r.get(3)?,
+                        r.get(4)?,
+                        r.get(5)?,
+                    ))
+                },
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => {
+                    "user_profile 缺失，数据损坏（需要 id=1 单例行）".to_string()
+                }
+                other => other.to_string(),
+            })?;
+        let subject_targets: Value = serde_json::from_str(&targets).unwrap_or_else(|_| {
+            serde_json::to_value(UserProfile::default().subject_targets)
+                .expect("default subject targets")
+        });
+        json!({
+            "avatar": avatar,
+            "grade": grade,
+            "region": region,
+            "total_target": total_target,
+            "subject_targets": subject_targets,
+            "updated_at": updated_at,
+        })
+    };
+
     let imported_textbooks: Vec<Value> = {
         let mut stmt = conn
             .prepare(
@@ -270,6 +318,36 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         rows
     };
 
+    let exam_records: Vec<Value> = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, exam_name, exam_date, chinese_score, math_score, english_score,
+                        physics_score, chemistry_score, biology_score, created_at, is_mock
+                 FROM exam_records ORDER BY id",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(json!({
+                    "id": r.get::<_, i64>(0)?,
+                    "exam_name": r.get::<_, String>(1)?,
+                    "exam_date": r.get::<_, String>(2)?,
+                    "chinese_score": r.get::<_, Option<i64>>(3)?,
+                    "math_score": r.get::<_, Option<i64>>(4)?,
+                    "english_score": r.get::<_, Option<i64>>(5)?,
+                    "physics_score": r.get::<_, Option<i64>>(6)?,
+                    "chemistry_score": r.get::<_, Option<i64>>(7)?,
+                    "biology_score": r.get::<_, Option<i64>>(8)?,
+                    "created_at": r.get::<_, String>(9)?,
+                    "is_mock": r.get::<_, i64>(10)?,
+                }))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    };
+
     let payload = json!({
         "version": 1,
         "exported_at": chrono::Local::now().to_rfc3339(),
@@ -279,8 +357,10 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         "notes": notes,
         "user_stats": stats,
         "user_achievements": achievements,
+        "user_profile": user_profile,
         "app_settings": app_settings,
         "imported_textbooks": imported_textbooks,
+        "exam_records": exam_records,
     });
     serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())
 }
@@ -304,6 +384,7 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
             DELETE FROM tasks;
             DELETE FROM app_settings;
             DELETE FROM imported_textbooks;
+            DELETE FROM exam_records;
             UPDATE user_stats SET total_xp=0, current_level=1, current_streak=0, longest_streak=0, last_done_date=NULL WHERE id=1;
             "#,
     )
@@ -312,8 +393,8 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
     if let Some(arr) = data.get("tasks").and_then(|v| v.as_array()) {
         for t in arr {
             tx.execute(
-                r#"INSERT INTO tasks (id, title, type, subject, textbook, unit_name, total_units, total_rounds, current_round, color, archived, created_at)
-                       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,COALESCE(?12, datetime('now','localtime')))"#,
+                r#"INSERT INTO tasks (id, title, type, subject, textbook, unit_name, total_units, total_rounds, current_round, color, archived, created_at, is_mock)
+                       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,COALESCE(?12, datetime('now','localtime')),?13)"#,
                 params![
                     t.get("id").and_then(|v| v.as_i64()),
                     t.get("title").and_then(|v| v.as_str()).unwrap_or(""),
@@ -327,6 +408,7 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
                     t.get("color").and_then(|v| v.as_str()),
                     t.get("archived").and_then(|v| v.as_i64()).unwrap_or(0),
                     t.get("created_at").and_then(|v| v.as_str()),
+                    t.get("is_mock").and_then(|v| v.as_i64()).unwrap_or(0),
                 ],
             )
             .map_err(|e| e.to_string())?;
@@ -338,8 +420,8 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
     if let Some(arr) = data.get("task_sessions").and_then(|v| v.as_array()) {
         for s in arr {
             tx.execute(
-                r#"INSERT INTO task_sessions (id, task_id, date, start_time, end_time, round, status, planned_units, actual_units, self_rating, self_note, rescheduled_to, xp_awarded, created_at)
-                       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,NULL,?12,COALESCE(?13, datetime('now','localtime')))"#,
+                r#"INSERT INTO task_sessions (id, task_id, date, start_time, end_time, round, status, planned_units, actual_units, self_rating, self_note, rescheduled_to, xp_awarded, created_at, is_mock)
+                       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,NULL,?12,COALESCE(?13, datetime('now','localtime')),?14)"#,
                 params![
                     s.get("id").and_then(|v| v.as_i64()),
                     s.get("task_id").and_then(|v| v.as_i64()).unwrap_or(0),
@@ -354,6 +436,7 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
                     s.get("self_note").and_then(|v| v.as_str()),
                     s.get("xp_awarded").and_then(|v| v.as_i64()).unwrap_or(0),
                     s.get("created_at").and_then(|v| v.as_str()),
+                    s.get("is_mock").and_then(|v| v.as_i64()).unwrap_or(0),
                 ],
             )
             .map_err(|e| e.to_string())?;
@@ -470,6 +553,40 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
                     row.get("outline_json").and_then(|v| v.as_str()).unwrap_or(""),
                     row.get("created_at").and_then(|v| v.as_str()),
                     row.get("updated_at").and_then(|v| v.as_str()),
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
+    // Old backups omit `user_profile`. Reset to the seeded singleton so the
+    // table is never left empty (export requires id=1). A present object replaces it.
+    if let Some(value) = data.get("user_profile").filter(|v| !v.is_null()) {
+        let (profile, updated_at) = user_profile_from_export(value)?;
+        upsert_user_profile_row(&tx, &profile, updated_at.as_deref())?;
+    } else {
+        upsert_user_profile_row(&tx, &UserProfile::default(), None)?;
+    }
+
+    if let Some(arr) = data.get("exam_records").and_then(|v| v.as_array()) {
+        for row in arr {
+            tx.execute(
+                r#"INSERT INTO exam_records (
+                     id, exam_name, exam_date, chinese_score, math_score, english_score,
+                     physics_score, chemistry_score, biology_score, created_at, is_mock
+                   ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, COALESCE(?10, datetime('now','localtime')), ?11)"#,
+                params![
+                    row.get("id").and_then(|v| v.as_i64()),
+                    row.get("exam_name").and_then(|v| v.as_str()).unwrap_or(""),
+                    row.get("exam_date").and_then(|v| v.as_str()).unwrap_or(""),
+                    row.get("chinese_score").and_then(|v| v.as_i64()),
+                    row.get("math_score").and_then(|v| v.as_i64()),
+                    row.get("english_score").and_then(|v| v.as_i64()),
+                    row.get("physics_score").and_then(|v| v.as_i64()),
+                    row.get("chemistry_score").and_then(|v| v.as_i64()),
+                    row.get("biology_score").and_then(|v| v.as_i64()),
+                    row.get("created_at").and_then(|v| v.as_str()),
+                    row.get("is_mock").and_then(|v| v.as_i64()).unwrap_or(0),
                 ],
             )
             .map_err(|e| e.to_string())?;

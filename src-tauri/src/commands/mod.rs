@@ -1,7 +1,10 @@
 pub mod app_settings;
 pub mod data;
+pub mod exams;
 pub mod logs;
+pub mod mock;
 pub mod notes;
+pub mod profile;
 pub mod sessions;
 pub mod stats;
 pub mod tasks;
@@ -9,8 +12,11 @@ pub mod textbook;
 
 pub use app_settings::*;
 pub use data::*;
+pub use exams::*;
 pub use logs::*;
+pub use mock::*;
 pub use notes::*;
+pub use profile::*;
 pub use sessions::*;
 pub use stats::*;
 pub use tasks::*;

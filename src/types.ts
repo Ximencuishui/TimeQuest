@@ -62,6 +62,47 @@ export type Note = {
   updated_at: string;
 };
 
+export type SubjectTargets = {
+  chinese: number;
+  math: number;
+  english: number;
+  physics: number;
+  chemistry: number;
+  biology: number;
+};
+
+export type UserProfile = {
+  avatar: string | null;
+  grade: string;
+  region: string;
+  total_target: number;
+  subject_targets: SubjectTargets;
+};
+
+export type ExamRecord = {
+  id: number;
+  exam_name: string;
+  exam_date: string;
+  chinese_score: number | null;
+  math_score: number | null;
+  english_score: number | null;
+  physics_score: number | null;
+  chemistry_score: number | null;
+  biology_score: number | null;
+  created_at: string;
+};
+
+export type CreateExamRecordPayload = {
+  exam_name: string;
+  exam_date: string;
+  chinese_score: number | null;
+  math_score: number | null;
+  english_score: number | null;
+  physics_score: number | null;
+  chemistry_score: number | null;
+  biology_score: number | null;
+};
+
 export type UserStats = {
   id: number;
   total_xp: number;

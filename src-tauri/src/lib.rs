@@ -7,13 +7,18 @@ mod textbooks;
 
 pub use commands::app_settings::{get_setting_impl, set_setting_impl};
 pub use commands::data::{export_json_impl, import_json_impl};
+pub use commands::exams::{
+    create_exam_record_impl, delete_exam_record_impl, list_exam_records_impl,
+};
 pub use commands::logs::{compute_duration_min, create_log_impl};
+pub use commands::mock::{clear_mock_data_impl, generate_mock_data_impl, has_mock_data_impl};
 pub use commands::notes::{
     create_note_impl, list_notes_impl, normalize_color, update_note_impl, COLOR_WHITELIST,
 };
+pub use commands::profile::{get_user_profile_impl, update_user_profile_impl};
 pub use commands::sessions::{
-    complete_session_impl, create_session_impl, list_sessions_in_range_impl, reschedule_session_impl,
-    test_hooks, CompleteResult,
+    complete_session_impl, create_session_impl, list_sessions_in_range_impl,
+    reschedule_session_impl, test_hooks, CompleteResult,
 };
 pub use commands::stats::{
     stats_completion_rate_impl, stats_daily_units_impl, stats_method_share_impl,
@@ -28,9 +33,9 @@ pub use commands::textbook::{
 pub use error::{AppError, SessionError, TextbookError};
 pub use gamification::{update_streak_values, RESCHEDULE_RECOVERY_BONUS};
 pub use models::{
-    CompleteSessionResult, CompletionRate, CreateLogPayload, DailyUnitsRow, MethodShareRow,
-    PlanVsActualRow, RemainderSchedule, TagTypeRow, Task, TaskProgress, TaskSession,
-    UpdateNotePayload,
+    CompleteSessionResult, CompletionRate, CreateExamRecordPayload, CreateLogPayload,
+    DailyUnitsRow, ExamRecord, MethodShareRow, PlanVsActualRow, RemainderSchedule, SubjectTargets,
+    TagTypeRow, Task, TaskProgress, TaskSession, UpdateNotePayload, UserProfile,
 };
 pub use textbooks::parse_textbook_json;
 pub use textbooks::{
@@ -55,6 +60,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let path = db_path(app.handle())?;
+            db::backup_db_file(&path, chrono::Local::now())?;
             let pool = tauri::async_runtime::block_on(open_sqlx_pool(&path))?;
             let conn = open_db(&path)?;
             app.manage(pool);
@@ -164,6 +170,14 @@ pub fn run() {
             commands::import_json,
             commands::get_setting,
             commands::set_setting,
+            commands::get_user_profile,
+            commands::update_user_profile,
+            commands::create_exam_record,
+            commands::list_exam_records,
+            commands::delete_exam_record,
+            commands::has_mock_data,
+            commands::generate_mock_data,
+            commands::clear_mock_data,
             commands::get_db_path,
             commands::set_close_to_tray,
         ])

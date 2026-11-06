@@ -1,17 +1,22 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { APP_NAME, APP_SUBTITLE } from "../lib/constants";
+import { useUserProfile } from "../hooks/useUserProfile";
 import { AchievementHost } from "./AchievementHost";
+import { FocusHost } from "./FocusHost";
+import { ProfileChip } from "./ProfileChip";
 
 const NAV = [
   { to: "/", label: "看板", end: true },
   { to: "/tasks", label: "任务" },
   { to: "/today", label: "今日" },
   { to: "/stats", label: "统计" },
+  { to: "/scores", label: "成绩" },
   { to: "/notes", label: "便签" },
   { to: "/settings", label: "设置" },
 ];
 
 export function Layout() {
+  const { data: profile } = useUserProfile();
   return (
     <div className="flex h-full min-h-0 flex-col md:flex-row">
       <aside className="hidden w-52 shrink-0 flex-col border-r border-white/5 bg-surface-2/80 px-3 py-5 md:flex">
@@ -41,9 +46,19 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
+        {profile ? (
+          <div className="mt-auto border-t border-white/5 pt-4">
+            <ProfileChip profile={profile} />
+          </div>
+        ) : null}
       </aside>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {profile ? (
+          <div className="border-b border-white/5 px-4 py-2 md:hidden">
+            <ProfileChip profile={profile} />
+          </div>
+        ) : null}
         <main className="min-h-0 flex-1 overflow-auto p-4 md:p-6">
           <Outlet />
         </main>
@@ -65,6 +80,7 @@ export function Layout() {
         </nav>
       </div>
       <AchievementHost />
+      <FocusHost />
     </div>
   );
 }

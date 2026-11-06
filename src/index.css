@@ -18,18 +18,19 @@ html,
 body,
 #root {
   height: 100%;
-}
-
-html.widget-window,
-html.widget-window body,
-html.widget-window #root {
-  background: transparent !important;
-}
-
-body {
   margin: 0;
-  font-family: var(--font-body);
-  background: radial-gradient(
+  padding: 0;
+  overflow-x: hidden;
+  background-color: var(--color-surface);
+}
+
+html {
+  color-scheme: dark;
+}
+
+#root {
+  background-image:
+    radial-gradient(
       ellipse 120% 80% at 10% -10%,
       rgba(249, 115, 22, 0.18),
       transparent 50%
@@ -38,8 +39,18 @@ body {
       ellipse 80% 60% at 100% 0%,
       rgba(20, 184, 166, 0.08),
       transparent 45%
-    ),
-    var(--color-surface);
+    );
+}
+
+html.widget-window,
+html.widget-window body,
+html.widget-window #root {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+body {
+  font-family: var(--font-body);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
 }

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { startOfMonth } from "date-fns";
 import { CalendarView } from "../components/CalendarView";
 import { CompleteDialog } from "../components/CompleteDialog";
@@ -15,11 +16,23 @@ import {
 import { gridRange, parseLocalDate, shiftMonth } from "../lib/calendar";
 import { sessionsOverlap } from "../lib/colors";
 import { todayStr } from "../lib/date";
+import { useFocusStore } from "../store/focus";
 import type { TaskSession } from "../types";
 
 type TodayView = "day" | "calendar";
 
-export function Today() {
+export function TodayRoute() {
+  const location = useLocation();
+  return <Today focusSessionId={focusSessionIdFrom(location.state)} />;
+}
+
+function focusSessionIdFrom(state: unknown): number | null {
+  if (!state || typeof state !== "object") return null;
+  const id = (state as { focusSessionId?: unknown }).focusSessionId;
+  return typeof id === "number" ? id : null;
+}
+
+export function Today({ focusSessionId = null }: { focusSessionId?: number | null }) {
   const now = useCurrentTime(30_000);
   const [view, setView] = useState<TodayView>("day");
   const [date, setDate] = useState(() => todayStr());
@@ -34,6 +47,7 @@ export function Today() {
   );
   const { data: tasks = [] } = useTasks(false);
   const { create, complete, reschedule } = useSessionMutations();
+  const startFocus = useFocusStore((s) => s.start);
   const isViewingToday = date === todayStr(now);
 
   const [completeTarget, setCompleteTarget] = useState<TaskSession | null>(null);
@@ -208,8 +222,10 @@ export function Today() {
               sessions={sorted}
               now={now}
               timeAware={isViewingToday}
+              scrollToSessionId={focusSessionId}
               onComplete={setCompleteTarget}
               onReschedule={setRescheduleTarget}
+              onFocus={startFocus}
             />
           )}
         </>

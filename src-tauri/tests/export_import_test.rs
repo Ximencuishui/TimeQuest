@@ -962,7 +962,7 @@ async fn import_user_achievements_payload_with_dangling_reference() {
 
 /// 护栏：未来新增用户表时，若未同步 `export_json_impl`，本测试自动红灯。
 ///
-/// A 段：payload 顶层 = `version` / `exported_at` + 八张表键（含 `app_settings`、`imported_textbooks`）；库内另有目录表
+/// A 段：payload 顶层 = `version` / `exported_at` + 十张表键（含 `app_settings`、`imported_textbooks`、`user_profile`、`exam_records`）；库内另有目录表
 /// `achievements`（`INTENTIONAL_EXPORT_OMISSIONS`）。导出为硬编码列表，见 AGENTS.md。
 #[tokio::test]
 async fn export_json_includes_every_user_table() {

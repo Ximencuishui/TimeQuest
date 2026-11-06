@@ -1,6 +1,7 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { DashboardAccumulationWall } from "../components/AccumulationWall";
 import { CountdownPanel } from "../components/CountdownPanel";
+import { DashboardScoreOverview } from "../components/ScoreOverviewCapsule";
 import { DesktopWidgetToggle } from "../components/DesktopWidgetToggle";
 import { DailyMotivation } from "../components/DailyMotivation";
 import { DashboardSprintRoadmap } from "../components/SprintRoadmap";
@@ -11,6 +12,7 @@ import { todayStr } from "../lib/date";
 import { APP_NAME } from "../lib/constants";
 
 export function Dashboard() {
+  const navigate = useNavigate();
   const today = todayStr();
   const { data: sessions = [], isLoading } = useSessionsByDate(today);
   const planned = sessions.filter((s) => s.status === "planned");
@@ -25,6 +27,7 @@ export function Dashboard() {
         </div>
         <DailyMotivation />
       </header>
+      <DashboardScoreOverview />
       <CountdownPanel />
       <DashboardSprintRoadmap />
       <StatusBar />
@@ -47,7 +50,14 @@ export function Dashboard() {
         ) : (
           <div className="space-y-3">
             {planned.slice(0, 4).map((s) => (
-              <SessionCard key={s.id} session={s} compact />
+              <SessionCard
+                key={s.id}
+                session={s}
+                compact
+                onClick={() =>
+                  navigate("/today", { state: { focusSessionId: s.id } })
+                }
+              />
             ))}
           </div>
         )}

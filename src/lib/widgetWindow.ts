@@ -3,7 +3,7 @@ import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useUiStore } from "../store/ui";
-import type { ExamTarget } from "../types";
+import type { ExamTarget, TaskSession } from "../types";
 
 export const MAIN_LABEL = "main";
 export const WIDGET_LABEL = "widget";
@@ -14,6 +14,8 @@ export const SESSION_UPDATED_EVENT = "session-updated";
 export const WIDGET_READY_EVENT = "widget-ready";
 /** Keep the dashboard switch aligned when the widget hides itself. */
 export const WIDGET_VISIBILITY_EVENT = "widget-visibility";
+/** Widget asks the main window to open the focus timer for a planned session. */
+export const FOCUS_START_EVENT = "focus-start";
 
 export type SessionUpdatedPayload = {
   exams?: ExamTarget[];
@@ -56,6 +58,24 @@ export function broadcastSessionUpdated(): void {
 
 export function broadcastExams(exams: ExamTarget[]): void {
   emitQuiet(SESSION_UPDATED_EVENT, { exams } satisfies SessionUpdatedPayload);
+}
+
+/** Tell the main window to start a pomodoro, and bring that window forward. */
+export function requestFocusSession(session: TaskSession): void {
+  emitQuiet(FOCUS_START_EVENT, session);
+  if (!isTauri()) return;
+  try {
+    void WebviewWindow.getByLabel(MAIN_LABEL)
+      .then(async (win) => {
+        if (!win) return;
+        await win.unminimize().catch(() => undefined);
+        await win.show().catch(() => undefined);
+        await win.setFocus().catch(() => undefined);
+      })
+      .catch(() => undefined);
+  } catch {
+    /* event API missing outside a Tauri webview */
+  }
 }
 
 function widgetOptions() {

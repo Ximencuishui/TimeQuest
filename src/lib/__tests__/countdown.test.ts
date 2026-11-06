@@ -42,11 +42,11 @@ describe("computeCountdown", () => {
 
   it("compute_countdown_returns_one_second_when_target_one_second_ahead", () => {
     // 锚点是 2026-06-11 本地零点。提前 1 秒在前一日 23:59:59。
-    // 日历天跨日，days 为 1；同周所以 weeks 为 0。时分秒余数里只有 seconds 为 1。
+    // 日历天跨日，days 为 1。高考倒计时不再计算时分秒。
     const now = new Date("2026-06-10T23:59:59");
     const result = computeCountdown("2026-06-11", now);
 
-    expect(result.seconds).toBe(1);
+    expect(result.seconds).toBe(0);
     expect(result.totalMs).toBe(1000);
     expect(result.hours).toBe(0);
     expect(result.minutes).toBe(0);
@@ -54,6 +54,19 @@ describe("computeCountdown", () => {
     expect(result.months).toBe(0);
     expect(result.days).toBe(1);
     expect(result.isPast).toBe(false);
+    assertFiniteNonNegative(result);
+  });
+
+  it("compute_countdown_two_days_ahead_returns_days_without_clock", () => {
+    const now = new Date(2026, 10, 6, 15, 0, 0);
+    const result = computeCountdown("2026-11-08", now);
+
+    expect(result.days).toBe(2);
+    expect(result.hours).toBe(0);
+    expect(result.minutes).toBe(0);
+    expect(result.seconds).toBe(0);
+    expect(result.isPast).toBe(false);
+    expect(result.totalMs).toBeGreaterThan(0);
     assertFiniteNonNegative(result);
   });
 

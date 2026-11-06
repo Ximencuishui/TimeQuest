@@ -34,6 +34,63 @@ pub fn db_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("timequest.db"))
 }
 
+/// How many startup copies to leave in `appData/backups`.
+pub const BACKUP_KEEP: usize = 7;
+
+/// Copy an existing `timequest.db` to `backups/timequest_YYYYMMDD_HHMMSS.db`.
+/// Missing database is a no-op. After the copy, only the newest [`BACKUP_KEEP`] files remain.
+pub fn backup_db_file(db_path: &Path, now: chrono::DateTime<chrono::Local>) -> Result<(), String> {
+    if !db_path.is_file() {
+        return Ok(());
+    }
+    let parent = db_path
+        .parent()
+        .ok_or_else(|| "数据库路径没有父目录".to_string())?;
+    let backups = parent.join("backups");
+    std::fs::create_dir_all(&backups).map_err(|e| e.to_string())?;
+    let dest = backups.join(backup_file_name(now));
+    std::fs::copy(db_path, &dest).map_err(|e| e.to_string())?;
+    prune_backups(&backups, BACKUP_KEEP)
+}
+
+pub fn backup_file_name(now: chrono::DateTime<chrono::Local>) -> String {
+    format!("timequest_{}.db", now.format("%Y%m%d_%H%M%S"))
+}
+
+fn is_startup_backup(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+        return false;
+    };
+    let Some(stamp) = name
+        .strip_prefix("timequest_")
+        .and_then(|rest| rest.strip_suffix(".db"))
+    else {
+        return false;
+    };
+    let bytes = stamp.as_bytes();
+    bytes.len() == 15
+        && bytes[..8].iter().all(|c| c.is_ascii_digit())
+        && bytes[8] == b'_'
+        && bytes[9..].iter().all(|c| c.is_ascii_digit())
+}
+
+fn prune_backups(dir: &Path, keep: usize) -> Result<(), String> {
+    let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .filter(|path| path.is_file() && is_startup_backup(path))
+        .collect();
+    files.sort();
+    if files.len() <= keep {
+        return Ok(());
+    }
+    let extra = files.len() - keep;
+    for path in files.into_iter().take(extra) {
+        std::fs::remove_file(path).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 pub fn open_db(path: &Path) -> Result<Connection, String> {
     let conn = Connection::open(path).map_err(|e| e.to_string())?;
     conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")
@@ -240,5 +297,69 @@ mod tests {
 
         drop(conn);
         remove_sqlite(&path);
+    }
+
+    fn local_stamp(
+        y: i32,
+        m: u32,
+        d: u32,
+        hh: u32,
+        mm: u32,
+        ss: u32,
+    ) -> chrono::DateTime<chrono::Local> {
+        chrono::TimeZone::with_ymd_and_hms(&chrono::Local, y, m, d, hh, mm, ss).unwrap()
+    }
+
+    #[test]
+    fn startup_backup_copies_existing_db_and_keeps_seven() {
+        let root = std::env::temp_dir().join(format!("timequest-backup-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let db = root.join("timequest.db");
+        std::fs::write(&db, b"snapshot").unwrap();
+        let backups = root.join("backups");
+        for n in 1..=7 {
+            std::fs::create_dir_all(&backups).unwrap();
+            std::fs::write(
+                backups.join(format!("timequest_2026110{n}_000000.db")),
+                format!("old-{n}"),
+            )
+            .unwrap();
+        }
+        std::fs::write(backups.join("notes.txt"), b"leave-me").unwrap();
+
+        let now = local_stamp(2026, 11, 6, 12, 59, 8);
+        backup_db_file(&db, now).unwrap();
+
+        let newest = backups.join(backup_file_name(now));
+        assert_eq!(std::fs::read(&newest).unwrap(), b"snapshot");
+        assert_eq!(
+            std::fs::read(backups.join("notes.txt")).unwrap(),
+            b"leave-me"
+        );
+        assert!(!backups.join("timequest_20261101_000000.db").exists());
+
+        let kept: Vec<_> = std::fs::read_dir(&backups)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with("timequest_") && name.ends_with(".db"))
+            .collect();
+        assert_eq!(kept.len(), BACKUP_KEEP);
+        assert!(kept
+            .iter()
+            .any(|name| name == "timequest_20261106_125908.db"));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn startup_backup_skips_when_db_is_missing() {
+        let root =
+            std::env::temp_dir().join(format!("timequest-backup-miss-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let db = root.join("timequest.db");
+        backup_db_file(&db, local_stamp(2026, 11, 6, 8, 0, 0)).unwrap();
+        assert!(!root.join("backups").exists());
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

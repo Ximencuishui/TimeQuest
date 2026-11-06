@@ -4,6 +4,8 @@ import type {
   AvgRatingRow,
   CompleteSessionInput,
   CompleteSessionResult,
+  CreateExamRecordPayload,
+  ExamRecord,
   CompletionRate,
   MethodShareRow,
   Note,
@@ -20,6 +22,7 @@ import type {
   TextbookCatalogItem,
   TextbookOutline,
   UserAchievement,
+  UserProfile,
   UserStats,
 } from "../types";
 
@@ -123,12 +126,23 @@ export const api = {
 
   // gamification / user
   getUserStats: () => invoke<UserStats>("get_user_stats"),
+  getUserProfile: () => invoke<UserProfile>("get_user_profile"),
+  updateUserProfile: (profile: UserProfile) =>
+    invoke<UserProfile>("update_user_profile", { profile }),
+  listExamRecords: () => invoke<ExamRecord[]>("list_exam_records"),
+  createExamRecord: (payload: CreateExamRecordPayload) =>
+    invoke<ExamRecord>("create_exam_record", { payload }),
+  deleteExamRecord: (id: number) => invoke<void>("delete_exam_record", { id }),
   listAchievements: () => invoke<UserAchievement[]>("list_user_achievements"),
 
   // data
   getSetting: (key: string) => invoke<string | null>("get_setting", { key }),
   setSetting: (key: string, value: string) =>
     invoke<void>("set_setting", { key, value }),
+
+  generateMockData: () => invoke<void>("generate_mock_data"),
+  clearMockData: () => invoke<void>("clear_mock_data"),
+  hasMockData: () => invoke<boolean>("has_mock_data"),
 
   exportJson: () => invoke<string>("export_json"),
   importJson: (json: string) => invoke<void>("import_json", { json }),

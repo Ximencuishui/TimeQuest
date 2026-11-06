@@ -160,16 +160,23 @@
 | complete_dialog_decimal_input_behavior_documented | 选项 a：`"3.7"` 提示「请输入整数」，不四舍五入也不截断 | `src/components/__tests__/complete_dialog.test.tsx` |
 | countdown_panel_clears_interval_on_unmount | unmount 时 clearInterval 收到 setInterval 返回的同一句柄 | `src/components/__tests__/countdown_panel.test.tsx` |
 | countdown_panel_does_not_tick_after_unmount | 行为：tick 后文本变；卸载后再 advanceTimers 无 unmounted setState 警告 | `src/components/__tests__/countdown_panel.test.tsx` |
-| countdown_panel_recreates_interval_on_target_change | 主考目标日变化：清理旧 interval、重建新 interval，倒计时按新日期重算 | `src/components/__tests__/countdown_panel.test.tsx` |
+| countdown_panel_updates_days_without_restarting_the_clock | 主考目标日变化：天数立刻重算；墙钟 interval 仍是原来那一条 | `src/components/__tests__/countdown_panel.test.tsx` |
 | compute_countdown_returns_zeros_when_target_in_past | 目标日早于 now：展示字段与 `totalMs` 均为 0，`isPast=true`，无负数 | `src/lib/__tests__/countdown.test.ts` |
-| compute_countdown_returns_one_second_when_target_one_second_ahead | 本地零点前 1 秒：`seconds=1`、`totalMs=1000`、`days=1`（日历跨日）、`isPast=false` | `src/lib/__tests__/countdown.test.ts` |
+| compute_countdown_returns_one_second_when_target_one_second_ahead | 本地零点前 1 秒：`hours`/`minutes`/`seconds` 为 0、`totalMs=1000`、`days=1`（日历跨日）、`isPast=false` | `src/lib/__tests__/countdown.test.ts` |
+| compute_countdown_two_days_ahead_returns_days_without_clock | 目标日为后天：`days=2`，时/分/秒全为 0 | `src/lib/__tests__/countdown.test.ts` |
+| calculate_today_remaining_minutes_sums_planned_sessions | 今天两场 planned（60 分钟 + 30 分钟）合计 90 | `src/lib/__tests__/studyCountdown.test.ts` |
+| calculate_today_remaining_minutes_ignores_done | 同上两场 planned 再加一场 done：仍是 90，done 不计入 | `src/lib/__tests__/studyCountdown.test.ts` |
+| resolve_remaining_study_counts_down_the_current_session | 19:15 落在 19:00–20:00：本场还剩 45 分钟，计划合计仍是 120 | `src/lib/__tests__/studyCountdown.test.ts` |
+| resolve_remaining_study_counts_down_to_the_next_session | 16:46 距 19:00 的英语还有 2 小时 14 分；done 不进合计 | `src/lib/__tests__/studyCountdown.test.ts` |
+| exam_date_sync_replaces_default_seed_for_grade_two | 档案是高二、主考日仍是种子 2027-06-07：改成 2028-06-07 | `src/components/__tests__/exam_date_sync.test.tsx` |
+| exam_date_sync_keeps_a_date_the_user_already_chose | 主考日已是用户选的 2030-06-07：不按年级覆盖 | `src/components/__tests__/exam_date_sync.test.tsx` |
 | compute_countdown_returns_zeros_when_target_equals_now | now 等于目标日本地零点：全 0 且 `isPast=true` | `src/lib/__tests__/countdown.test.ts` |
 | compute_countdown_never_returns_negative_for_large_past_gap | 过去约 10 年：字段有限且 ≥ 0，`totalMs=0`，无 NaN/Infinity | `src/lib/__tests__/countdown.test.ts` |
 | compute_countdown_handles_invalid_target_date | `"not-a-date"` 不抛；全 0 且 `isPast=false` | `src/lib/__tests__/countdown.test.ts` |
-| countdown_panel_past_target_shows_arrived_not_negative | 目标日已过：文案「已到达」，时钟 `00:00:00`，无负号数字 / NaN | `src/components/__tests__/countdown_panel.test.tsx` |
-| countdown_panel_transitions_to_arrived_at_target_moment | 零点前 1.5 秒为 `00:00:01`；下一次 1 秒 tick 直接「已到达」+ `00:00:00`，不停留在天数 | `src/components/__tests__/countdown_panel.test.tsx` |
+| countdown_panel_past_target_shows_arrived_not_negative | 目标日已过：文案「已到达」，没有未完成排期时是「今日任务全部完成」，无负号数字 / NaN | `src/components/__tests__/countdown_panel.test.tsx` |
+| countdown_panel_transitions_to_arrived_at_target_moment | 零点前 1.5 秒大字仍是天数；下一次 1 秒 tick 直接「已到达」，不停留在天数 | `src/components/__tests__/countdown_panel.test.tsx` |
 | countdown_panel_recomputes_when_target_changes_to_past | 目标从未来改为过去：立刻「已到达」，原天数消失，无 console.error | `src/components/__tests__/countdown_panel.test.tsx` |
-| countdown_panel_past_target_hides_day_field_if_design_requires | 已过：隐藏「天」，保留 `00:00:00` 与「0 周」「0 月」 | `src/components/__tests__/countdown_panel.test.tsx` |
+| countdown_panel_past_target_hides_day_field_if_design_requires | 已过：隐藏「天」，保留「今日任务全部完成」与「0 周」「0 月」 | `src/components/__tests__/countdown_panel.test.tsx` |
 | widget_page_renders_countdown | 悬浮窗渲染高考倒计时大数字、进行中场次，以及拖拽区域和关闭按钮 | `src/pages/__tests__/widget_page.test.tsx` |
 | widget_label_skips_main_shell | 窗口 label 为 `widget` 时只渲染 WidgetPage，不挂侧边栏、今日排期和悬浮窗开关 | `src/pages/__tests__/widget_page.test.tsx` |
 | session_notifier_fires_prep_then_start_once | 08:55 课前 5 分钟提醒，09:00 开课提醒，09:01 不再弹 | `src/hooks/__tests__/session_notifier.test.tsx` |
@@ -202,6 +209,14 @@
 | exam_date_change_does_not_shift_open_complete_dialog_date | 完成弹窗「剩余改到下次」默认本地今天；改 exam 不覆盖默认值，也不覆盖用户已选日期 | `src/pages/__tests__/exam_date_isolation.test.tsx` |
 | exam_date_change_does_not_shift_open_stats_range | 统计页本周/本月区间按本地今天；改 exam 后文案与 stats 查询的 from/to 都不跟考试日 | `src/pages/__tests__/exam_date_isolation.test.tsx` |
 | exam_date_change_only_affects_countdown | 仪表盘改 exam 后天数更新；今日排期标题与连击条不变，且不再请求 sessions / user_stats | `src/pages/__tests__/exam_date_isolation.test.tsx` |
+| generate_mock_data_marks_every_inserted_row | 湖南高二演示：3 条主线、今天 done+planned、2 条历史成绩全部 `is_mock=1`；不写 `actual_logs`；第二次调用不追加；导出保留 `is_mock` | `src-tauri/tests/mock_data_test.rs` |
+| clear_mock_data_removes_only_mock_rows | 有真实任务/场次/成绩/手记时，清除只删 `is_mock=1`（含指向演示场次的流水），XP 与连击不动；没有演示行时清除也不改 XP | `src-tauri/tests/mock_data_test.rs` |
+| clear_mock_data_resets_stats_when_no_real_rows | 只有演示数据时清除后三张表为空，`user_stats` 回到 XP 0、连击 0、等级 1 | `src-tauri/tests/mock_data_test.rs` |
+| import_missing_is_mock_defaults_to_zero | 旧备份没有 `is_mock` 时导入写成 0，不会被当成演示数据 | `src-tauri/tests/mock_data_test.rs` |
+| onboarding_real_start_saves_profile_and_skips_mock | 引导写入年级/地区/目标分并标记完成，不调用 `generate_mock_data`；2026-11 选高二时主考日写成 2028-06-07 | `src/components/__tests__/onboarding.test.tsx` |
+| onboarding_loads_hunan_demo_data | 「加载湖南高二演示数据」先存档案，再 `generate_mock_data`，最后写入完成标志 | `src/components/__tests__/onboarding.test.tsx` |
+| onboarding_hides_when_already_completed | `onboarding_completed=1` 时不渲染引导 | `src/components/__tests__/onboarding.test.tsx` |
+| settings_clear_mock_highlights_and_confirms_before_delete | 有演示数据时「清除所有演示数据」为橙色；取消不调用；确认后调用 `clear_mock_data` 并熄灭高亮 | `src/pages/Settings/__tests__/settings_mock_data.test.tsx` |
 
 ## 已知实现约束
 
@@ -242,7 +257,7 @@
 - **考试目标的活数据是 Zustand `useUiStore.exams`。** `loadExams()` 只在 store 创建时读 `timequest.exams`。设置页写入和仪表盘读取都走这份 store；重新挂载不会再读磁盘。
 - **路由：** `Layout` 的 `<Outlet />` 在 `/` 与 `/settings` 之间切换时卸载 `Dashboard` 和 `CountdownPanel`。离开时 effect cleanup 调用 `clearInterval`；回来是新实例，读当时的 store。
 - **没有事件总线，考试日期不进 React Query。** 只改 `localStorage` 而不调用 `setExams` / `upsertExam`，已经创建的 store 保持原值。
-- 由 `dashboard_countdown_updates_when_exam_date_changes_in_store` / `dashboard_countdown_does_not_use_stale_date_after_remount` 锁定。组件级 interval 仍由 `countdown_panel_recreates_interval_on_target_change` 锁定。
+- 由 `dashboard_countdown_updates_when_exam_date_changes_in_store` / `dashboard_countdown_does_not_use_stale_date_after_remount` 锁定。墙钟 interval 不随目标日重建，由 `countdown_panel_updates_days_without_restarting_the_clock` 锁定。
 - **考试日期影响面**：exam date 影响倒计时。主窗口是 `CountdownPanel`；桌面悬浮窗 `WidgetPage` 读同一份 `useUiStore.exams`，主窗口改日期后通过 `session-updated` 把 exams 推过去。不影响完成弹窗的改期日期（「剩余改到下次」用打开时的本地今天，用户改过的值留在组件 state），也不影响统计页的周/月范围（`rangeFor(new Date())`）。今日排期仍按 `todayStr()` 请求，连击条仍是 `get_user_stats`。每日激励语按本地今天对默认句取余，不读 exam date。由 `exam_date_change_does_not_shift_open_complete_dialog_date` / `exam_date_change_does_not_shift_open_stats_range` / `exam_date_change_only_affects_countdown` / `widget_page_renders_countdown` 锁定。
 
 ### 每日激励语
@@ -255,15 +270,15 @@
 
 ### 倒计时生命周期
 
-- **`CountdownPanel`**：`useEffect` 内 `setInterval(…, 1000)`，清理在 effect `return`；依赖含主考 `targetDate`（`primary?.date`）。
-- **必须清理的时机**：组件 **unmount**，以及 **目标日期变化**（重建 interval 前清旧句柄）。由 `countdown_panel_clears_interval_on_unmount` / `countdown_panel_does_not_tick_after_unmount` / `countdown_panel_recreates_interval_on_target_change` 锁定。
+- **`CountdownPanel`**：墙钟来自 `useRemainingStudyTime` → `useCurrentTime(1000)`。卸载时清掉这条 interval。换主考日只重算天数，不另开一条钟。由 `countdown_panel_clears_interval_on_unmount` / `countdown_panel_does_not_tick_after_unmount` / `countdown_panel_updates_days_without_restarting_the_clock` 锁定。
 
 ### 倒计时边界语义
 
-- **全 0，不返回负数**：锚点毫秒差 `totalMs < 1000` 时（已经过去、正好到达、以及最后不足 1 秒），`days` / `weeks` / `months` / `hours` / `minutes` / `seconds` 和返回的 `totalMs` 都是 0，`isPast` 为 true。正好 1000ms 仍是 `seconds = 1`、`totalMs = 1000`、`isPast = false`。10 年跨度钳制前是有限负数，不会变成 `Infinity`。由 `compute_countdown_returns_zeros_when_target_in_past` / `compute_countdown_returns_zeros_when_target_equals_now` / `compute_countdown_never_returns_negative_for_large_past_gap` / `compute_countdown_returns_one_second_when_target_one_second_ahead` / `countdown_panel_transitions_to_arrived_at_target_moment` 锁定。
-- **「已到达」**：`CountdownPanel` 只看 `c.isPast`。返回结构没有 `totalSeconds`。`days` 是日历差，本地零点前 1 秒仍显示 1 天。目标从未来改成过去时，当次渲染立刻重算。由 `countdown_panel_recomputes_when_target_changes_to_past` 锁定。
-- **时分秒格式**：`pad2` 拼成 `HH:MM:SS`。已过期时钟是 `00:00:00`，「天」不渲染，周/月仍是「0 周」「0 月」。由 `countdown_panel_past_target_shows_arrived_not_negative` / `countdown_panel_past_target_hides_day_field_if_design_requires` 锁定。
-- **Invalid Date**：不抛异常。返回全 0 且 `isPast = false`。`CountdownPanel` 无 try/catch，抛错会让面板崩溃；`isPast = false` 与「已到达」分开，乱码显示成「0 天」和 `00:00:00`。由 `compute_countdown_handles_invalid_target_date` 锁定。
+- **全 0，不返回负数**：锚点毫秒差 `totalMs < 1000` 时（已经过去、正好到达、以及最后不足 1 秒），`days` / `weeks` / `months` / `hours` / `minutes` / `seconds` 和返回的 `totalMs` 都是 0，`isPast` 为 true。正好 1000ms 仍是 `totalMs = 1000`、`days` 按日历、`isPast = false`，`hours` / `minutes` / `seconds` 恒为 0。10 年跨度钳制前是有限负数，不会变成 `Infinity`。由 `compute_countdown_returns_zeros_when_target_in_past` / `compute_countdown_returns_zeros_when_target_equals_now` / `compute_countdown_never_returns_negative_for_large_past_gap` / `compute_countdown_returns_one_second_when_target_one_second_ahead` / `compute_countdown_two_days_ahead_returns_days_without_clock` / `countdown_panel_transitions_to_arrived_at_target_moment` 锁定。
+- **「已到达」**：`CountdownPanel` 只看 `c.isPast`。返回结构没有 `totalSeconds`。`days` 是目标日与今天的日历差（两个时间戳各自取本地零点），本地零点前 1 秒仍显示 1 天。目标从未来改成过去时，当次渲染立刻重算。由 `countdown_panel_recomputes_when_target_changes_to_past` 锁定。
+- **时分秒位置是今天的排期，不是把总时长每秒减 1**。`calculateTodayRemainingMinutes` 仍是今天 `planned` 场次的时长合计，这个数不随墙钟减少，完成一场后才变少。旁边的倒计时看当前时刻：正处在一场里，显示到该场 `end_time` 还剩多久；还没到下一场，显示「距离{任务}开始还有」；今天没有 `planned`，显示「今日任务全部完成」。由 `calculate_today_remaining_minutes_sums_planned_sessions` / `calculate_today_remaining_minutes_ignores_done` / `resolve_remaining_study_counts_down_the_current_session` / `resolve_remaining_study_counts_down_to_the_next_session` / `countdown_panel_past_target_shows_arrived_not_negative` 锁定。
+- **年级和默认高考日**：倒计时日期不在 `user_profile`。空的考试列表会种下 `DEFAULT_EXAM_DATE`（`2027-06-07`）。档案年级已经是高二、主考日却还是这颗种子时，`ExamDateSync` 按 `gaokaoDateForGrade` 写成 `2028-06-07` 并 `upsertExam`。用户另选过的日期不动。由 `exam_date_sync_replaces_default_seed_for_grade_two` / `exam_date_sync_keeps_a_date_the_user_already_chose` 锁定。
+- **Invalid Date**：不抛异常。返回全 0 且 `isPast = false`。`CountdownPanel` 无 try/catch，抛错会让面板崩溃；`isPast = false` 与「已到达」分开，乱码显示成「0 天」。由 `compute_countdown_handles_invalid_target_date` 锁定。
 - **时区口径（本批不改）**：锚点是 `startOfDay(parseISO(targetDate))`，日期串按本地零点解释。`"2026-06-07"` 在 UTC+8 是本地 2026-06-07 00:00:00，不是 `new Date("2026-06-07")` 的 UTC 午夜（当地 08:00）。字符串里的时刻会被 `startOfDay` 丢掉。改这条会影响已保存目标的剩余天数，需要单独评估，不放进钳制修复里。
 
 ### 桌面悬浮窗
@@ -463,6 +478,17 @@
 - **无虚拟化、无分页。** `list_notes` 无 `LIMIT`。滚动没有 `onScroll` / `IntersectionObserver`，不重新拉取。120 条在一次提交里全部出现，中间没有分批 `setState`。超过约 500 条再评估虚拟化，并同步改测试与本文档。
 - **置顶只让被点的那张重新创建 `<article>`（jsx 计数 ≤ 1）。** `invalidateQueries({ queryKey: ["notes"] })` 仍会让父组件再跑一遍 `notes.map`；其余卡片被 `memo` 跳过。可接受的范围是父组件再渲染一次，加上字段真的变了的那一张。本测试的 mock 不重排，DOM 按下标仍是同一批节点。
 - 由 `notes_page_pinned_toggle_rerenders_only_affected_card` / `notes_page_does_not_remount_cards_on_scroll` / `notes_page_render_is_single_pass_with_memo` / `notes_page_renders_all_notes_without_virtualization` 锁定。
+
+### 演示数据与首次引导
+
+- **标记**：`tasks` / `task_sessions` / `exam_records` 有 `is_mock INTEGER NOT NULL DEFAULT 0`。普通创建、补记、导入缺省都是 0。演示插入显式写 1。
+- **`generate_mock_data`**：空库时写入 3 条湖南高二主线（数学必修一、物理必修一、英语必修一）、当天 done 与 planned 排期、2 条更早的考试成绩。不写 `actual_logs`，避免没有标记的分钟混进统计。已有 `is_mock=1` 的任务时直接返回，不追加。只有 `user_stats` 仍是初始值（XP/连击/最长连击为 0 且 `last_done_date` 为空）且不存在 `is_mock=0` 的任务、场次、成绩和任何流水时，才把 XP、等级、连击写成演示值。
+- **`clear_mock_data`**：先删指向演示场次的 `actual_logs`，再删 `is_mock=1` 的场次和成绩。演示任务若仍被真实场次引用则留下，避免外键把真实场次一起删掉。只有这次确实删掉了演示行，且删完后没有真实行，才把 `user_stats` 重置为 XP 0、等级 1、连击 0。已有真实 XP 时不会被演示写入覆盖，清除时也不改。
+- **导出**：三张表的 `is_mock` 进出 JSON。旧备份没有该字段时导入为 0。
+- **引导**：`app_settings.onboarding_completed` 不是 `"1"` 时，主窗口盖一层全屏引导。第一步写年级（高一/高二/高三）、地区（34 个省级行政区下拉）、高考目标分到 `user_profile`。年级用 `gaokaoDateForGrade` 推算高考日（6 月 7 日当天仍算今年；次日起已过，再加一年。2026-11：高一 2029-06-07、高二 2028-06-07、高三 2027-06-07）。结束时 `upsertExam` 写入主考日期，真实记录和演示数据都写。日期不进 `user_profile` 表。第二步「开启真实记录（推荐）」只写完成标志；「加载湖南高二演示数据」再调用 `generate_mock_data`。悬浮窗不挂引导。
+- **设置页改年级**：新年级推算出的高考日和当前主考日不同时先确认。确认后保存档案并 `upsertExam`，倒计时读同一份 `useUiStore.exams`，当次刷新。取消则不写档案，年级选择回到已保存的值。年级没变，或推算日已经等于主考日，直接保存档案。
+- **设置**：数据管理里的「清除所有演示数据」在 `has_mock_data` 为真时用橙色高亮，确认后才调用 `clear_mock_data`。
+- 由 `generate_mock_data_marks_every_inserted_row` / `clear_mock_data_removes_only_mock_rows` / `clear_mock_data_resets_stats_when_no_real_rows` / `import_missing_is_mock_defaults_to_zero` / `onboarding_real_start_saves_profile_and_skips_mock` / `onboarding_loads_hunan_demo_data` / `onboarding_hides_when_already_completed` / `settings_clear_mock_highlights_and_confirms_before_delete` 锁定。
 
 ## 待处理技术债
 

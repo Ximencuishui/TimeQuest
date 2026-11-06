@@ -3,14 +3,17 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { ExamDateSync } from "./components/ExamDateSync";
 import { Layout } from "./components/Layout";
+import { OnboardingGate } from "./components/Onboarding";
 import { useSessionNotifier } from "./hooks/useSessionNotifier";
 import { useMainWindowBroadcast, useWidgetEventBridge } from "./hooks/useWidgetSync";
 import { Dashboard } from "./pages/Dashboard";
 import { Tasks } from "./pages/Tasks";
 import { TaskDetail } from "./pages/TaskDetail";
-import { Today } from "./pages/Today";
+import { TodayRoute } from "./pages/Today";
 import { Stats } from "./pages/Stats";
+import { Scores } from "./pages/Scores";
 import { Notes } from "./pages/Notes";
 import { Settings } from "./pages/Settings";
 import { WidgetPage } from "./pages/WidgetPage";
@@ -75,6 +78,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <BootSync />
+        <ExamDateSync />
         <SessionNotifier />
         <MainBroadcast />
         <Routes>
@@ -82,13 +86,15 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="tasks" element={<Tasks />} />
             <Route path="tasks/:id" element={<TaskDetail />} />
-            <Route path="today" element={<Today />} />
+            <Route path="today" element={<TodayRoute />} />
             <Route path="stats" element={<Stats />} />
+            <Route path="scores" element={<Scores />} />
             <Route path="notes" element={<Notes />} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
+        <OnboardingGate />
       </BrowserRouter>
     </QueryClientProvider>
   );

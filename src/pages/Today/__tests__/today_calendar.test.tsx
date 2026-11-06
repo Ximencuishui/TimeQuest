@@ -69,7 +69,7 @@ describe("Today calendar", () => {
     const december = gridRange(new Date(2026, 11, 1));
     await waitFor(() => {
       expect(rangeCalls().length).toBeGreaterThan(before);
-      expect(rangeCalls().at(-1)).toEqual({
+      expect(rangeCalls()[rangeCalls().length - 1]).toEqual({
         startDate: december.start,
         endDate: december.end,
       });

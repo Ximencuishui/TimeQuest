@@ -15,6 +15,9 @@ type Props = {
   timeAware?: boolean;
   onComplete?: (session: TaskSession) => void;
   onReschedule?: (session: TaskSession) => void;
+  onFocus?: (session: TaskSession) => void;
+  /** When set, scroll this session into view instead of the clock target. */
+  scrollToSessionId?: number | null;
 };
 
 type TimelineRow = {
@@ -29,6 +32,8 @@ export function TodayTimeline({
   timeAware = true,
   onComplete,
   onReschedule,
+  onFocus,
+  scrollToSessionId = null,
 }: Props) {
   const sorted = useMemo(
     () => [...sessions].sort((a, b) => a.start_time.localeCompare(b.start_time)),
@@ -57,19 +62,30 @@ export function TodayTimeline({
   }, [sorted, now, timeAware]);
 
   const targetRef = useRef<HTMLDivElement | null>(null);
+  const pinnedRef = useRef<HTMLDivElement | null>(null);
   const didScroll = useRef(false);
+  const didPinScroll = useRef<number | null>(null);
 
   useEffect(() => {
     didScroll.current = false;
   }, [scrollTargetId]);
 
   useEffect(() => {
+    if (scrollToSessionId != null) return;
     if (!timeAware || scrollTargetId === null || didScroll.current) return;
     const el = targetRef.current;
     if (!el) return;
     didScroll.current = true;
     el.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [timeAware, scrollTargetId, rows.length]);
+  }, [timeAware, scrollTargetId, rows.length, scrollToSessionId]);
+
+  useEffect(() => {
+    if (scrollToSessionId == null || didPinScroll.current === scrollToSessionId) return;
+    const el = pinnedRef.current;
+    if (!el) return;
+    didPinScroll.current = scrollToSessionId;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [scrollToSessionId, rows.length]);
 
   if (sorted.length === 0) return null;
 
@@ -114,7 +130,10 @@ export function TodayTimeline({
             </div>
 
             <div
-              ref={isFocus ? targetRef : undefined}
+              ref={(node) => {
+                if (isFocus) targetRef.current = node;
+                if (scrollToSessionId === session.id) pinnedRef.current = node;
+              }}
               className="min-w-0 flex-1 pb-3"
             >
               <SessionCard
@@ -124,6 +143,7 @@ export function TodayTimeline({
                 onReschedule={
                   onReschedule ? () => onReschedule(session) : undefined
                 }
+                onFocus={onFocus ? () => onFocus(session) : undefined}
               />
             </div>
           </li>

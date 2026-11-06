@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useSessionsByDate } from "../hooks/useSessions";
-import { computeCountdown, pad2, todayStr } from "../lib/date";
+import { computeCountdown, todayStr } from "../lib/date";
+import { StudyRemaining } from "../components/StudyRemaining";
 import { findScrollTargetSession, sessionTimePhase } from "../lib/sessionTime";
-import { hideWidgetWindow } from "../lib/widgetWindow";
+import { hideWidgetWindow, requestFocusSession } from "../lib/widgetWindow";
 import { useUiStore } from "../store/ui";
 
 export function WidgetPage() {
@@ -56,13 +57,15 @@ export function WidgetPage() {
                 <span className="ml-1 text-sm font-normal text-zinc-400">天</span>
               )}
             </p>
-            <p
-              data-tauri-drag-region
-              className="mt-1 font-mono text-sm text-zinc-200 tabular-nums"
-            >
-              {pad2(countdown.hours)}:{pad2(countdown.minutes)}:
-              {pad2(countdown.seconds)}
-            </p>
+            <div data-tauri-drag-region className="mt-1">
+              <StudyRemaining
+                sessions={sessions}
+                now={now}
+                pending={isLoading}
+                labelClassName="text-[11px] text-zinc-400"
+                clockClassName="font-mono text-sm text-zinc-200 tabular-nums"
+              />
+            </div>
           </div>
         ) : (
           <p data-tauri-drag-region className="pr-5 text-xs text-zinc-400">
@@ -70,25 +73,40 @@ export function WidgetPage() {
           </p>
         )}
 
-        <p
+        <div
           data-testid="widget-session"
-          data-tauri-drag-region
-          className="mt-auto truncate pt-2 text-xs text-zinc-300"
+          className="mt-auto flex items-center gap-2 pt-2"
         >
-          {isLoading ? (
-            "加载中…"
-          ) : focus && phaseLabel ? (
-            <>
-              <span className="text-orange-400">{phaseLabel}</span>
-              <span className="ml-1 font-mono">
-                {focus.start_time}–{focus.end_time}
-              </span>
-              <span className="ml-1">{focus.task_title ?? "未命名任务"}</span>
-            </>
-          ) : (
-            "今天没有待完成的排期"
-          )}
-        </p>
+          <p
+            data-tauri-drag-region
+            className="min-w-0 flex-1 truncate text-xs text-zinc-300"
+          >
+            {isLoading ? (
+              "加载中…"
+            ) : focus && phaseLabel ? (
+              <>
+                <span className="text-orange-400">{phaseLabel}</span>
+                <span className="ml-1 font-mono">
+                  {focus.start_time}–{focus.end_time}
+                </span>
+                <span className="ml-1">{focus.task_title ?? "未命名任务"}</span>
+              </>
+            ) : (
+              "今天没有待完成的排期"
+            )}
+          </p>
+          {focus && phase === "active" ? (
+            <button
+              type="button"
+              aria-label="开始专注"
+              className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] text-orange-300 hover:bg-white/10"
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={() => requestFocusSession(focus)}
+            >
+              ▶ 专注
+            </button>
+          ) : null}
+        </div>
       </section>
     </div>
   );
