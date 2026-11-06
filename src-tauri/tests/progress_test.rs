@@ -14,10 +14,7 @@ use timequest_lib::{
 };
 
 async fn open_shared() -> (PathBuf, SqlitePool, Connection) {
-    let path = std::env::temp_dir().join(format!(
-        "timequest-progress-{}.db",
-        uuid::Uuid::new_v4()
-    ));
+    let path = std::env::temp_dir().join(format!("timequest-progress-{}.db", uuid::Uuid::new_v4()));
     if path.exists() {
         let _ = std::fs::remove_file(&path);
     }
@@ -32,10 +29,7 @@ async fn open_shared() -> (PathBuf, SqlitePool, Connection) {
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .unwrap();
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
     let conn = Connection::open(&path).expect("rusqlite");
     conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
     (path, pool, conn)
@@ -76,18 +70,9 @@ async fn progress_ring_follows_current_round() {
     )
     .await
     .unwrap();
-    complete_session_impl(
-        &pool,
-        s1.id,
-        6,
-        Some(3),
-        None,
-        false,
-        Local::now(),
-        None,
-    )
-    .await
-    .unwrap();
+    complete_session_impl(&pool, s1.id, 6, Some(3), None, false, Local::now(), None)
+        .await
+        .unwrap();
 
     let s2 = create_session_impl(
         &pool,
@@ -100,18 +85,9 @@ async fn progress_ring_follows_current_round() {
     )
     .await
     .unwrap();
-    complete_session_impl(
-        &pool,
-        s2.id,
-        4,
-        Some(3),
-        None,
-        false,
-        Local::now(),
-        None,
-    )
-    .await
-    .unwrap();
+    complete_session_impl(&pool, s2.id, 4, Some(3), None, false, Local::now(), None)
+        .await
+        .unwrap();
 
     let p1 = task_progress_impl(&conn, task_id).expect("progress r1");
     assert_eq!(p1.round_units, 10, "round 1: 6+4");
@@ -146,18 +122,9 @@ async fn progress_ring_follows_current_round() {
     )
     .await
     .unwrap();
-    complete_session_impl(
-        &pool,
-        s3.id,
-        7,
-        Some(3),
-        None,
-        false,
-        Local::now(),
-        None,
-    )
-    .await
-    .unwrap();
+    complete_session_impl(&pool, s3.id, 7, Some(3), None, false, Local::now(), None)
+        .await
+        .unwrap();
 
     let p3 = task_progress_impl(&conn, task_id).expect("progress r2");
     assert_eq!(p3.round_units, 7, "only round-2 units on the ring");
@@ -183,18 +150,9 @@ async fn progress_ring_and_first_round_can_disagree() {
     )
     .await
     .unwrap();
-    let r1 = complete_session_impl(
-        &pool,
-        s1.id,
-        10,
-        Some(3),
-        None,
-        false,
-        Local::now(),
-        None,
-    )
-    .await
-    .unwrap();
+    let r1 = complete_session_impl(&pool, s1.id, 10, Some(3), None, false, Local::now(), None)
+        .await
+        .unwrap();
     assert!(
         r1.new_achievements.iter().any(|a| a == "first_round"),
         "round-1 reaching total_units unlocks first_round"
@@ -214,18 +172,9 @@ async fn progress_ring_and_first_round_can_disagree() {
     )
     .await
     .unwrap();
-    let r2 = complete_session_impl(
-        &pool,
-        s2.id,
-        3,
-        Some(3),
-        None,
-        false,
-        Local::now(),
-        None,
-    )
-    .await
-    .unwrap();
+    let r2 = complete_session_impl(&pool, s2.id, 3, Some(3), None, false, Local::now(), None)
+        .await
+        .unwrap();
 
     // a. 进度环仍只看 current_round=2 → 0（S2 的 3 被排除）
     let progress = task_progress_impl(&conn, task_id).unwrap();
@@ -268,18 +217,9 @@ async fn progress_ring_on_round_past_total_rounds() {
     )
     .await
     .unwrap();
-    let r1 = complete_session_impl(
-        &pool,
-        s1.id,
-        10,
-        Some(3),
-        None,
-        false,
-        Local::now(),
-        None,
-    )
-    .await
-    .unwrap();
+    let r1 = complete_session_impl(&pool, s1.id, 10, Some(3), None, false, Local::now(), None)
+        .await
+        .unwrap();
     assert!(
         r1.new_achievements.iter().any(|a| a == "first_round"),
         "round 1 @ total_units unlocks first_round"
@@ -314,7 +254,10 @@ async fn progress_ring_on_round_past_total_rounds() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(fr_rows, 1, "c. first_round stays a single row after over-cap");
+    assert_eq!(
+        fr_rows, 1,
+        "c. first_round stays a single row after over-cap"
+    );
 
     let _ = std::fs::remove_file(&path);
 }
@@ -343,18 +286,9 @@ async fn first_round_can_unlock_on_round_past_total_rounds() {
     )
     .await
     .unwrap();
-    complete_session_impl(
-        &pool,
-        s1.id,
-        10,
-        Some(3),
-        None,
-        false,
-        Local::now(),
-        None,
-    )
-    .await
-    .unwrap();
+    complete_session_impl(&pool, s1.id, 10, Some(3), None, false, Local::now(), None)
+        .await
+        .unwrap();
 
     advance_round_impl(&pool, task_id).await.unwrap();
     advance_round_impl(&pool, task_id).await.unwrap();
@@ -376,18 +310,9 @@ async fn first_round_can_unlock_on_round_past_total_rounds() {
     )
     .await
     .unwrap();
-    let r2 = complete_session_impl(
-        &pool,
-        s2.id,
-        10,
-        Some(3),
-        None,
-        false,
-        Local::now(),
-        None,
-    )
-    .await
-    .unwrap();
+    let r2 = complete_session_impl(&pool, s2.id, 10, Some(3), None, false, Local::now(), None)
+        .await
+        .unwrap();
 
     // 只解锁一次：不因过顶 round=3 再插
     assert!(

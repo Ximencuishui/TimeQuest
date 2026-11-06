@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use chrono::Local;
 use sqlx::SqlitePool;
 use timequest_lib::{
-    complete_session_impl, stats_method_share_impl, stats_plan_vs_actual_impl,
-    stats_tag_type_totals_impl,
+    complete_session_impl, stats_daily_units_impl, stats_method_share_impl,
+    stats_plan_vs_actual_impl, stats_tag_type_totals_impl,
 };
 
 const DAY: &str = "2026-11-04";
@@ -130,13 +130,12 @@ async fn completion_writes_study_tag_by_default() {
     .await
     .expect("complete session");
 
-    let logged: Vec<(String, String)> = sqlx::query_as(
-        "SELECT tag_type, method FROM actual_logs WHERE session_id = ?1",
-    )
-    .bind(session_id)
-    .fetch_all(&pool)
-    .await
-    .expect("read actual_logs");
+    let logged: Vec<(String, String)> =
+        sqlx::query_as("SELECT tag_type, method FROM actual_logs WHERE session_id = ?1")
+            .bind(session_id)
+            .fetch_all(&pool)
+            .await
+            .expect("read actual_logs");
     assert_eq!(logged, vec![("study".to_string(), "刷题".to_string())]);
 }
 
@@ -216,7 +215,10 @@ async fn unknown_method_stays_in_method_share() {
         .await
         .expect("method share");
     let denom: i64 = rows.iter().map(|r| r.duration_min).sum();
-    assert_eq!(denom, 130, "denominator must include unknown method, got {rows:?}");
+    assert_eq!(
+        denom, 130,
+        "denominator must include unknown method, got {rows:?}"
+    );
 
     let custom = rows
         .iter()
@@ -252,5 +254,70 @@ async fn subject_whitespace_is_not_normalized() {
         Some(25),
         "trailing-space subject must stay a separate group (no trim), got {rows:?}"
     );
-    assert_eq!(by_subject.len(), 2, "expected two subject keys, got {by_subject:?}");
+    assert_eq!(
+        by_subject.len(),
+        2,
+        "expected two subject keys, got {by_subject:?}"
+    );
+}
+
+/// Done sessions on the same date add their `actual_units`. Planned / missed units
+/// and `actual_logs` minutes stay out of the brick totals.
+#[tokio::test]
+async fn daily_units_sum_done_sessions_and_ignore_logs() {
+    let pool = common::setup().await;
+    let task_id: i64 =
+        sqlx::query_scalar("INSERT INTO tasks (title, type) VALUES ('墙', 'main') RETURNING id")
+            .fetch_one(&pool)
+            .await
+            .expect("insert task");
+
+    let insert = |date: &str, status: &str, units: i64| {
+        let pool = &pool;
+        let date = date.to_string();
+        let status = status.to_string();
+        async move {
+            sqlx::query(
+                "INSERT INTO task_sessions
+                   (task_id, date, start_time, end_time, status, planned_units, actual_units)
+                 VALUES (?1, ?2, '09:00', '10:00', ?3, ?4, ?5)",
+            )
+            .bind(task_id)
+            .bind(date)
+            .bind(status)
+            .bind(units)
+            .bind(units)
+            .execute(pool)
+            .await
+            .expect("insert session");
+        }
+    };
+    insert("2026-01-02", "done", 2).await;
+    insert("2026-01-02", "done", 3).await;
+    insert("2026-01-02", "planned", 9).await;
+    insert("2026-01-03", "done", 0).await;
+    insert("2026-01-04", "missed", 4).await;
+    insert("2025-12-01", "done", 8).await;
+    sqlx::query(
+        "INSERT INTO actual_logs (date, duration_min, tag_type) VALUES ('2026-01-05', 60, 'study')",
+    )
+    .execute(&pool)
+    .await
+    .expect("insert log");
+
+    let rows = stats_daily_units_impl(&pool, "2026-01-01", "2026-01-07")
+        .await
+        .expect("daily units");
+    let totals: BTreeMap<String, i64> = rows.into_iter().map(|row| (row.date, row.units)).collect();
+    assert_eq!(totals.get("2026-01-02").copied(), Some(5));
+    assert_eq!(totals.get("2026-01-03").copied(), Some(0));
+    assert!(
+        totals.get("2026-01-04").is_none(),
+        "missed units must not paint a brick"
+    );
+    assert!(
+        totals.get("2026-01-05").is_none(),
+        "logs have minutes, not units"
+    );
+    assert!(totals.get("2025-12-01").is_none(), "outside the range");
 }

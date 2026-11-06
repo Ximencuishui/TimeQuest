@@ -1,7 +1,7 @@
 use crate::db::{with_db, DbState};
 use crate::models::{
-    AvgRatingRow, CompletionRate, MethodShareRow, PlanVsActualRow, TagTypeRow, UserAchievement,
-    UserStats,
+    AvgRatingRow, CompletionRate, DailyUnitsRow, MethodShareRow, PlanVsActualRow, TagTypeRow,
+    UserAchievement, UserStats,
 };
 use chrono::NaiveDate;
 use rusqlite::params;
@@ -55,9 +55,7 @@ pub fn get_user_stats(state: State<'_, DbState>) -> Result<UserStats, String> {
 }
 
 #[tauri::command]
-pub fn list_user_achievements(
-    state: State<'_, DbState>,
-) -> Result<Vec<UserAchievement>, String> {
+pub fn list_user_achievements(state: State<'_, DbState>) -> Result<Vec<UserAchievement>, String> {
     with_db(&state, |conn| {
         let mut stmt = conn
             .prepare(
@@ -275,6 +273,41 @@ pub async fn stats_completion_rate(
     to: String,
 ) -> Result<CompletionRate, String> {
     stats_completion_rate_impl(pool.inner(), &from, &to).await
+}
+
+/// Sum `task_sessions.actual_units` for `status = 'done'` per date.
+/// `actual_logs` have minutes, not units, so they are not included.
+pub async fn stats_daily_units_impl(
+    db: &SqlitePool,
+    from: &str,
+    to: &str,
+) -> Result<Vec<DailyUnitsRow>, String> {
+    let (from, to) = stats_bounds(from, to);
+    let rows = sqlx::query_as::<_, (String, i64)>(
+        "SELECT date, SUM(actual_units) AS units
+         FROM task_sessions
+         WHERE status = 'done' AND date >= ?1 AND date <= ?2
+         GROUP BY date
+         ORDER BY date",
+    )
+    .bind(from)
+    .bind(to)
+    .fetch_all(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(rows
+        .into_iter()
+        .map(|(date, units)| DailyUnitsRow { date, units })
+        .collect())
+}
+
+#[tauri::command]
+pub async fn stats_daily_units(
+    pool: State<'_, SqlitePool>,
+    from: String,
+    to: String,
+) -> Result<Vec<DailyUnitsRow>, String> {
+    stats_daily_units_impl(pool.inner(), &from, &to).await
 }
 
 #[tauri::command]

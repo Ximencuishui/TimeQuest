@@ -3,26 +3,39 @@ mod db;
 mod error;
 mod gamification;
 mod models;
+mod textbooks;
 
-pub use commands::sessions::{
-    complete_session_impl, create_session_impl, reschedule_session_impl, test_hooks,
-    CompleteResult,
-};
-pub use commands::stats::{
-    stats_completion_rate_impl, stats_method_share_impl, stats_plan_vs_actual_impl,
-    stats_tag_type_totals_impl,
-};
-pub use commands::tasks::{advance_round_impl, task_progress_impl};
+pub use commands::app_settings::{get_setting_impl, set_setting_impl};
 pub use commands::data::{export_json_impl, import_json_impl};
 pub use commands::logs::{compute_duration_min, create_log_impl};
 pub use commands::notes::{
     create_note_impl, list_notes_impl, normalize_color, update_note_impl, COLOR_WHITELIST,
 };
-pub use error::{AppError, SessionError};
+pub use commands::sessions::{
+    complete_session_impl, create_session_impl, list_sessions_in_range_impl, reschedule_session_impl,
+    test_hooks, CompleteResult,
+};
+pub use commands::stats::{
+    stats_completion_rate_impl, stats_daily_units_impl, stats_method_share_impl,
+    stats_plan_vs_actual_impl, stats_tag_type_totals_impl,
+};
+pub use commands::tasks::{advance_round_impl, task_progress_impl};
+pub use commands::textbook::{
+    generate_tasks_from_outline_impl, import_textbook_json_impl, list_textbook_catalog_impl,
+    resolve_textbook_outline, GenerateTasksFromOutlineInput, GenerateTasksResult,
+    ImportTextbookResult, TextbookCatalogItem,
+};
+pub use error::{AppError, SessionError, TextbookError};
 pub use gamification::{update_streak_values, RESCHEDULE_RECOVERY_BONUS};
 pub use models::{
-    CompleteSessionResult, CompletionRate, CreateLogPayload, MethodShareRow, PlanVsActualRow,
-    RemainderSchedule, TagTypeRow, Task, TaskProgress, TaskSession, UpdateNotePayload,
+    CompleteSessionResult, CompletionRate, CreateLogPayload, DailyUnitsRow, MethodShareRow,
+    PlanVsActualRow, RemainderSchedule, TagTypeRow, Task, TaskProgress, TaskSession,
+    UpdateNotePayload,
+};
+pub use textbooks::parse_textbook_json;
+pub use textbooks::{
+    get_textbook_outline, list_available_textbooks, AvailableTextbook, TextbookChapter,
+    TextbookOutline,
 };
 
 use db::{db_path, open_db, open_sqlx_pool, AppPrefs, DbState};
@@ -39,6 +52,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let path = db_path(app.handle())?;
             let pool = tauri::async_runtime::block_on(open_sqlx_pool(&path))?;
@@ -86,16 +100,30 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                let close_to_tray = window
-                    .app_handle()
-                    .try_state::<AppPrefs>()
-                    .map(|p| p.close_to_tray())
-                    .unwrap_or(true);
-                if close_to_tray {
-                    api.prevent_close();
-                    let _ = window.hide();
+            match event {
+                WindowEvent::CloseRequested { api, .. } => {
+                    let close_to_tray = window
+                        .app_handle()
+                        .try_state::<AppPrefs>()
+                        .map(|p| p.close_to_tray())
+                        .unwrap_or(true);
+                    if close_to_tray {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
                 }
+                // The widget is created at startup (hidden). If it stayed open
+                // after main was destroyed, the process would keep running with
+                // no taskbar window. Tray-hide does not destroy main, so the
+                // widget can stay up while the app is still in the tray.
+                WindowEvent::Destroyed => {
+                    if window.label() == "main" {
+                        if let Some(widget) = window.app_handle().get_webview_window("widget") {
+                            let _ = widget.close();
+                        }
+                    }
+                }
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -106,7 +134,13 @@ pub fn run() {
             commands::archive_task,
             commands::advance_round,
             commands::task_progress,
+            commands::get_textbook_outline,
+            commands::list_available_textbooks,
+            commands::list_textbook_catalog,
+            commands::import_textbook_json,
+            commands::generate_tasks_from_outline,
             commands::list_sessions_by_date,
+            commands::list_sessions_in_range,
             commands::list_sessions_by_task,
             commands::create_session,
             commands::find_overlaps,
@@ -124,9 +158,12 @@ pub fn run() {
             commands::stats_method_share,
             commands::stats_tag_type_totals,
             commands::stats_completion_rate,
+            commands::stats_daily_units,
             commands::stats_avg_ratings,
             commands::export_json,
             commands::import_json,
+            commands::get_setting,
+            commands::set_setting,
             commands::get_db_path,
             commands::set_close_to_tray,
         ])

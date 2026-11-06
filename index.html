@@ -5,6 +5,20 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TimeQuest</title>
+    <script>
+      (function () {
+        try {
+          var label =
+            window.__TAURI_INTERNALS__ &&
+            window.__TAURI_INTERNALS__.metadata &&
+            window.__TAURI_INTERNALS__.metadata.currentWindow &&
+            window.__TAURI_INTERNALS__.metadata.currentWindow.label;
+          if (label === "widget") {
+            document.documentElement.classList.add("widget-window");
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

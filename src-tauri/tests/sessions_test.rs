@@ -6,9 +6,9 @@ use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
 use std::path::PathBuf;
 use timequest_lib::{
-    advance_round_impl, complete_session_impl, create_session_impl, reschedule_session_impl,
-    task_progress_impl, test_hooks, update_streak_values, RemainderSchedule, SessionError,
-    RESCHEDULE_RECOVERY_BONUS,
+    advance_round_impl, complete_session_impl, create_session_impl, list_sessions_in_range_impl,
+    reschedule_session_impl, task_progress_impl, test_hooks, update_streak_values,
+    RemainderSchedule, SessionError, RESCHEDULE_RECOVERY_BONUS,
 };
 
 /// Insert a main-line task + planned session; returns `(task_id, session_id)`.
@@ -16,18 +16,11 @@ async fn insert_task_and_session(pool: &SqlitePool) -> (i64, i64) {
     insert_task_session(pool, 2, 1).await
 }
 
-async fn insert_task_and_session_with_units(
-    pool: &SqlitePool,
-    planned_units: i64,
-) -> (i64, i64) {
+async fn insert_task_and_session_with_units(pool: &SqlitePool, planned_units: i64) -> (i64, i64) {
     insert_task_session(pool, planned_units, 1).await
 }
 
-async fn insert_task_session(
-    pool: &SqlitePool,
-    planned_units: i64,
-    round: i64,
-) -> (i64, i64) {
+async fn insert_task_session(pool: &SqlitePool, planned_units: i64, round: i64) -> (i64, i64) {
     let task = sqlx::query(
         r#"INSERT INTO tasks (title, type, subject, textbook, unit_name, total_units, total_rounds, current_round, color)
            VALUES ('测试任务', 'main', '数学', '课本A', '课', 40, 2, ?1, '#F97316')"#,
@@ -93,31 +86,20 @@ async fn complete_session_is_idempotent() {
     let pool = common::setup().await;
     let (_task_id, session_id) = insert_task_and_session_with_units(&pool, 3).await;
 
-    let xp_before: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let xp_before: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
 
     let now = Local::now();
-    let first = complete_session_impl(
-        &pool,
-        session_id,
-        3,
-        Some(3),
-        None,
-        false,
-        now,
-        None,
-    )
-    .await
-    .expect("first complete");
+    let first = complete_session_impl(&pool, session_id, 3, Some(3), None, false, now, None)
+        .await
+        .expect("first complete");
 
-    let xp_after_first: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let xp_after_first: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     let xp_awarded_first: i64 =
         sqlx::query_scalar("SELECT xp_awarded FROM task_sessions WHERE id = ?1")
             .bind(session_id)
@@ -128,18 +110,9 @@ async fn complete_session_is_idempotent() {
     assert!(first.xp_awarded > 0 || xp_awarded_first > 0);
     assert_eq!(xp_after_first, xp_before + xp_awarded_first);
 
-    let second = complete_session_impl(
-        &pool,
-        session_id,
-        3,
-        Some(3),
-        None,
-        false,
-        now,
-        None,
-    )
-    .await
-    .expect("second complete (idempotent)");
+    let second = complete_session_impl(&pool, session_id, 3, Some(3), None, false, now, None)
+        .await
+        .expect("second complete (idempotent)");
 
     let log_count: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM actual_logs WHERE session_id = ?1")
@@ -161,22 +134,20 @@ async fn complete_session_is_idempotent() {
     );
     assert_eq!(second.xp_awarded, 0, "second call awards 0 XP in result");
 
-    let xp_after_second: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let xp_after_second: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(
         xp_after_second, xp_after_first,
         "user_stats.total_xp must increase only once"
     );
 
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM task_sessions WHERE id = ?1")
-            .bind(session_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let status: String = sqlx::query_scalar("SELECT status FROM task_sessions WHERE id = ?1")
+        .bind(session_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(status, "done");
 }
 
@@ -206,13 +177,12 @@ async fn partial_completion_spawns_remainder_session() {
     .await
     .expect("partial complete with remainder");
 
-    let orig: (String, i64) = sqlx::query_as(
-        "SELECT status, actual_units FROM task_sessions WHERE id = ?1",
-    )
-    .bind(session_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let orig: (String, i64) =
+        sqlx::query_as("SELECT status, actual_units FROM task_sessions WHERE id = ?1")
+            .bind(session_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(orig.0, "done");
     assert_eq!(orig.1, 3);
 
@@ -260,34 +230,23 @@ async fn rescheduled_then_completed_gets_recovery_bonus_once() {
         .created_session_id
         .expect("reschedule must create session B");
 
-    let a_row: (String, Option<i64>) = sqlx::query_as(
-        "SELECT status, rescheduled_to FROM task_sessions WHERE id = ?1",
-    )
-    .bind(session_a)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(a_row.0, "rescheduled");
-    assert_eq!(a_row.1, Some(session_b));
-
-    let xp_before: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+    let a_row: (String, Option<i64>) =
+        sqlx::query_as("SELECT status, rescheduled_to FROM task_sessions WHERE id = ?1")
+            .bind(session_a)
             .fetch_one(&pool)
             .await
             .unwrap();
+    assert_eq!(a_row.0, "rescheduled");
+    assert_eq!(a_row.1, Some(session_b));
 
-    let first = complete_session_impl(
-        &pool,
-        session_b,
-        2,
-        Some(4),
-        None,
-        false,
-        now,
-        None,
-    )
-    .await
-    .expect("complete B first time");
+    let xp_before: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+    let first = complete_session_impl(&pool, session_b, 2, Some(4), None, false, now, None)
+        .await
+        .expect("complete B first time");
 
     assert!(
         first.xp_awarded >= RESCHEDULE_RECOVERY_BONUS,
@@ -302,33 +261,22 @@ async fn rescheduled_then_completed_gets_recovery_bonus_once() {
         "XP should be base session XP + recovery bonus once"
     );
 
-    let xp_after_first: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let xp_after_first: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(xp_after_first, xp_before + expected_total_award);
 
-    let second = complete_session_impl(
-        &pool,
-        session_b,
-        2,
-        Some(3),
-        None,
-        false,
-        now,
-        None,
-    )
-    .await
-    .expect("complete B second time (idempotent)");
+    let second = complete_session_impl(&pool, session_b, 2, Some(3), None, false, now, None)
+        .await
+        .expect("complete B second time (idempotent)");
     assert_eq!(second.xp_awarded, 0);
 
-    let b_status: String =
-        sqlx::query_scalar("SELECT status FROM task_sessions WHERE id = ?1")
-            .bind(session_b)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let b_status: String = sqlx::query_scalar("SELECT status FROM task_sessions WHERE id = ?1")
+        .bind(session_b)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(b_status, "done");
 
     let log_count: i64 =
@@ -347,20 +295,16 @@ async fn rescheduled_then_completed_gets_recovery_bonus_once() {
             .unwrap();
     assert_eq!(logs_for_a, 0);
 
-    let xp_after_second: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let xp_after_second: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(
         xp_after_second, xp_after_first,
         "recovery bonus / XP must not be applied twice"
     );
     // Explicit: only one bonus worth of XP beyond base was ever granted
-    assert_eq!(
-        xp_after_second - xp_before - 29,
-        RESCHEDULE_RECOVERY_BONUS
-    );
+    assert_eq!(xp_after_second - xp_before - 29, RESCHEDULE_RECOVERY_BONUS);
 
     let a_after: (String, Option<i64>, i64, i64) = sqlx::query_as(
         "SELECT status, rescheduled_to, actual_units, xp_awarded FROM task_sessions WHERE id = ?1",
@@ -380,16 +324,14 @@ async fn completion_rolls_back_on_log_insert_failure() {
     let pool = common::setup().await;
     let (_task_id, session_id) = insert_task_and_session_with_units(&pool, 3).await;
 
-    let xp_before: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    let logs_before: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM actual_logs")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let xp_before: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let logs_before: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM actual_logs")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
 
     test_hooks::set_fail_actual_log_insert(true);
     let err = complete_session_impl(
@@ -405,34 +347,40 @@ async fn completion_rolls_back_on_log_insert_failure() {
     .await;
     test_hooks::set_fail_actual_log_insert(false);
 
-    assert!(err.is_err(), "complete must return Err when log insert is injected");
+    assert!(
+        err.is_err(),
+        "complete must return Err when log insert is injected"
+    );
     let msg = err.unwrap_err().to_string();
     assert!(
         msg.contains("inject: actual_logs"),
         "unexpected error: {msg}"
     );
 
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM task_sessions WHERE id = ?1")
-            .bind(session_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let status: String = sqlx::query_scalar("SELECT status FROM task_sessions WHERE id = ?1")
+        .bind(session_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(status, "planned", "session must roll back to planned");
 
-    let xp_after: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    assert_eq!(xp_after, xp_before, "XP must not increase on failed complete");
+    let xp_after: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        xp_after, xp_before,
+        "XP must not increase on failed complete"
+    );
 
-    let logs_after: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM actual_logs")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    assert_eq!(logs_after, logs_before, "no actual_logs row should be added");
+    let logs_after: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM actual_logs")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        logs_after, logs_before,
+        "no actual_logs row should be added"
+    );
 }
 
 #[tokio::test]
@@ -442,11 +390,10 @@ async fn completion_with_zero_units_awards_no_xp() {
     let pool = common::setup().await;
     let (_task_id, session_id) = insert_task_and_session_with_units(&pool, 3).await;
 
-    let xp_before: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let xp_before: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
 
     let result = complete_session_impl(
         &pool,
@@ -467,11 +414,10 @@ async fn completion_with_zero_units_awards_no_xp() {
     assert_eq!(result.session.xp_awarded, 0);
     assert_eq!(result.session.self_rating, Some(5));
 
-    let xp_after: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let xp_after: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(xp_after, xp_before, "total_xp must not change");
 
     let logs: Vec<(i64,)> =
@@ -491,11 +437,10 @@ async fn complete_session_rejects_zero_units_with_defer() {
     let pool = common::setup().await;
     let (_task_id, session_id) = insert_task_and_session_with_units(&pool, 5).await;
 
-    let xp_before: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let xp_before: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     let streak_before: i64 =
         sqlx::query_scalar("SELECT current_streak FROM user_stats WHERE id = 1")
             .fetch_one(&pool)
@@ -505,11 +450,10 @@ async fn complete_session_rejects_zero_units_with_defer() {
         .fetch_one(&pool)
         .await
         .unwrap();
-    let sessions_before: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let sessions_before: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
 
     let err = complete_session_impl(
         &pool,
@@ -530,13 +474,12 @@ async fn complete_session_rejects_zero_units_with_defer() {
 
     assert_eq!(err, SessionError::ZeroUnitsCannotDefer);
 
-    let status_units: (String, i64) = sqlx::query_as(
-        "SELECT status, COALESCE(actual_units, 0) FROM task_sessions WHERE id = ?1",
-    )
-    .bind(session_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let status_units: (String, i64) =
+        sqlx::query_as("SELECT status, COALESCE(actual_units, 0) FROM task_sessions WHERE id = ?1")
+            .bind(session_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(status_units.0, "planned");
     assert_eq!(status_units.1, 0);
 
@@ -546,21 +489,19 @@ async fn complete_session_rejects_zero_units_with_defer() {
         .unwrap();
     assert_eq!(logs_after, logs_before, "must not insert actual_logs");
 
-    let sessions_after: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let sessions_after: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(
         sessions_after, sessions_before,
         "must not spawn remainder session"
     );
 
-    let xp_after: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let xp_after: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     let streak_after: i64 =
         sqlx::query_scalar("SELECT current_streak FROM user_stats WHERE id = 1")
             .fetch_one(&pool)
@@ -575,11 +516,10 @@ async fn complete_session_zero_units_without_defer_still_succeeds() {
     let pool = common::setup().await;
     let (_task_id, session_id) = insert_task_and_session_with_units(&pool, 5).await;
 
-    let xp_before: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let xp_before: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     let streak_before: i64 =
         sqlx::query_scalar("SELECT current_streak FROM user_stats WHERE id = 1")
             .fetch_one(&pool)
@@ -611,11 +551,10 @@ async fn complete_session_zero_units_without_defer_still_succeeds() {
     assert_eq!(logs.len(), 1);
     assert_eq!(logs[0].0, 0);
 
-    let xp_after: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let xp_after: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     let streak_after: i64 =
         sqlx::query_scalar("SELECT current_streak FROM user_stats WHERE id = 1")
             .fetch_one(&pool)
@@ -647,13 +586,12 @@ async fn complete_session_positive_units_with_defer_still_succeeds() {
     .await
     .expect("partial complete with defer must Ok");
 
-    let orig: (String, i64) = sqlx::query_as(
-        "SELECT status, actual_units FROM task_sessions WHERE id = ?1",
-    )
-    .bind(session_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let orig: (String, i64) =
+        sqlx::query_as("SELECT status, actual_units FROM task_sessions WHERE id = ?1")
+            .bind(session_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(orig.0, "done");
     assert_eq!(orig.1, 2);
 
@@ -668,12 +606,11 @@ async fn complete_session_positive_units_with_defer_still_succeeds() {
             .unwrap();
     assert_eq!(rem_planned, 3);
 
-    let n: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions WHERE task_id = ?1")
-            .bind(task_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions WHERE task_id = ?1")
+        .bind(task_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(n, 2);
 }
 
@@ -719,13 +656,12 @@ async fn complete_session_with_zero_planned_and_zero_actual_no_spawn() {
             .unwrap();
     assert_eq!(sessions_after, 1, "must not spawn any remainder");
 
-    let orig: (String, i64) = sqlx::query_as(
-        "SELECT status, COALESCE(actual_units, 0) FROM task_sessions WHERE id = ?1",
-    )
-    .bind(session_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let orig: (String, i64) =
+        sqlx::query_as("SELECT status, COALESCE(actual_units, 0) FROM task_sessions WHERE id = ?1")
+            .bind(session_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(orig.0, "planned");
     assert_eq!(orig.1, 0);
 }
@@ -756,18 +692,9 @@ async fn streak_across_midnight_uses_local_date() {
         .with_ymd_and_hms(2026, 11, 4, 23, 59, 0)
         .single()
         .expect("local 23:59");
-    complete_session_impl(
-        &pool,
-        session_a,
-        1,
-        Some(3),
-        None,
-        false,
-        now_late,
-        None,
-    )
-    .await
-    .expect("complete A before midnight");
+    complete_session_impl(&pool, session_a, 1, Some(3), None, false, now_late, None)
+        .await
+        .expect("complete A before midnight");
 
     let streak_after_a: (i64, i64, Option<String>) = sqlx::query_as(
         "SELECT current_streak, longest_streak, last_done_date FROM user_stats WHERE id = 1",
@@ -783,18 +710,9 @@ async fn streak_across_midnight_uses_local_date() {
         .with_ymd_and_hms(2026, 11, 5, 0, 1, 0)
         .single()
         .expect("local 00:01");
-    complete_session_impl(
-        &pool,
-        session_b,
-        1,
-        Some(3),
-        None,
-        false,
-        now_early,
-        None,
-    )
-    .await
-    .expect("complete B just after midnight");
+    complete_session_impl(&pool, session_b, 1, Some(3), None, false, now_early, None)
+        .await
+        .expect("complete B just after midnight");
 
     let streak_after_b: (i64, i64, Option<String>) = sqlx::query_as(
         "SELECT current_streak, longest_streak, last_done_date FROM user_stats WHERE id = 1",
@@ -815,18 +733,9 @@ async fn streak_across_midnight_uses_local_date() {
         .with_ymd_and_hms(2026, 11, 7, 10, 0, 0)
         .single()
         .expect("local gap day");
-    complete_session_impl(
-        &pool,
-        session_c,
-        1,
-        Some(3),
-        None,
-        false,
-        now_gap,
-        None,
-    )
-    .await
-    .expect("complete C after a gap");
+    complete_session_impl(&pool, session_c, 1, Some(3), None, false, now_gap, None)
+        .await
+        .expect("complete C after a gap");
 
     let streak_after_gap: (i64, i64, Option<String>) = sqlx::query_as(
         "SELECT current_streak, longest_streak, last_done_date FROM user_stats WHERE id = 1",
@@ -860,31 +769,20 @@ async fn earlier_date_after_last_done_keeps_streak() {
 
     let session_b = insert_session_on_date(&pool, task_id, "2026-11-04", 3).await;
     // D (earlier than A); distinct slot
-    sqlx::query(
-        "UPDATE task_sessions SET start_time = '09:00', end_time = '10:00' WHERE id = ?1",
-    )
-    .bind(session_b)
-    .execute(&pool)
-    .await
-    .unwrap();
+    sqlx::query("UPDATE task_sessions SET start_time = '09:00', end_time = '10:00' WHERE id = ?1")
+        .bind(session_b)
+        .execute(&pool)
+        .await
+        .unwrap();
 
     let now = Local
         .with_ymd_and_hms(2026, 11, 5, 12, 0, 0)
         .single()
         .expect("fixed local noon");
 
-    let result_a = complete_session_impl(
-        &pool,
-        session_a,
-        3,
-        Some(5),
-        None,
-        false,
-        now,
-        None,
-    )
-    .await
-    .expect("complete A on D+1");
+    let result_a = complete_session_impl(&pool, session_a, 3, Some(5), None, false, now, None)
+        .await
+        .expect("complete A on D+1");
 
     let xp_a = result_a.xp_awarded;
     assert!(xp_a > 0, "A must award XP");
@@ -901,18 +799,9 @@ async fn earlier_date_after_last_done_keeps_streak() {
     assert_eq!(after_a.3, xp_a);
 
     let xp_before_b = after_a.3;
-    let result_b = complete_session_impl(
-        &pool,
-        session_b,
-        3,
-        Some(5),
-        None,
-        false,
-        now,
-        None,
-    )
-    .await
-    .expect("complete B on earlier day D");
+    let result_b = complete_session_impl(&pool, session_b, 3, Some(5), None, false, now, None)
+        .await
+        .expect("complete B on earlier day D");
 
     assert_eq!(result_b.session.status, "done");
     let xp_b = result_b.xp_awarded;
@@ -944,8 +833,7 @@ async fn earlier_date_after_last_done_keeps_streak() {
     // parse failure falls through to next=1 and replaces last_done with done_date
     // (does NOT keep prior last_done). Chosen over "keep" to match today's code;
     // not treated as diff < 0 (which would preserve streak + last).
-    let (cur, longest, last) =
-        update_streak_values(4, 6, Some("2026-11-05"), "not-a-date");
+    let (cur, longest, last) = update_streak_values(4, 6, Some("2026-11-05"), "not-a-date");
     assert_eq!(cur, 1, "parse failure resets current_streak to 1");
     assert_eq!(longest, 6, "longest_streak preserved via max");
     assert_eq!(
@@ -1012,14 +900,13 @@ async fn create_session_rejects_archived_task() {
     assert_eq!(ok.status, "planned");
     assert_eq!(ok.planned_units, 2);
 
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM task_sessions WHERE id = ?1 AND task_id = ?2",
-    )
-    .bind(ok.id)
-    .bind(active_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions WHERE id = ?1 AND task_id = ?2")
+            .bind(ok.id)
+            .bind(active_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(count, 1);
 }
 
@@ -1080,12 +967,11 @@ async fn create_session_defaults_round_to_task_current_round() {
     .expect("explicit round=1");
     assert_eq!(s3.round, 1);
 
-    let current: i64 =
-        sqlx::query_scalar("SELECT current_round FROM tasks WHERE id = ?1")
-            .bind(task_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let current: i64 = sqlx::query_scalar("SELECT current_round FROM tasks WHERE id = ?1")
+        .bind(task_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(
         current, 2,
         "explicit session round must not roll back task.current_round"
@@ -1216,11 +1102,10 @@ async fn reschedule_already_rescheduled_is_idempotent() {
         .created_session_id
         .expect("first reschedule creates target");
 
-    let count_after_first: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let count_after_first: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(count_after_first, 2);
 
     let second = reschedule_session_impl(
@@ -1243,11 +1128,10 @@ async fn reschedule_already_rescheduled_is_idempotent() {
     assert_eq!(second.session.rescheduled_to, Some(session_b));
     assert_eq!(second.xp_awarded, 0);
 
-    let count_after_second: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let count_after_second: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(
         count_after_second, 2,
         "idempotent reschedule must not create another session"
@@ -1294,11 +1178,10 @@ async fn complete_rescheduled_or_missed_session_rejected() {
     assert_eq!(a_before.1, Some(session_b));
     assert_eq!(a_before.2, 0);
 
-    let xp_before_a: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let xp_before_a: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     let streak_before_a: i64 =
         sqlx::query_scalar("SELECT current_streak FROM user_stats WHERE id = 1")
             .fetch_one(&pool)
@@ -1309,18 +1192,9 @@ async fn complete_rescheduled_or_missed_session_rejected() {
         .await
         .unwrap();
 
-    let err_a = complete_session_impl(
-        &pool,
-        session_a,
-        3,
-        Some(5),
-        None,
-        false,
-        now,
-        None,
-    )
-    .await
-    .expect_err("completing rescheduled source must fail");
+    let err_a = complete_session_impl(&pool, session_a, 3, Some(5), None, false, now, None)
+        .await
+        .expect_err("completing rescheduled source must fail");
 
     assert!(
         matches!(
@@ -1330,21 +1204,19 @@ async fn complete_rescheduled_or_missed_session_rejected() {
         "expected InvalidCompleteStatus {{ status: rescheduled }}, got {err_a:?}"
     );
 
-    let a_after: (String, i64) = sqlx::query_as(
-        "SELECT status, actual_units FROM task_sessions WHERE id = ?1",
-    )
-    .bind(session_a)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(a_after.0, "rescheduled");
-    assert_eq!(a_after.1, 0);
-
-    let xp_after_a: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+    let a_after: (String, i64) =
+        sqlx::query_as("SELECT status, actual_units FROM task_sessions WHERE id = ?1")
+            .bind(session_a)
             .fetch_one(&pool)
             .await
             .unwrap();
+    assert_eq!(a_after.0, "rescheduled");
+    assert_eq!(a_after.1, 0);
+
+    let xp_after_a: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(xp_after_a, xp_before_a);
     let streak_after_a: i64 =
         sqlx::query_scalar("SELECT current_streak FROM user_stats WHERE id = 1")
@@ -1366,28 +1238,18 @@ async fn complete_rescheduled_or_missed_session_rejected() {
         .await
         .unwrap();
 
-    let xp_before_c: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let xp_before_c: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     let logs_before_c: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM actual_logs")
         .fetch_one(&pool)
         .await
         .unwrap();
 
-    let err_c = complete_session_impl(
-        &pool,
-        session_c,
-        3,
-        Some(5),
-        None,
-        false,
-        now,
-        None,
-    )
-    .await
-    .expect_err("completing missed session must fail");
+    let err_c = complete_session_impl(&pool, session_c, 3, Some(5), None, false, now, None)
+        .await
+        .expect_err("completing missed session must fail");
 
     assert!(
         matches!(
@@ -1397,21 +1259,19 @@ async fn complete_rescheduled_or_missed_session_rejected() {
         "expected InvalidCompleteStatus {{ status: missed }}, got {err_c:?}"
     );
 
-    let c_after: (String, i64) = sqlx::query_as(
-        "SELECT status, actual_units FROM task_sessions WHERE id = ?1",
-    )
-    .bind(session_c)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(c_after.0, "missed");
-    assert_eq!(c_after.1, 0);
-
-    let xp_after_c: i64 =
-        sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+    let c_after: (String, i64) =
+        sqlx::query_as("SELECT status, actual_units FROM task_sessions WHERE id = ?1")
+            .bind(session_c)
             .fetch_one(&pool)
             .await
             .unwrap();
+    assert_eq!(c_after.0, "missed");
+    assert_eq!(c_after.1, 0);
+
+    let xp_after_c: i64 = sqlx::query_scalar("SELECT total_xp FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(xp_after_c, xp_before_c);
     let logs_after_c: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM actual_logs")
         .fetch_one(&pool)
@@ -1420,18 +1280,9 @@ async fn complete_rescheduled_or_missed_session_rejected() {
     assert_eq!(logs_after_c, logs_before_c);
 
     // --- Scenario C: reschedule target B completes once (idempotent) ---
-    let first_b = complete_session_impl(
-        &pool,
-        session_b,
-        3,
-        Some(5),
-        None,
-        false,
-        now,
-        None,
-    )
-    .await
-    .expect("first complete of B");
+    let first_b = complete_session_impl(&pool, session_b, 3, Some(5), None, false, now, None)
+        .await
+        .expect("first complete of B");
     assert_eq!(first_b.session.status, "done");
 
     let xp_awarded_first: i64 =
@@ -1441,33 +1292,22 @@ async fn complete_rescheduled_or_missed_session_rejected() {
             .await
             .unwrap();
 
-    let second_b = complete_session_impl(
-        &pool,
-        session_b,
-        3,
-        Some(5),
-        None,
-        false,
-        now,
-        None,
-    )
-    .await
-    .expect("second complete of B is idempotent Ok");
+    let second_b = complete_session_impl(&pool, session_b, 3, Some(5), None, false, now, None)
+        .await
+        .expect("second complete of B is idempotent Ok");
 
-    let b_status: String =
-        sqlx::query_scalar("SELECT status FROM task_sessions WHERE id = ?1")
-            .bind(session_b)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let b_status: String = sqlx::query_scalar("SELECT status FROM task_sessions WHERE id = ?1")
+        .bind(session_b)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(b_status, "done");
 
-    let logs_b: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM actual_logs WHERE session_id = ?1")
-            .bind(session_b)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let logs_b: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM actual_logs WHERE session_id = ?1")
+        .bind(session_b)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(logs_b, 1);
 
     let xp_awarded_second: i64 =
@@ -1531,22 +1371,16 @@ async fn negative_actual_units_do_not_corrupt_progress() {
     .expect_err("negative actual_units must be rejected");
 
     assert!(
-        matches!(
-            err,
-            SessionError::InvalidActualUnits {
-                actual_units: -2
-            }
-        ),
+        matches!(err, SessionError::InvalidActualUnits { actual_units: -2 }),
         "expected InvalidActualUnits {{ actual_units: -2 }}, got {err:?}"
     );
 
-    let sess: (String, i64) = sqlx::query_as(
-        "SELECT status, actual_units FROM task_sessions WHERE id = ?1",
-    )
-    .bind(session_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let sess: (String, i64) =
+        sqlx::query_as("SELECT status, actual_units FROM task_sessions WHERE id = ?1")
+            .bind(session_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(sess.0, "planned");
     assert_eq!(sess.1, 0);
 
@@ -1568,7 +1402,10 @@ async fn negative_actual_units_do_not_corrupt_progress() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(stats_after.0, stats_before.0, "total_xp must stay unchanged");
+    assert_eq!(
+        stats_after.0, stats_before.0,
+        "total_xp must stay unchanged"
+    );
     assert_eq!(
         stats_after.1, stats_before.1,
         "current_streak must stay unchanged"
@@ -1619,7 +1456,10 @@ async fn negative_actual_units_do_not_corrupt_progress() {
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-        assert_eq!(orig_planned, 5, "original planned_units must not be inflated");
+        assert_eq!(
+            orig_planned, 5,
+            "original planned_units must not be inflated"
+        );
     }
 }
 
@@ -1629,31 +1469,20 @@ async fn second_completion_same_day_keeps_streak() {
     let (task_id, session_a) = insert_task_and_session_with_units(&pool, 1).await;
     let session_b = insert_session_on_date(&pool, task_id, "2026-11-04", 1).await;
     // distinct slot so both rows stay valid planned sessions on the same local date
-    sqlx::query(
-        "UPDATE task_sessions SET start_time = '11:00', end_time = '12:00' WHERE id = ?1",
-    )
-    .bind(session_b)
-    .execute(&pool)
-    .await
-    .unwrap();
+    sqlx::query("UPDATE task_sessions SET start_time = '11:00', end_time = '12:00' WHERE id = ?1")
+        .bind(session_b)
+        .execute(&pool)
+        .await
+        .unwrap();
 
     let now = Local
         .with_ymd_and_hms(2026, 11, 4, 12, 0, 0)
         .single()
         .expect("local noon");
 
-    complete_session_impl(
-        &pool,
-        session_a,
-        1,
-        Some(3),
-        None,
-        false,
-        now,
-        None,
-    )
-    .await
-    .expect("complete first session of the day");
+    complete_session_impl(&pool, session_a, 1, Some(3), None, false, now, None)
+        .await
+        .expect("complete first session of the day");
 
     let after_first: (i64, i64, Option<String>) = sqlx::query_as(
         "SELECT current_streak, longest_streak, last_done_date FROM user_stats WHERE id = 1",
@@ -1665,18 +1494,9 @@ async fn second_completion_same_day_keeps_streak() {
     assert_eq!(after_first.1, 1);
     assert_eq!(after_first.2.as_deref(), Some("2026-11-04"));
 
-    complete_session_impl(
-        &pool,
-        session_b,
-        1,
-        Some(3),
-        None,
-        false,
-        now,
-        None,
-    )
-    .await
-    .expect("complete second session same day");
+    complete_session_impl(&pool, session_b, 1, Some(3), None, false, now, None)
+        .await
+        .expect("complete second session same day");
 
     let after_second: (i64, i64, Option<String>) = sqlx::query_as(
         "SELECT current_streak, longest_streak, last_done_date FROM user_stats WHERE id = 1",
@@ -1748,13 +1568,12 @@ async fn complete_allows_actual_units_above_planned_and_awards_full_xp() {
     assert_eq!(result.created_session_id, None);
     assert_eq!(result.remainder_session_id, None);
 
-    let stored: (String, i64) = sqlx::query_as(
-        "SELECT status, actual_units FROM task_sessions WHERE id = ?1",
-    )
-    .bind(session_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let stored: (String, i64) =
+        sqlx::query_as("SELECT status, actual_units FROM task_sessions WHERE id = ?1")
+            .bind(session_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(stored.0, "done");
     assert_eq!(stored.1, 5, "a. stored actual_units stays 5");
 
@@ -1787,13 +1606,12 @@ async fn complete_allows_actual_units_above_planned_and_awards_full_xp() {
     .unwrap();
     assert_eq!(negative_planned, 0, "c. no planned_units=-2 row");
 
-    let logs: Vec<(i64, Option<i64>)> = sqlx::query_as(
-        "SELECT duration_min, session_id FROM actual_logs WHERE session_id = ?1",
-    )
-    .bind(session_id)
-    .fetch_all(&pool)
-    .await
-    .unwrap();
+    let logs: Vec<(i64, Option<i64>)> =
+        sqlx::query_as("SELECT duration_min, session_id FROM actual_logs WHERE session_id = ?1")
+            .bind(session_id)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
     assert_eq!(logs.len(), 1, "d. one actual_logs row");
     assert_eq!(
         logs[0].0, 60,
@@ -1830,18 +1648,9 @@ async fn progress_ring_allows_current_round_units_above_total() {
         .await
         .expect("insert session")
         .last_insert_rowid();
-        complete_session_impl(
-            &pool,
-            session_id,
-            actual,
-            Some(3),
-            None,
-            false,
-            now,
-            None,
-        )
-        .await
-        .expect("complete");
+        complete_session_impl(&pool, session_id, actual, Some(3), None, false, now, None)
+            .await
+            .expect("complete");
     }
 
     let progress = task_progress_impl(&conn, task_id).expect("task_progress");
@@ -1856,11 +1665,59 @@ async fn progress_ring_allows_current_round_units_above_total() {
     let _ = std::fs::remove_file(&path);
 }
 
+#[tokio::test]
+async fn list_sessions_in_range_includes_bounds_and_sorts() {
+    let pool = common::setup().await;
+    let (task_id, midday_id) = insert_task_and_session(&pool).await;
+
+    async fn add(pool: &SqlitePool, task_id: i64, date: &str, start: &str) {
+        sqlx::query(
+            r#"INSERT INTO task_sessions (task_id, date, start_time, end_time, round, planned_units, status)
+               VALUES (?1, ?2, ?3, '21:00', 1, 1, 'planned')"#,
+        )
+        .bind(task_id)
+        .bind(date)
+        .bind(start)
+        .execute(pool)
+        .await
+        .expect("insert ranged session");
+    }
+
+    add(&pool, task_id, "2026-11-04", "08:00").await;
+    add(&pool, task_id, "2026-11-01", "19:00").await;
+    add(&pool, task_id, "2026-11-30", "07:00").await;
+    add(&pool, task_id, "2026-10-31", "09:00").await;
+    add(&pool, task_id, "2026-12-01", "09:00").await;
+
+    let rows = list_sessions_in_range_impl(&pool, "2026-11-1", "2026-11-30")
+        .await
+        .expect("range");
+    let keys: Vec<_> = rows
+        .iter()
+        .map(|s| (s.date.as_str(), s.start_time.as_str()))
+        .collect();
+    assert_eq!(
+        keys,
+        vec![
+            ("2026-11-01", "19:00"),
+            ("2026-11-04", "08:00"),
+            ("2026-11-04", "09:00"),
+            ("2026-11-30", "07:00"),
+        ]
+    );
+    assert!(rows.iter().any(|s| s.id == midday_id));
+    assert!(rows.iter().all(|s| s.task_title.as_deref() == Some("测试任务")));
+    assert!(rows.iter().all(|s| s.task_color.as_deref() == Some("#F97316")));
+
+    let empty = list_sessions_in_range_impl(&pool, "2026-12-01", "2026-11-01")
+        .await
+        .expect("inverted range");
+    assert!(empty.is_empty());
+}
+
 async fn open_file_db() -> (PathBuf, SqlitePool, Connection) {
-    let path = std::env::temp_dir().join(format!(
-        "timequest-over-units-{}.db",
-        uuid::Uuid::new_v4()
-    ));
+    let path =
+        std::env::temp_dir().join(format!("timequest-over-units-{}.db", uuid::Uuid::new_v4()));
     if path.exists() {
         let _ = std::fs::remove_file(&path);
     }
@@ -1874,10 +1731,7 @@ async fn open_file_db() -> (PathBuf, SqlitePool, Connection) {
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .unwrap();
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
     let conn = Connection::open(&path).expect("rusqlite");
     conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
     (path, pool, conn)

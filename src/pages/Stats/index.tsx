@@ -1,18 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
   endOfMonth,
   endOfWeek,
   format,
@@ -30,6 +17,14 @@ import {
 } from "../../hooks/useStats";
 import { METHODS, SUBJECTS, TAG_TYPES } from "../../lib/constants";
 import { todayStr } from "../../lib/date";
+import { ChartEmptyState } from "./ChartEmptyState";
+import {
+  toMethodDonut,
+  toPlanVsActualBars,
+  toSubjectDonut,
+} from "./chartHelpers";
+import { DonutChart } from "./DonutChart";
+import { PlanVsActualChart } from "./PlanVsActualChart";
 
 type RangeMode = "week" | "month";
 
@@ -46,8 +41,6 @@ function rangeFor(mode: RangeMode) {
     to: format(endOfMonth(now), "yyyy-MM-dd"),
   };
 }
-
-const PIE_COLORS = ["#F97316", "#14B8A6", "#3B82F6", "#EAB308", "#EC4899"];
 
 export function Stats() {
   const [mode, setMode] = useState<RangeMode>("week");
@@ -68,6 +61,10 @@ export function Stats() {
     tagType: "study",
     note: "",
   });
+
+  const subjectSlices = useMemo(() => toSubjectDonut(pva), [pva]);
+  const methodSlices = useMemo(() => toMethodDonut(methods), [methods]);
+  const planBars = useMemo(() => toPlanVsActualBars(pva), [pva]);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -106,9 +103,7 @@ export function Stats() {
         <StatTile
           label="计划达成率"
           value={
-            rate
-              ? `${Math.round((rate.rate || 0) * 100)}%`
-              : "—"
+            rate ? `${Math.round((rate.rate || 0) * 100)}%` : "—"
           }
           hint={
             rate
@@ -131,82 +126,48 @@ export function Stats() {
       </div>
 
       <section className="rounded-2xl border border-white/5 bg-surface-2/80 p-4">
-        <h2 className="mb-3 font-display text-lg">计划 vs 实际（分钟）</h2>
-        {pva.length === 0 ? (
-          <p className="text-sm text-ink-muted">暂无计划/实际数据</p>
+        <h2 className="mb-3 font-display text-lg">各科目投入占比</h2>
+        {subjectSlices.length === 0 ? (
+          <ChartEmptyState />
         ) : (
-          <div className="h-64" data-testid="plan-vs-actual-chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={pva}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-                <XAxis dataKey="subject" stroke="#8b9aab" fontSize={12} />
-                <YAxis stroke="#8b9aab" fontSize={12} />
-                <Tooltip
-                  contentStyle={{
-                    background: "#1a222c",
-                    border: "1px solid #ffffff20",
-                  }}
-                />
-                <Legend />
-                <Bar dataKey="planned_min" name="计划" fill="#64748b" />
-                <Bar dataKey="actual_min" name="实际" fill="#F97316" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <DonutChart
+            slices={subjectSlices}
+            testId="subject-share-chart"
+            legendLabel="各科目投入占比明细"
+            legendFormat="name-min-pct"
+          />
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-white/5 bg-surface-2/80 p-4">
+        <h2 className="mb-3 font-display text-lg">计划 vs 实际（分钟）</h2>
+        {planBars.length === 0 ? (
+          <ChartEmptyState />
+        ) : (
+          <PlanVsActualChart data={planBars} />
         )}
       </section>
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="rounded-2xl border border-white/5 bg-surface-2/80 p-4">
           <h2 className="mb-3 font-display text-lg">学习方式占比</h2>
-          {methods.length === 0 ? (
-            <p className="text-sm text-ink-muted">暂无方式数据</p>
+          {methodSlices.length === 0 ? (
+            <ChartEmptyState />
           ) : (
-            <>
-              <div className="h-56" data-testid="method-share-chart">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={methods}
-                      dataKey="duration_min"
-                      nameKey="method"
-                      outerRadius={80}
-                      label
-                    >
-                      {methods.map((_, i) => (
-                        <Cell
-                          key={i}
-                          fill={PIE_COLORS[i % PIE_COLORS.length]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        background: "#1a222c",
-                        border: "1px solid #ffffff20",
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <ul
-                className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-muted"
-                aria-label="学习方式占比明细"
-              >
-                {methods.map((m) => (
-                  <li key={m.method}>
-                    {m.method} · {m.duration_min} 分
-                  </li>
-                ))}
-              </ul>
-            </>
+            <DonutChart
+              slices={methodSlices}
+              testId="method-share-chart"
+              legendLabel="学习方式占比明细"
+              legendFormat="name-min"
+              centerLabel="总学习时长"
+            />
           )}
         </section>
 
         <section className="rounded-2xl border border-white/5 bg-surface-2/80 p-4">
           <h2 className="mb-3 font-display text-lg">平均自评</h2>
           {ratings.length === 0 ? (
-            <p className="text-sm text-ink-muted">暂无自评数据</p>
+            <ChartEmptyState message="暂无自评数据" />
           ) : (
             <ul className="space-y-2 text-sm">
               {ratings.map((r) => (

@@ -283,19 +283,15 @@ async fn export_import_round_trip_preserves_rows() {
         .unwrap();
     assert_eq!(archived, 1);
     let done_note: Option<String> = conn
-        .query_row(
-            "SELECT self_note FROM task_sessions WHERE id=11",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT self_note FROM task_sessions WHERE id=11", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(done_note.as_deref(), Some("状态不错"));
     let missed_note: Option<String> = conn
-        .query_row(
-            "SELECT self_note FROM task_sessions WHERE id=12",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT self_note FROM task_sessions WHERE id=12", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert!(missed_note.is_none());
     let note_pinned: i64 = conn
@@ -336,7 +332,12 @@ async fn export_import_round_trip_preserves_rows() {
         archived_json.is_i64() || archived_json.is_u64(),
         "archived must be integer in export, got {archived_json}"
     );
-    assert_eq!(archived_json.as_i64().or_else(|| archived_json.as_u64().map(|u| u as i64)), Some(1));
+    assert_eq!(
+        archived_json
+            .as_i64()
+            .or_else(|| archived_json.as_u64().map(|u| u as i64)),
+        Some(1)
+    );
     let pinned_json = parsed["notes"]
         .as_array()
         .unwrap()
@@ -345,7 +346,12 @@ async fn export_import_round_trip_preserves_rows() {
         .unwrap()["pinned"]
         .clone();
     assert!(pinned_json.is_i64() || pinned_json.is_u64());
-    assert_eq!(pinned_json.as_i64().or_else(|| pinned_json.as_u64().map(|u| u as i64)), Some(1));
+    assert_eq!(
+        pinned_json
+            .as_i64()
+            .or_else(|| pinned_json.as_u64().map(|u| u as i64)),
+        Some(1)
+    );
 
     // Import clears internally then re-inserts.
     import_json_impl(&conn, &payload).expect("import round-trip");
@@ -388,19 +394,15 @@ async fn export_import_round_trip_preserves_rows() {
         .unwrap();
     assert_eq!(textbook_keep.as_deref(), Some("必修一"));
     let self_note_keep: Option<String> = conn
-        .query_row(
-            "SELECT self_note FROM task_sessions WHERE id=11",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT self_note FROM task_sessions WHERE id=11", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(self_note_keep.as_deref(), Some("状态不错"));
     let self_note_null: Option<String> = conn
-        .query_row(
-            "SELECT self_note FROM task_sessions WHERE id=12",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT self_note FROM task_sessions WHERE id=12", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert!(self_note_null.is_none());
 
@@ -454,7 +456,9 @@ async fn import_failure_rolls_back_to_pre_import_state() {
     let (_a, _b) = seed_full_dataset(&conn);
     let before = count_all(&conn);
     let xp_before: i64 = conn
-        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| r.get(0))
+        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| {
+            r.get(0)
+        })
         .unwrap();
 
     // Export a good payload, then poison rescheduled_to to a missing id.
@@ -475,7 +479,10 @@ async fn import_failure_rolls_back_to_pre_import_state() {
 
     let after = count_all(&conn);
     assert_eq!(after.tasks, before.tasks, "tasks count must roll back");
-    assert_eq!(after.sessions, before.sessions, "sessions count must roll back");
+    assert_eq!(
+        after.sessions, before.sessions,
+        "sessions count must roll back"
+    );
     assert_eq!(after.logs, before.logs, "logs count must roll back");
     assert_eq!(after.notes, before.notes, "notes count must roll back");
     assert_eq!(
@@ -483,7 +490,9 @@ async fn import_failure_rolls_back_to_pre_import_state() {
         "achievements count must roll back"
     );
     let xp_after: i64 = conn
-        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| r.get(0))
+        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(xp_after, xp_before, "user_stats must roll back");
 
@@ -537,7 +546,10 @@ async fn import_user_stats_update_is_noop_when_id_1_row_missing() {
 
     let result = import_json_impl(&conn, &payload.to_string());
     // a. 当前实现 UPDATE 0 行仍 Ok；修复后也应 Ok（重建行而非失败）。
-    assert!(result.is_ok(), "import must Ok even when id=1 was missing: {result:?}");
+    assert!(
+        result.is_ok(),
+        "import must Ok even when id=1 was missing: {result:?}"
+    );
 
     // b. 导入后必须有恰好一行 id=1，且字段与 payload 一致。
     let n: i64 = conn
@@ -599,7 +611,9 @@ async fn import_rejects_actual_log_with_dangling_session_id() {
     let msg = err.unwrap_err();
     assert!(
         msg.contains("9999")
-            && (msg.contains("session_id") || msg.contains("dangling") || msg.contains("actual_logs")),
+            && (msg.contains("session_id")
+                || msg.contains("dangling")
+                || msg.contains("actual_logs")),
         "a. error must name the dangling session_id / log: {msg}"
     );
 
@@ -669,7 +683,9 @@ async fn import_rejects_user_stats_payload_with_wrong_id() {
     let (path, conn) = open_rusqlite_migrated().await;
     seed_full_dataset(&conn);
     let xp_before: i64 = conn
-        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| r.get(0))
+        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| {
+            r.get(0)
+        })
         .unwrap();
 
     let mut payload: Value =
@@ -687,7 +703,9 @@ async fn import_rejects_user_stats_payload_with_wrong_id() {
     assert!(err.is_err(), "user_stats.id=2 must Err, got Ok");
 
     let xp_after: i64 = conn
-        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| r.get(0))
+        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(xp_after, xp_before, "reject must roll back; id=1 unchanged");
     let n: i64 = conn
@@ -711,7 +729,10 @@ async fn import_normalizes_invalid_color_to_default() {
         .and_then(|v| v.as_array_mut())
         .expect("notes array");
     assert!(!notes.is_empty(), "seed must include notes");
-    let target_id = notes[0].get("id").and_then(|v| v.as_i64()).expect("note id");
+    let target_id = notes[0]
+        .get("id")
+        .and_then(|v| v.as_i64())
+        .expect("note id");
     notes[0]["color"] = serde_json::json!("neon");
 
     import_json_impl(&conn, &payload.to_string()).expect("import with neon color");
@@ -778,7 +799,10 @@ async fn import_user_achievements_duplicate_ids_are_idempotent() {
     );
 
     let after = count_all(&conn);
-    assert_eq!(after.tasks, before.tasks, "d. tasks unchanged vs pre-import seed");
+    assert_eq!(
+        after.tasks, before.tasks,
+        "d. tasks unchanged vs pre-import seed"
+    );
     assert_eq!(after.sessions, before.sessions, "d. sessions unchanged");
     assert_eq!(after.logs, before.logs, "d. logs unchanged");
     assert_eq!(after.notes, before.notes, "d. notes unchanged");
@@ -855,13 +879,19 @@ async fn import_user_achievements_twice_keeps_single_row_per_id() {
         "c. same payload re-import keeps unlocked_at identical to first import"
     );
 
-    assert_eq!(after_second.tasks, after_first.tasks, "d. tasks not doubled");
+    assert_eq!(
+        after_second.tasks, after_first.tasks,
+        "d. tasks not doubled"
+    );
     assert_eq!(
         after_second.sessions, after_first.sessions,
         "d. sessions not doubled"
     );
     assert_eq!(after_second.logs, after_first.logs, "d. logs not doubled");
-    assert_eq!(after_second.notes, after_first.notes, "d. notes not doubled");
+    assert_eq!(
+        after_second.notes, after_first.notes,
+        "d. notes not doubled"
+    );
     assert_eq!(
         after_second.achievements, after_first.achievements,
         "d. achievements count stable across re-import"
@@ -880,7 +910,9 @@ async fn import_user_achievements_payload_with_dangling_reference() {
     seed_full_dataset(&conn);
     let before = count_all(&conn);
     let xp_before: i64 = conn
-        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| r.get(0))
+        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| {
+            r.get(0)
+        })
         .unwrap();
 
     let mut payload: Value =
@@ -918,7 +950,9 @@ async fn import_user_achievements_payload_with_dangling_reference() {
         "user_achievements rolled back"
     );
     let xp_after: i64 = conn
-        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| r.get(0))
+        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(xp_after, xp_before, "user_stats unchanged on reject");
     assert_fk_ok(&conn);
@@ -928,7 +962,7 @@ async fn import_user_achievements_payload_with_dangling_reference() {
 
 /// 护栏：未来新增用户表时，若未同步 `export_json_impl`，本测试自动红灯。
 ///
-/// A 段：payload 顶层 = `version` / `exported_at` + 六张表键；库内另有目录表
+/// A 段：payload 顶层 = `version` / `exported_at` + 八张表键（含 `app_settings`、`imported_textbooks`）；库内另有目录表
 /// `achievements`（`INTENTIONAL_EXPORT_OMISSIONS`）。导出为硬编码列表，见 AGENTS.md。
 #[tokio::test]
 async fn export_json_includes_every_user_table() {
@@ -943,11 +977,8 @@ async fn export_json_includes_every_user_table() {
         .unwrap_or_else(|msg| panic!("{msg}"));
 
     // 自证：临时新表未进导出时必须失败（否则本护栏只是摆设）。
-    conn.execute(
-        "CREATE TABLE _probe_table (id INTEGER PRIMARY KEY)",
-        [],
-    )
-    .expect("create probe table");
+    conn.execute("CREATE TABLE _probe_table (id INTEGER PRIMARY KEY)", [])
+        .expect("create probe table");
     let actual_with_probe = list_user_tables(&conn);
     let payload_after: Value =
         serde_json::from_str(&export_json_impl(&conn).unwrap()).expect("parse export after probe");
@@ -981,6 +1012,32 @@ async fn export_json_includes_every_user_table() {
     export_table_coverage_error(&restored, &exported_table_keys(&payload))
         .unwrap_or_else(|msg| panic!("coverage must pass again after DROP: {msg}"));
 
+    let _ = std::fs::remove_file(&path);
+}
+
+#[tokio::test]
+async fn imported_textbook_survives_export_import() {
+    let (path, conn) = open_rusqlite_migrated().await;
+    let outline = r#"{"subject":"语文","version":"部编版","volume":"必修上册","chapters":[{"chapter":"第一单元","sections":["1 沁园春·长沙"]}]}"#;
+    conn.execute(
+        r#"INSERT INTO imported_textbooks (subject, version, volume, outline_json, created_at, updated_at)
+           VALUES ('语文', '部编版', '必修上册', ?1, '2026-11-05 10:00:00', '2026-11-05 10:00:00')"#,
+        [outline],
+    )
+    .unwrap();
+
+    let exported = export_json_impl(&conn).unwrap();
+    conn.execute("DELETE FROM imported_textbooks", []).unwrap();
+    import_json_impl(&conn, &exported).unwrap();
+
+    let stored: String = conn
+        .query_row(
+            "SELECT outline_json FROM imported_textbooks WHERE subject='语文'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(stored, outline);
     let _ = std::fs::remove_file(&path);
 }
 
@@ -1063,7 +1120,9 @@ async fn import_rejects_user_achievements_when_achievements_catalog_wiped() {
 
     let before = count_all(&conn);
     let xp_before: i64 = conn
-        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| r.get(0))
+        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     let catalog_before = count_achievements_catalog(&conn);
 
@@ -1092,7 +1151,9 @@ async fn import_rejects_user_achievements_when_achievements_catalog_wiped() {
         "b. user_achievements unchanged (pre-check rejects before clear)"
     );
     let xp_after: i64 = conn
-        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| r.get(0))
+        .query_row("SELECT total_xp FROM user_stats WHERE id=1", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(xp_after, xp_before, "b. user_stats unchanged");
     assert_eq!(
@@ -1224,7 +1285,10 @@ async fn export_json_errors_when_user_stats_id_1_row_missing() {
         ok.as_object().map(|o| o.keys().collect::<Vec<_>>())
     );
     assert!(
-        ok.get("tasks").and_then(|t| t.as_array()).map(|a| !a.is_empty()) == Some(true),
+        ok.get("tasks")
+            .and_then(|t| t.as_array())
+            .map(|a| !a.is_empty())
+            == Some(true),
         "baseline must have tasks"
     );
 
@@ -1276,11 +1340,9 @@ async fn export_keeps_current_level_when_inconsistent_with_total_xp() {
     .expect("seed inconsistent level/xp");
 
     let db_level: i64 = conn
-        .query_row(
-            "SELECT current_level FROM user_stats WHERE id=1",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT current_level FROM user_stats WHERE id=1", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(db_level, 1, "precondition: DB current_level=1");
 
@@ -1627,7 +1689,10 @@ async fn import_allows_actual_log_for_rescheduled_session() {
             |r| Ok((r.get(0)?, r.get(1)?)),
         )
         .expect("c. rescheduled session row");
-    assert_eq!(status, "rescheduled", "c. import must not rewrite status to done");
+    assert_eq!(
+        status, "rescheduled",
+        "c. import must not rewrite status to done"
+    );
     assert_eq!(
         rescheduled_to,
         Some(RESCHEDULED_TARGET_ID),
@@ -1700,7 +1765,10 @@ async fn export_round_trip_preserves_log_for_rescheduled_session() {
         .iter()
         .find(|row| row["id"] == RESCHEDULED_SESSION_ID)
         .expect("rescheduled session in export");
-    assert_eq!(session["status"], "rescheduled", "b. status stays rescheduled");
+    assert_eq!(
+        session["status"], "rescheduled",
+        "b. status stays rescheduled"
+    );
     assert_eq!(
         session["rescheduled_to"], RESCHEDULED_TARGET_ID,
         "c. rescheduled_to still points at the planned target"
@@ -1724,7 +1792,10 @@ async fn import_does_not_auto_flip_rescheduled_to_done() {
             |r| r.get(0),
         )
         .unwrap();
-    assert_eq!(pointing, 1, "precondition: a log points at the rescheduled session");
+    assert_eq!(
+        pointing, 1,
+        "precondition: a log points at the rescheduled session"
+    );
 
     let status: String = conn
         .query_row(
@@ -1846,17 +1917,8 @@ async fn import_positive_streak_with_null_last_done_resets_on_next_complete() {
         .await
         .expect("pragma");
 
-    let completed = complete_session_impl(
-        &pool,
-        11,
-        3,
-        Some(4),
-        None,
-        false,
-        Local::now(),
-        None,
-    )
-    .await;
+    let completed =
+        complete_session_impl(&pool, 11, 3, Some(4), None, false, Local::now(), None).await;
     assert!(completed.is_ok(), "a. next complete must Ok: {completed:?}");
 
     let (current, longest, last): (i64, i64, Option<String>) = sqlx::query_as(

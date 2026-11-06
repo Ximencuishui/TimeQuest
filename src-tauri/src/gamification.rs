@@ -94,11 +94,7 @@ pub fn update_streak_values(
             if diff == 1 {
                 next = current + 1;
             } else if diff < 0 {
-                return (
-                    current,
-                    longest,
-                    last.to_string(),
-                );
+                return (current, longest, last.to_string());
             }
         }
     }
@@ -107,11 +103,7 @@ pub fn update_streak_values(
 }
 
 #[allow(dead_code)]
-pub fn apply_xp_and_streak(
-    conn: &Connection,
-    xp: i64,
-    done_date: &str,
-) -> Result<(), String> {
+pub fn apply_xp_and_streak(conn: &Connection, xp: i64, done_date: &str) -> Result<(), String> {
     let (total_xp, current_streak, longest_streak, last_done): (
         i64,
         i64,
@@ -125,8 +117,12 @@ pub fn apply_xp_and_streak(
         )
         .map_err(|e| e.to_string())?;
 
-    let (new_streak, new_longest, new_last) =
-        update_streak_values(current_streak, longest_streak, last_done.as_deref(), done_date);
+    let (new_streak, new_longest, new_last) = update_streak_values(
+        current_streak,
+        longest_streak,
+        last_done.as_deref(),
+        done_date,
+    );
     let new_total = total_xp + xp;
     let new_level = level_from_total_xp(new_total);
 
@@ -140,10 +136,7 @@ pub fn apply_xp_and_streak(
 }
 
 #[allow(dead_code)]
-pub fn try_unlock(
-    conn: &Connection,
-    achievement_id: &str,
-) -> Result<bool, String> {
+pub fn try_unlock(conn: &Connection, achievement_id: &str) -> Result<bool, String> {
     let exists: Option<String> = conn
         .query_row(
             "SELECT achievement_id FROM user_achievements WHERE achievement_id = ?1",

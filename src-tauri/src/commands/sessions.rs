@@ -5,7 +5,7 @@ use crate::models::{
     CompleteSessionInput, CompleteSessionResult, CreateSessionPayload, RemainderSchedule,
     RescheduleInput, TaskSession,
 };
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, NaiveDate};
 use rusqlite::params;
 use sqlx::{FromRow, SqlitePool};
 use tauri::State;
@@ -223,10 +223,7 @@ pub async fn complete_session_impl(
     }
 
     // All writes below stay on this transaction until commit — any Err drops `tx` and rolls back.
-    let task_type = session
-        .task_type
-        .clone()
-        .unwrap_or_else(|| "side".into());
+    let task_type = session.task_type.clone().unwrap_or_else(|| "side".into());
     let subject = session.subject.clone();
     let rating = self_rating.unwrap_or(3);
 
@@ -551,13 +548,11 @@ pub async fn reschedule_session_impl(
     .await?;
     let new_id = insert.last_insert_rowid();
 
-    sqlx::query(
-        "UPDATE task_sessions SET status='rescheduled', rescheduled_to=?1 WHERE id=?2",
-    )
-    .bind(new_id)
-    .bind(session.id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("UPDATE task_sessions SET status='rescheduled', rescheduled_to=?1 WHERE id=?2")
+        .bind(new_id)
+        .bind(session.id)
+        .execute(&mut *tx)
+        .await?;
 
     let old_id = session.id;
     tx.commit().await?;
@@ -570,6 +565,59 @@ pub async fn reschedule_session_impl(
         created_session_id: Some(new_id),
         remainder_session_id: None,
     })
+}
+
+/// Pad a parseable `Y-M-D` bound to `YYYY-MM-DD` (`"2026-11-1"` → `"2026-11-01"`).
+/// Unparseable text is left unchanged, same policy as stats date bounds.
+fn normalize_ymd(raw: &str) -> String {
+    let parts: Vec<&str> = raw.split('-').collect();
+    if parts.len() != 3 {
+        return raw.to_string();
+    }
+    let Ok(year) = parts[0].parse::<i32>() else {
+        return raw.to_string();
+    };
+    let Ok(month) = parts[1].parse::<u32>() else {
+        return raw.to_string();
+    };
+    let Ok(day) = parts[2].parse::<u32>() else {
+        return raw.to_string();
+    };
+    NaiveDate::from_ymd_opt(year, month, day)
+        .map(|date| date.format("%Y-%m-%d").to_string())
+        .unwrap_or_else(|| raw.to_string())
+}
+
+/// Inclusive `[start_date, end_date]`, ordered by date then start time.
+/// `start > end` returns an empty vec and does not scan the table.
+pub async fn list_sessions_in_range_impl(
+    db: &SqlitePool,
+    start_date: &str,
+    end_date: &str,
+) -> Result<Vec<TaskSession>, String> {
+    let start = normalize_ymd(start_date);
+    let end = normalize_ymd(end_date);
+    if start > end {
+        return Ok(Vec::new());
+    }
+    let rows = sqlx::query_as::<_, SessionJoinRow>(&format!(
+        "{SESSION_JOIN_SQL} WHERE s.date >= ?1 AND s.date <= ?2 ORDER BY s.date ASC, s.start_time ASC"
+    ))
+    .bind(&start)
+    .bind(&end)
+    .fetch_all(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(rows.into_iter().map(SessionJoinRow::into_session).collect())
+}
+
+#[tauri::command]
+pub async fn list_sessions_in_range(
+    pool: State<'_, SqlitePool>,
+    start_date: String,
+    end_date: String,
+) -> Result<Vec<TaskSession>, String> {
+    list_sessions_in_range_impl(pool.inner(), &start_date, &end_date).await
 }
 
 #[tauri::command]
@@ -662,11 +710,7 @@ pub async fn complete_session(
     input: CompleteSessionInput,
 ) -> Result<CompleteSessionResult, String> {
     let now = Local::now();
-    let remainder = match (
-        &input.defer_date,
-        &input.defer_start,
-        &input.defer_end,
-    ) {
+    let remainder = match (&input.defer_date, &input.defer_start, &input.defer_end) {
         (Some(d), Some(st), Some(et)) => Some(RemainderSchedule {
             date: d.clone(),
             start_time: st.clone(),

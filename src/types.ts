@@ -120,6 +120,11 @@ export type AvgRatingRow = {
   count: number;
 };
 
+export type DailyUnitsRow = {
+  date: string;
+  units: number;
+};
+
 export type CompleteSessionInput = {
   sessionId: number;
   actualUnits: number;
@@ -145,4 +150,50 @@ export type CompleteSessionResult = {
   newAchievements: string[];
   createdSessionId: number | null;
   remainderSessionId: number | null;
+};
+
+export type TextbookChapter = {
+  name: string;
+  sections: string[];
+};
+
+export type TextbookOutline = {
+  subject: string;
+  version: string;
+  volume: string;
+  chapters: TextbookChapter[];
+};
+
+export type GenerateTasksFromOutlineInput = {
+  subject: string;
+  version: string;
+  volume: string;
+  taskName: string;
+  selectedSections: string[];
+  autoSchedule: boolean;
+};
+
+export type AvailableTextbook = {
+  subject: string;
+  version: string;
+  volume: string;
+};
+
+export type GenerateTasksResult = {
+  taskId: number;
+  totalUnits: number;
+  plannedCount: number;
+  doneCount: number;
+};
+
+export type ImportTextbookResult = {
+  outline: TextbookOutline;
+  replaced: boolean;
+};
+
+export type TextbookCatalogItem = {
+  subject: string;
+  version: string;
+  volume: string;
+  source: string;
 };

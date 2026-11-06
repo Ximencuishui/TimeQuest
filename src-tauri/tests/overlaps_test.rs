@@ -67,10 +67,7 @@ async fn overlap_unpadded_hour_is_not_a_text_hit() {
     )
     .await;
 
-    assert!(
-        b.is_ok(),
-        "create_session_impl must return Ok, got {b:?}"
-    );
+    assert!(b.is_ok(), "create_session_impl must return Ok, got {b:?}");
     let b = b.unwrap();
 
     let hits = text_overlap_ids(&pool, &date, &b.start_time, &b.end_time, b.id).await;
@@ -84,13 +81,12 @@ async fn overlap_unpadded_hour_is_not_a_text_hit() {
         b.end_time
     );
 
-    let starts: Vec<String> = sqlx::query_scalar(
-        "SELECT start_time FROM task_sessions WHERE date = ?1 ORDER BY id",
-    )
-    .bind(&date)
-    .fetch_all(&pool)
-    .await
-    .expect("read start_time");
+    let starts: Vec<String> =
+        sqlx::query_scalar("SELECT start_time FROM task_sessions WHERE date = ?1 ORDER BY id")
+            .bind(&date)
+            .fetch_all(&pool)
+            .await
+            .expect("read start_time");
     assert!(
         starts.iter().all(|s| s.len() == 5),
         "stored start_time must be HH:MM (len == 5), got {starts:?}"

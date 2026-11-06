@@ -20,6 +20,12 @@ body,
   height: 100%;
 }
 
+html.widget-window,
+html.widget-window body,
+html.widget-window #root {
+  background: transparent !important;
+}
+
 body {
   margin: 0;
   font-family: var(--font-body);
@@ -56,4 +62,47 @@ textarea {
 ::-webkit-scrollbar-thumb {
   background: #3a4a5c;
   border-radius: 4px;
+}
+
+@keyframes task-grid-float {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.72;
+  }
+  50% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+.task-grid-float {
+  animation: task-grid-float 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-grid-float {
+    animation: none;
+  }
+}
+
+@keyframes accumulation-nudge {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.accumulation-nudge {
+  animation: accumulation-nudge 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .accumulation-nudge {
+    animation: none;
+    opacity: 1;
+  }
 }

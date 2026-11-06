@@ -6,9 +6,10 @@ type Props = {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  wide?: boolean;
 };
 
-export function Modal({ open, title, onClose, children, footer }: Props) {
+export function Modal({ open, title, onClose, children, footer, wide = false }: Props) {
   if (!open) return null;
   return (
     <div
@@ -19,7 +20,9 @@ export function Modal({ open, title, onClose, children, footer }: Props) {
       onKeyDown={(e) => e.key === "Escape" && onClose()}
     >
       <div
-        className="max-h-[90vh] w-full max-w-md overflow-auto rounded-2xl border border-white/10 bg-surface-2 p-5 shadow-2xl"
+        className={`max-h-[90vh] w-full overflow-auto rounded-2xl border border-white/10 bg-surface-2 p-5 shadow-2xl ${
+          wide ? "max-w-lg" : "max-w-md"
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between gap-3">

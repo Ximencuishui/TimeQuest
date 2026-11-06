@@ -7,11 +7,18 @@ import type {
   CompletionRate,
   MethodShareRow,
   Note,
+  DailyUnitsRow,
+  AvailableTextbook,
+  GenerateTasksFromOutlineInput,
+  GenerateTasksResult,
+  ImportTextbookResult,
   PlanVsActualRow,
   RescheduleInput,
   TagTypeRow,
   Task,
   TaskSession,
+  TextbookCatalogItem,
+  TextbookOutline,
   UserAchievement,
   UserStats,
 } from "../types";
@@ -32,10 +39,28 @@ export const api = {
     invoke<{ round_units: number; total_units_done: number }>("task_progress", {
       id,
     }),
+  getTextbookOutline: (subject: string, version: string, volume: string) =>
+    invoke<TextbookOutline>("get_textbook_outline", { subject, version, volume }),
+  listAvailableTextbooks: () =>
+    invoke<AvailableTextbook[]>("list_available_textbooks"),
+  listTextbookCatalog: () => invoke<TextbookCatalogItem[]>("list_textbook_catalog"),
+  importTextbookJson: (json: string) =>
+    invoke<ImportTextbookResult>("import_textbook_json", { json }),
+  generateTasksFromOutline: (input: GenerateTasksFromOutlineInput) =>
+    invoke<GenerateTasksResult>("generate_tasks_from_outline", {
+      subject: input.subject,
+      version: input.version,
+      volume: input.volume,
+      taskName: input.taskName,
+      selectedSections: input.selectedSections,
+      autoSchedule: input.autoSchedule,
+    }),
 
   // sessions
   listSessionsByDate: (date: string) =>
     invoke<TaskSession[]>("list_sessions_by_date", { date }),
+  listSessionsInRange: (startDate: string, endDate: string) =>
+    invoke<TaskSession[]>("list_sessions_in_range", { startDate, endDate }),
   listSessionsByTask: (taskId: number) =>
     invoke<TaskSession[]>("list_sessions_by_task", { taskId }),
   createSession: (payload: {
@@ -83,6 +108,8 @@ export const api = {
     invoke<CompletionRate>("stats_completion_rate", { from, to }),
   avgRatings: (from: string, to: string) =>
     invoke<AvgRatingRow[]>("stats_avg_ratings", { from, to }),
+  dailyUnits: (from: string, to: string) =>
+    invoke<DailyUnitsRow[]>("stats_daily_units", { from, to }),
 
   // notes
   listNotes: () => invoke<Note[]>("list_notes"),
@@ -99,6 +126,10 @@ export const api = {
   listAchievements: () => invoke<UserAchievement[]>("list_user_achievements"),
 
   // data
+  getSetting: (key: string) => invoke<string | null>("get_setting", { key }),
+  setSetting: (key: string, value: string) =>
+    invoke<void>("set_setting", { key, value }),
+
   exportJson: () => invoke<string>("export_json"),
   importJson: (json: string) => invoke<void>("import_json", { json }),
   getDbPath: () => invoke<string>("get_db_path"),

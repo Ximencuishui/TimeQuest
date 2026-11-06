@@ -38,10 +38,7 @@ fn fetch_task(conn: &rusqlite::Connection, id: i64) -> Result<Task, String> {
 }
 
 #[tauri::command]
-pub fn list_tasks(
-    state: State<'_, DbState>,
-    include_archived: bool,
-) -> Result<Vec<Task>, String> {
+pub fn list_tasks(state: State<'_, DbState>, include_archived: bool) -> Result<Vec<Task>, String> {
     with_db(&state, |conn| {
         let sql = if include_archived {
             r#"SELECT t.id, t.title, t.type, t.subject, t.textbook, t.unit_name,
@@ -74,10 +71,7 @@ pub fn get_task(state: State<'_, DbState>, id: i64) -> Result<Task, String> {
 }
 
 #[tauri::command]
-pub fn create_task(
-    state: State<'_, DbState>,
-    payload: CreateTaskPayload,
-) -> Result<Task, String> {
+pub fn create_task(state: State<'_, DbState>, payload: CreateTaskPayload) -> Result<Task, String> {
     with_db(&state, |conn| {
         conn.execute(
             r#"INSERT INTO tasks (title, type, subject, textbook, unit_name, total_units, total_rounds, color)
@@ -148,11 +142,7 @@ pub fn update_task(
 }
 
 #[tauri::command]
-pub fn archive_task(
-    state: State<'_, DbState>,
-    id: i64,
-    archived: bool,
-) -> Result<(), String> {
+pub fn archive_task(state: State<'_, DbState>, id: i64, archived: bool) -> Result<(), String> {
     with_db(&state, |conn| {
         conn.execute(
             "UPDATE tasks SET archived = ?1 WHERE id = ?2",
@@ -230,10 +220,7 @@ async fn fetch_task_sqlx(db: &SqlitePool, id: i64) -> Result<Task, SessionError>
 }
 
 #[tauri::command]
-pub async fn advance_round(
-    pool: State<'_, SqlitePool>,
-    id: i64,
-) -> Result<Task, String> {
+pub async fn advance_round(pool: State<'_, SqlitePool>, id: i64) -> Result<Task, String> {
     advance_round_impl(pool.inner(), id)
         .await
         .map_err(Into::into)
@@ -264,9 +251,6 @@ pub fn task_progress_impl(conn: &rusqlite::Connection, id: i64) -> Result<TaskPr
 }
 
 #[tauri::command]
-pub fn task_progress(
-    state: State<'_, DbState>,
-    id: i64,
-) -> Result<TaskProgress, String> {
+pub fn task_progress(state: State<'_, DbState>, id: i64) -> Result<TaskProgress, String> {
     with_db(&state, |conn| task_progress_impl(conn, id))
 }

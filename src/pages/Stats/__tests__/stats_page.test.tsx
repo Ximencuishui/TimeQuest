@@ -94,11 +94,17 @@ describe("Stats page charts", () => {
     expect(
       screen.getByRole("heading", { name: "学习方式占比" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("暂无计划/实际数据")).toBeInTheDocument();
-    expect(screen.getByText("暂无方式数据")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "各科目投入占比" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("这段时间还没有学习记录，去开启一个番茄钟吧。"),
+    ).toHaveLength(3);
     expect(screen.getByText("暂无自评数据")).toBeInTheDocument();
+    expect(screen.getAllByTestId("chart-empty-state").length).toBeGreaterThanOrEqual(3);
     expect(screen.queryByTestId("plan-vs-actual-chart")).not.toBeInTheDocument();
     expect(screen.queryByTestId("method-share-chart")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("subject-share-chart")).not.toBeInTheDocument();
 
     const bad = consoleErrors.filter((msg) =>
       /cannot read propert|undefined is not an object|is not a function/i.test(
@@ -141,10 +147,12 @@ describe("Stats page charts", () => {
     });
     expect(screen.getByTestId("method-share-chart")).toBeInTheDocument();
     expect(screen.getByTestId("plan-vs-actual-chart")).toBeInTheDocument();
+    expect(screen.getByTestId("subject-share-chart")).toBeInTheDocument();
     expect(screen.queryAllByText("暂无方式数据")).toHaveLength(0);
 
     await waitFor(() => {
-      const sectors = document.querySelectorAll(
+      const methodChart = screen.getByTestId("method-share-chart");
+      const sectors = methodChart.querySelectorAll(
         ".recharts-pie-sector, .recharts-sector",
       );
       expect(sectors.length).toBe(1);

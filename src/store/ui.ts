@@ -5,6 +5,7 @@ import type { ExamTarget } from "../types";
 const EXAMS_KEY = "timequest.exams";
 const TRAY_KEY = "timequest.closeToTray";
 const ALWAYS_ON_TOP_KEY = "timequest.alwaysOnTop";
+const NOTIFICATIONS_KEY = "timequest.notifications";
 
 function loadExams(): ExamTarget[] {
   try {
@@ -23,25 +24,34 @@ function loadExams(): ExamTarget[] {
   ];
 }
 
+export type TaskViewMode = "list" | "grid";
+
 type UiState = {
   exams: ExamTarget[];
   closeToTray: boolean;
   alwaysOnTop: boolean;
+  /** System toasts for upcoming and starting sessions. Default on. */
+  notificationsEnabled: boolean;
   achievementToast: { title: string; description: string } | null;
+  taskView: TaskViewMode;
   setExams: (exams: ExamTarget[]) => void;
   setPrimaryExam: (id: string) => void;
   upsertExam: (exam: ExamTarget) => void;
   removeExam: (id: string) => void;
   setCloseToTray: (v: boolean) => void;
   setAlwaysOnTop: (v: boolean) => void;
+  setNotificationsEnabled: (v: boolean) => void;
   showAchievement: (a: { title: string; description: string } | null) => void;
+  setTaskView: (view: TaskViewMode) => void;
 };
 
 export const useUiStore = create<UiState>((set, get) => ({
   exams: loadExams(),
   closeToTray: localStorage.getItem(TRAY_KEY) !== "0",
   alwaysOnTop: localStorage.getItem(ALWAYS_ON_TOP_KEY) === "1",
+  notificationsEnabled: localStorage.getItem(NOTIFICATIONS_KEY) !== "0",
   achievementToast: null,
+  taskView: "list",
 
   setExams: (exams) => {
     localStorage.setItem(EXAMS_KEY, JSON.stringify(exams));
@@ -79,7 +89,12 @@ export const useUiStore = create<UiState>((set, get) => ({
     localStorage.setItem(ALWAYS_ON_TOP_KEY, v ? "1" : "0");
     set({ alwaysOnTop: v });
   },
+  setNotificationsEnabled: (v) => {
+    localStorage.setItem(NOTIFICATIONS_KEY, v ? "1" : "0");
+    set({ notificationsEnabled: v });
+  },
   showAchievement: (a) => set({ achievementToast: a }),
+  setTaskView: (taskView) => set({ taskView }),
 }));
 
 export type { NoteColor };

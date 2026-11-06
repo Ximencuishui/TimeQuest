@@ -227,3 +227,10 @@ pub struct TaskProgress {
     pub round_units: i64,
     pub total_units_done: i64,
 }
+
+/// One local day of completed units. Days with no `done` session are omitted.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DailyUnitsRow {
+    pub date: String,
+    pub units: i64,
+}

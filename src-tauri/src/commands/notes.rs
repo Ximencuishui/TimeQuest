@@ -4,9 +4,7 @@ use rusqlite::{params, Connection};
 use tauri::State;
 
 /// Frontend `NOTE_COLORS` — closed set for sticky-note accents.
-pub const COLOR_WHITELIST: &[&str] = &[
-    "yellow", "orange", "green", "blue", "pink", "purple",
-];
+pub const COLOR_WHITELIST: &[&str] = &["yellow", "orange", "green", "blue", "pink", "purple"];
 
 /// Map any string to a whitelist color; unknown → `"yellow"` (option B).
 pub fn normalize_color(raw: &str) -> &'static str {
@@ -60,11 +58,7 @@ pub fn list_notes(state: State<'_, DbState>) -> Result<Vec<Note>, String> {
 }
 
 /// Pure create for tests and the command wrapper. Color is normalized to whitelist.
-pub fn create_note_impl(
-    conn: &Connection,
-    content: String,
-    color: String,
-) -> Result<Note, String> {
+pub fn create_note_impl(conn: &Connection, content: String, color: String) -> Result<Note, String> {
     let color = normalize_color(&color);
     conn.execute(
         "INSERT INTO notes (content, color) VALUES (?1, ?2)",

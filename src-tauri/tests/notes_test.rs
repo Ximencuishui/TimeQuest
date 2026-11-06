@@ -11,15 +11,10 @@ use sqlx::sqlite::SqlitePoolOptions;
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
-use timequest_lib::{
-    create_note_impl, list_notes_impl, update_note_impl, UpdateNotePayload,
-};
+use timequest_lib::{create_note_impl, list_notes_impl, update_note_impl, UpdateNotePayload};
 
 async fn open_rusqlite_migrated() -> (PathBuf, Connection) {
-    let path = std::env::temp_dir().join(format!(
-        "timequest-notes-{}.db",
-        uuid::Uuid::new_v4()
-    ));
+    let path = std::env::temp_dir().join(format!("timequest-notes-{}.db", uuid::Uuid::new_v4()));
     if path.exists() {
         let _ = std::fs::remove_file(&path);
     }
@@ -106,10 +101,7 @@ async fn update_note_refreshes_updated_at_on_inplace_edit() {
         before.1,
         updated.updated_at
     );
-    assert_eq!(
-        updated.created_at, before.0,
-        "c. created_at 保持不变"
-    );
+    assert_eq!(updated.created_at, before.0, "c. created_at 保持不变");
 
     let _ = std::fs::remove_file(&path);
 }
@@ -159,10 +151,7 @@ async fn list_notes_orders_by_updated_at_desc() {
 
     let listed = list_notes_impl(&conn).expect("list_notes");
     assert_eq!(listed.len(), 3);
-    assert_eq!(
-        listed[0].content, "A-edited",
-        "A 最近编辑应排最前"
-    );
+    assert_eq!(listed[0].content, "A-edited", "A 最近编辑应排最前");
     assert_eq!(listed[1].content, "C", "C 比 B 新");
     assert_eq!(listed[2].content, "B");
     assert_eq!(listed[0].id, id_a);
@@ -259,11 +248,9 @@ async fn update_note_normalizes_invalid_color_to_default() {
     .expect("update");
     assert_eq!(updated.color, "yellow");
     let stored: String = conn
-        .query_row(
-            "SELECT color FROM notes WHERE id=?1",
-            params![id],
-            |r| r.get(0),
-        )
+        .query_row("SELECT color FROM notes WHERE id=?1", params![id], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(stored, "yellow");
     let _ = std::fs::remove_file(&path);

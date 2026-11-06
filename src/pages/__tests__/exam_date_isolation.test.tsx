@@ -18,7 +18,8 @@ import { Dashboard } from "../Dashboard";
 import { Stats } from "../Stats";
 
 /**
- * C 段：考试日期只被 CountdownPanel 读取。
+ * C 段：看板里考试日期只被 CountdownPanel 读取。
+ * 悬浮窗 WidgetPage 是另一扇窗口上的倒计时，不在这组断言里。
  * 完成弹窗「剩余改到下次」的日期是打开时的本地今天（todayStr），
  * 不是 session 原日期，也不是考试目标。
  * 统计页周/月由 rangeFor(new Date()) 计算。
@@ -256,6 +257,7 @@ describe("exam date isolation", () => {
     mockedInvoke.mockImplementation(async (cmd: string) => {
       if (cmd === "list_sessions_by_date") return [todaySession];
       if (cmd === "get_user_stats") return userStats;
+      if (cmd === "list_tasks") return [];
       return null;
     });
 

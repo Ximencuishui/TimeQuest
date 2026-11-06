@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/tauri";
-import type { Task } from "../types";
+import { broadcastSessionUpdated } from "../lib/widgetWindow";
+import type { GenerateTasksFromOutlineInput, Task } from "../types";
 
 export function useTasks(includeArchived = false) {
   return useQuery({
@@ -53,6 +54,17 @@ export function useTaskMutations() {
     mutationFn: (id: number) => api.advanceRound(id),
     onSuccess: invalidate,
   });
+  const generateFromOutline = useMutation({
+    mutationFn: (input: GenerateTasksFromOutlineInput) =>
+      api.generateTasksFromOutline(input),
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["sessions"] });
+      qc.invalidateQueries({ queryKey: ["sessions-task"] });
+      qc.invalidateQueries({ queryKey: ["stats"] });
+      broadcastSessionUpdated();
+    },
+  });
 
-  return { create, update, archive, advanceRound };
+  return { create, update, archive, advanceRound, generateFromOutline };
 }

@@ -51,13 +51,11 @@ async fn insert_planned_session(
 }
 
 async fn achievement_count(pool: &SqlitePool, id: &str) -> i64 {
-    sqlx::query_scalar(
-        "SELECT COUNT(*) FROM user_achievements WHERE achievement_id = ?1",
-    )
-    .bind(id)
-    .fetch_one(pool)
-    .await
-    .unwrap()
+    sqlx::query_scalar("SELECT COUNT(*) FROM user_achievements WHERE achievement_id = ?1")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .unwrap()
 }
 
 async fn sum_done_actual_units(pool: &SqlitePool, task_id: i64, round: i64) -> i64 {
@@ -265,8 +263,7 @@ async fn unlocks_streak_5_once_after_five_consecutive_days() {
         // i=0 → today-4 … i=4 → today：连续 5 个本地日
         let d = today - Duration::days(4 - i);
         let date = date_str(d);
-        let sid =
-            insert_planned_session(&pool, task_id, &date, 1, 1, "09:00", "10:00").await;
+        let sid = insert_planned_session(&pool, task_id, &date, 1, 1, "09:00", "10:00").await;
         let res = complete_session_impl(&pool, sid, 1, Some(3), None, false, now, None)
             .await
             .expect("complete consecutive day");
@@ -287,17 +284,15 @@ async fn unlocks_streak_5_once_after_five_consecutive_days() {
     );
     assert_eq!(achievement_count(&pool, "streak_5").await, 1);
 
-    let streak: i64 =
-        sqlx::query_scalar("SELECT current_streak FROM user_stats WHERE id = 1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let streak: i64 = sqlx::query_scalar("SELECT current_streak FROM user_stats WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(streak, 5);
 
     // 同日再完成：streak 仍 ≥ 5，不得重复插入
     let same_day = date_str(today);
-    let extra =
-        insert_planned_session(&pool, task_id, &same_day, 1, 1, "11:00", "12:00").await;
+    let extra = insert_planned_session(&pool, task_id, &same_day, 1, 1, "11:00", "12:00").await;
     let second = complete_session_impl(&pool, extra, 1, Some(3), None, false, now, None)
         .await
         .expect("same-day extra complete");
@@ -555,16 +550,9 @@ async fn reschedule_side_session(pool: &SqlitePool, planned_units: i64) -> i64 {
     let original =
         insert_planned_session(pool, task_id, &date, 1, planned_units, "09:00", "10:00").await;
     let now = Local::now();
-    let moved = reschedule_session_impl(
-        pool,
-        original,
-        date,
-        "16:00".into(),
-        "17:00".into(),
-        now,
-    )
-    .await
-    .expect("reschedule");
+    let moved = reschedule_session_impl(pool, original, date, "16:00".into(), "17:00".into(), now)
+        .await
+        .expect("reschedule");
     moved.created_session_id.expect("reschedule creates target")
 }
 
@@ -734,10 +722,8 @@ async fn balanced_window_uses_session_date_not_wall_clock() {
     let pool = common::setup().await;
     let main_id = insert_task(&pool, "main", 100, 1).await;
     let side_id = insert_task(&pool, "side", 100, 1).await;
-    let main_s =
-        insert_planned_session(&pool, main_id, &days_ago(3), 1, 1, "09:00", "10:00").await;
-    let side_s =
-        insert_planned_session(&pool, side_id, &days_ago(2), 1, 1, "11:00", "12:00").await;
+    let main_s = insert_planned_session(&pool, main_id, &days_ago(3), 1, 1, "09:00", "10:00").await;
+    let side_s = insert_planned_session(&pool, side_id, &days_ago(2), 1, 1, "11:00", "12:00").await;
     complete_session_impl(&pool, main_s, 1, Some(3), None, false, now, None)
         .await
         .expect("complete main today-3");
@@ -776,8 +762,7 @@ async fn balanced_requires_positive_units_in_window() {
     );
     assert_eq!(achievement_count(&pool, "balanced").await, 0);
 
-    let positive_side =
-        insert_planned_session(&pool, side_id, &date, 1, 1, "13:00", "14:00").await;
+    let positive_side = insert_planned_session(&pool, side_id, &date, 1, 1, "13:00", "14:00").await;
     let positive = complete_session_impl(&pool, positive_side, 1, Some(3), None, false, now, None)
         .await
         .expect("complete positive side");
@@ -797,8 +782,7 @@ async fn balanced_boundary_days_inclusive() {
     let pool = common::setup().await;
     let main_id = insert_task(&pool, "main", 100, 1).await;
     let side_id = insert_task(&pool, "side", 100, 1).await;
-    let main_s =
-        insert_planned_session(&pool, main_id, &days_ago(6), 1, 1, "09:00", "10:00").await;
+    let main_s = insert_planned_session(&pool, main_id, &days_ago(6), 1, 1, "09:00", "10:00").await;
     let side_s = insert_planned_session(&pool, side_id, &days_ago(0), 1, 1, "11:00", "12:00").await;
     complete_session_impl(&pool, main_s, 1, Some(3), None, false, now, None)
         .await
@@ -816,8 +800,7 @@ async fn balanced_boundary_days_inclusive() {
     let pool = common::setup().await;
     let main_id = insert_task(&pool, "main", 100, 1).await;
     let side_id = insert_task(&pool, "side", 100, 1).await;
-    let main_s =
-        insert_planned_session(&pool, main_id, &days_ago(7), 1, 1, "09:00", "10:00").await;
+    let main_s = insert_planned_session(&pool, main_id, &days_ago(7), 1, 1, "09:00", "10:00").await;
     let side_s = insert_planned_session(&pool, side_id, &days_ago(0), 1, 1, "11:00", "12:00").await;
     complete_session_impl(&pool, main_s, 1, Some(3), None, false, now, None)
         .await

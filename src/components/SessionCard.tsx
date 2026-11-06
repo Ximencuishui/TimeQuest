@@ -1,4 +1,5 @@
 import type { TaskSession } from "../types";
+import type { SessionTimePhase } from "../lib/sessionTime";
 
 const STATUS_LABEL: Record<string, string> = {
   planned: "待完成",
@@ -12,6 +13,8 @@ type Props = {
   onComplete?: () => void;
   onReschedule?: () => void;
   compact?: boolean;
+  /** Wall-clock phase on the Today timeline; omit elsewhere. */
+  timePhase?: SessionTimePhase;
 };
 
 export function SessionCard({
@@ -19,21 +22,50 @@ export function SessionCard({
   onComplete,
   onReschedule,
   compact,
+  timePhase,
 }: Props) {
   const color = session.task_color || "#F97316";
   const canAct = session.status === "planned";
+  // Dim finished / missed / rescheduled even if the clock window is still open.
+  const isPast =
+    timePhase === "past" ||
+    (timePhase !== undefined && session.status !== "planned");
+  const isActive = timePhase === "active" && session.status === "planned";
+
+  const articleClass = [
+    "rounded-xl border p-4",
+    isActive
+      ? "animate-pulse border-orange-500 bg-orange-500/10"
+      : "border-white/5 bg-surface-2/90",
+    isPast ? "opacity-50" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const titleClass = isPast ? "font-medium text-zinc-500" : "font-medium text-ink";
+  const metaClass = isPast
+    ? "mt-1 text-xs text-zinc-500"
+    : "mt-1 text-xs text-ink-muted";
+
+  const showActiveBadge = isActive;
 
   return (
     <article
-      className="rounded-xl border border-white/5 bg-surface-2/90 p-4"
-      style={{ borderLeftWidth: 3, borderLeftColor: color }}
+      className={articleClass}
+      style={
+        isActive
+          ? undefined
+          : { borderLeftWidth: 3, borderLeftColor: color }
+      }
+      data-time-phase={timePhase}
+      data-session-id={session.id}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="font-medium text-ink">
+        <div className="min-w-0">
+          <div className={titleClass}>
             {session.task_title ?? `任务 #${session.task_id}`}
           </div>
-          <div className="mt-1 text-xs text-ink-muted">
+          <div className={metaClass}>
             {session.start_time} – {session.end_time}
             {session.subject ? ` · ${session.subject}` : ""}
             {session.task_type === "main"
@@ -41,17 +73,26 @@ export function SessionCard({
               : ""}
           </div>
         </div>
-        <span
-          className={`shrink-0 rounded-md px-2 py-0.5 text-xs ${
-            session.status === "done"
-              ? "bg-emerald-500/15 text-emerald-300"
-              : session.status === "rescheduled"
-                ? "bg-white/10 text-ink-muted"
-                : "bg-accent/15 text-accent-soft"
-          }`}
-        >
-          {STATUS_LABEL[session.status] ?? session.status}
-        </span>
+        {showActiveBadge ? (
+          <span
+            className="shrink-0 rounded-md bg-orange-500/20 px-1.5 py-0.5 text-[10px] font-medium leading-none text-orange-300"
+            data-testid="active-badge"
+          >
+            进行中
+          </span>
+        ) : (
+          <span
+            className={`shrink-0 rounded-md px-2 py-0.5 text-xs ${
+              session.status === "done"
+                ? "bg-emerald-500/15 text-emerald-300"
+                : session.status === "rescheduled"
+                  ? "bg-white/10 text-ink-muted"
+                  : "bg-accent/15 text-accent-soft"
+            }`}
+          >
+            {STATUS_LABEL[session.status] ?? session.status}
+          </span>
+        )}
       </div>
       {!compact && canAct ? (
         <div className="mt-3 flex gap-2">
@@ -72,7 +113,7 @@ export function SessionCard({
         </div>
       ) : null}
       {session.status === "done" && session.actual_units > 0 ? (
-        <p className="mt-2 text-xs text-ink-muted">
+        <p className={`mt-2 text-xs ${isPast ? "text-zinc-500" : "text-ink-muted"}`}>
           实际 {session.actual_units}
           {session.self_rating ? ` · 自评 ${session.self_rating}★` : ""}
           {session.xp_awarded ? ` · +${session.xp_awarded} XP` : ""}

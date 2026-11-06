@@ -25,18 +25,12 @@ async fn setup_pool() -> SqlitePool {
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .unwrap();
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
     pool
 }
 
 async fn open_shared_file_db() -> (PathBuf, SqlitePool, Connection) {
-    let path = std::env::temp_dir().join(format!(
-        "timequest-duration-{}.db",
-        uuid::Uuid::new_v4()
-    ));
+    let path = std::env::temp_dir().join(format!("timequest-duration-{}.db", uuid::Uuid::new_v4()));
     if path.exists() {
         let _ = std::fs::remove_file(&path);
     }
@@ -51,14 +45,10 @@ async fn open_shared_file_db() -> (PathBuf, SqlitePool, Connection) {
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .unwrap();
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
 
     let conn = Connection::open(&path).expect("rusqlite");
-    conn.execute_batch("PRAGMA foreign_keys = ON;")
-        .unwrap();
+    conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
     (path, pool, conn)
 }
 
@@ -103,18 +93,9 @@ async fn completion_duration_uses_session_length_with_min_one() {
     )
     .await
     .expect("create 45m session");
-    complete_session_impl(
-        &pool,
-        s45.id,
-        1,
-        Some(3),
-        None,
-        false,
-        Local::now(),
-        None,
-    )
-    .await
-    .expect("complete 45m");
+    complete_session_impl(&pool, s45.id, 1, Some(3), None, false, Local::now(), None)
+        .await
+        .expect("complete 45m");
     assert_eq!(duration_for_session(&pool, s45.id).await, 45);
 
     // 09:00–09:00 → 0 分钟差，守卫抬到 1
@@ -129,18 +110,9 @@ async fn completion_duration_uses_session_length_with_min_one() {
     )
     .await
     .expect("create zero-length session");
-    complete_session_impl(
-        &pool,
-        s0.id,
-        1,
-        Some(3),
-        None,
-        false,
-        Local::now(),
-        None,
-    )
-    .await
-    .expect("complete zero-length");
+    complete_session_impl(&pool, s0.id, 1, Some(3), None, false, Local::now(), None)
+        .await
+        .expect("complete zero-length");
     assert_eq!(
         duration_for_session(&pool, s0.id).await,
         1,
@@ -225,13 +197,12 @@ async fn same_duration_two_paths_produce_different_duration_min() {
     .await
     .unwrap();
 
-    let via_complete: (i64, Option<i64>) = sqlx::query_as(
-        "SELECT duration_min, session_id FROM actual_logs WHERE session_id = ?1",
-    )
-    .bind(session.id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let via_complete: (i64, Option<i64>) =
+        sqlx::query_as("SELECT duration_min, session_id FROM actual_logs WHERE session_id = ?1")
+            .bind(session.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(via_complete.0, 30);
     assert_eq!(via_complete.1, Some(session.id));
 
@@ -274,9 +245,7 @@ async fn same_duration_two_paths_produce_different_duration_min() {
 
     // 统计页把两者混在一起求和（不对 session_id 去重）→ 合计 60。
     // 同一段实际学习不应被记录两次，这是数据录入纪律问题，不是代码 bug。
-    let tags = stats_tag_type_totals_impl(&pool, date, date)
-        .await
-        .unwrap();
+    let tags = stats_tag_type_totals_impl(&pool, date, date).await.unwrap();
     let study = tags
         .iter()
         .find(|r| r.tag_type == "study")

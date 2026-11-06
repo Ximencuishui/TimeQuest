@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capabilities for TimeQuest",
-  "windows": ["main"],
+  "description": "Default capabilities for TimeQuest. main and widget may show, hide, and start dragging.",
+  "windows": ["main", "widget"],
   "permissions": [
     "core:default",
     "core:window:allow-set-always-on-top",
@@ -10,7 +10,10 @@
     "core:window:allow-show",
     "core:window:allow-set-focus",
     "core:window:allow-close",
+    "core:window:allow-start-dragging",
+    "core:webview:allow-create-webview-window",
     "core:tray:default",
+    "notification:default",
     "opener:default",
     "dialog:default",
     "fs:default",

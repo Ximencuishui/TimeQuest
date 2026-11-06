@@ -59,6 +59,7 @@ describe("Dashboard countdown store sync", () => {
     mockedInvoke.mockReset();
     mockedInvoke.mockImplementation(async (cmd: string) => {
       if (cmd === "list_sessions_by_date") return [];
+      if (cmd === "list_tasks") return [];
       return null;
     });
     let seq = 0;

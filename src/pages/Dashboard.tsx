@@ -1,5 +1,9 @@
 import { Link } from "react-router-dom";
+import { DashboardAccumulationWall } from "../components/AccumulationWall";
 import { CountdownPanel } from "../components/CountdownPanel";
+import { DesktopWidgetToggle } from "../components/DesktopWidgetToggle";
+import { DailyMotivation } from "../components/DailyMotivation";
+import { DashboardSprintRoadmap } from "../components/SprintRoadmap";
 import { StatusBar } from "../components/StatusBar";
 import { SessionCard } from "../components/SessionCard";
 import { useSessionsByDate } from "../hooks/useSessions";
@@ -13,11 +17,16 @@ export function Dashboard() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
-      <header>
-        <h1 className="font-display text-2xl text-ink">{APP_NAME}</h1>
-        <p className="mt-1 text-sm text-ink-muted">今天也向前推进一步。</p>
+      <header className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="font-display text-2xl text-ink">{APP_NAME}</h1>
+          <p className="mt-1 text-sm text-ink-muted">今天也向前推进一步。</p>
+          <DesktopWidgetToggle />
+        </div>
+        <DailyMotivation />
       </header>
       <CountdownPanel />
+      <DashboardSprintRoadmap />
       <StatusBar />
       <section>
         <div className="mb-3 flex items-center justify-between">
@@ -43,6 +52,7 @@ export function Dashboard() {
           </div>
         )}
       </section>
+      <DashboardAccumulationWall />
     </div>
   );
 }

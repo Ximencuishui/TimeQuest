@@ -1,19 +1,40 @@
 import { useMemo, useState } from "react";
+import { startOfMonth } from "date-fns";
+import { CalendarView } from "../components/CalendarView";
 import { CompleteDialog } from "../components/CompleteDialog";
 import { RescheduleDialog } from "../components/RescheduleDialog";
 import { Modal } from "../components/Modal";
-import { SessionCard } from "../components/SessionCard";
+import { TodayTimeline } from "../components/TodayTimeline";
+import { useCurrentTime } from "../hooks/useCurrentTime";
 import { useTasks } from "../hooks/useTasks";
-import { useSessionMutations, useSessionsByDate } from "../hooks/useSessions";
+import {
+  useSessionMutations,
+  useSessionsByDate,
+  useSessionsInRange,
+} from "../hooks/useSessions";
+import { gridRange, parseLocalDate, shiftMonth } from "../lib/calendar";
 import { sessionsOverlap } from "../lib/colors";
 import { todayStr } from "../lib/date";
 import type { TaskSession } from "../types";
 
+type TodayView = "day" | "calendar";
+
 export function Today() {
-  const [date, setDate] = useState(todayStr());
+  const now = useCurrentTime(30_000);
+  const [view, setView] = useState<TodayView>("day");
+  const [date, setDate] = useState(() => todayStr());
+  const [month, setMonth] = useState(() => startOfMonth(new Date()));
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const { data: sessions = [], isLoading } = useSessionsByDate(date);
+  const range = useMemo(() => gridRange(month), [month]);
+  const { data: rangeSessions = [], isError: rangeError } = useSessionsInRange(
+    range.start,
+    range.end,
+    view === "calendar",
+  );
   const { data: tasks = [] } = useTasks(false);
   const { create, complete, reschedule } = useSessionMutations();
+  const isViewingToday = date === todayStr(now);
 
   const [completeTarget, setCompleteTarget] = useState<TaskSession | null>(null);
   const [rescheduleTarget, setRescheduleTarget] = useState<TaskSession | null>(
@@ -66,61 +87,132 @@ export function Today() {
     setCreateOpen(true);
   };
 
+  const openCreateOn = (day: string) => {
+    setDate(day);
+    openCreate();
+  };
+
+  const showCalendar = () => {
+    const parsed = parseLocalDate(date);
+    setMonth(startOfMonth(Number.isNaN(parsed.getTime()) ? now : parsed));
+    setSelectedDate(null);
+    setView("calendar");
+  };
+
   const selectedTask = tasks.find((t) => t.id === form.taskId);
+
+  const today = todayStr(now);
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-2xl">今日计划</h1>
-        <div className="flex items-center gap-2">
-          <input
-            type="date"
-            className="rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
-          <button
-            type="button"
-            className="rounded-lg bg-accent px-3 py-2 text-sm text-white hover:bg-accent-soft"
-            onClick={openCreate}
-          >
-            新建排期
-          </button>
-        </div>
+      <div className="mb-4 inline-flex rounded-lg border border-white/10 bg-surface-2 p-0.5">
+        <button
+          type="button"
+          aria-pressed={view === "day"}
+          className={`rounded-md px-3 py-1.5 text-sm ${
+            view === "day" ? "bg-accent text-white" : "text-ink-muted"
+          }`}
+          onClick={() => setView("day")}
+        >
+          日视图
+        </button>
+        <button
+          type="button"
+          aria-pressed={view === "calendar"}
+          className={`rounded-md px-3 py-1.5 text-sm ${
+            view === "calendar" ? "bg-accent text-white" : "text-ink-muted"
+          }`}
+          onClick={showCalendar}
+        >
+          日历视图
+        </button>
       </div>
 
-      {conflicts.size > 0 ? (
-        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-          有 {conflicts.size} 个排期时段重叠（仅提示，不阻止保存）。
-        </div>
-      ) : null}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-2xl">
+          {view === "calendar" ? "日历" : "今日计划"}
+        </h1>
+        {view === "day" ? (
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              className="rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+            <button
+              type="button"
+              className="rounded-lg bg-accent px-3 py-2 text-sm text-white hover:bg-accent-soft"
+              onClick={openCreate}
+            >
+              新建排期
+            </button>
+          </div>
+        ) : null}
+      </div>
 
-      {isLoading ? (
-        <p className="text-ink-muted">加载中…</p>
-      ) : sorted.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-white/10 p-10 text-center">
-          <p className="text-ink-muted">这一天还没有排期。</p>
-          <button
-            type="button"
-            className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm text-white"
-            onClick={openCreate}
-          >
-            创建第一个排期
-          </button>
-        </div>
+      {view === "calendar" ? (
+        <>
+          {rangeError ? (
+            <p className="mb-3 text-sm text-amber-200">排期加载失败，日历仍可浏览。</p>
+          ) : null}
+          <CalendarView
+            month={month}
+            today={today}
+            sessions={rangeSessions}
+            selectedDate={selectedDate}
+            onPrevMonth={() => {
+              setMonth((current) => shiftMonth(current, -1));
+              setSelectedDate(null);
+            }}
+            onNextMonth={() => {
+              setMonth((current) => shiftMonth(current, 1));
+              setSelectedDate(null);
+            }}
+            onToday={() => {
+              setMonth(startOfMonth(now));
+              setSelectedDate(null);
+            }}
+            onOpenDay={(iso) => {
+              setDate(iso);
+              setSelectedDate(null);
+              setView("day");
+            }}
+            onSelectDate={setSelectedDate}
+            onCreate={openCreateOn}
+          />
+        </>
       ) : (
-        <div className="relative space-y-3 border-l border-white/10 pl-4">
-          {sorted.map((s) => (
-            <div key={s.id} className="relative">
-              <span className="absolute -left-[21px] top-5 h-2.5 w-2.5 rounded-full bg-accent" />
-              <SessionCard
-                session={s}
-                onComplete={() => setCompleteTarget(s)}
-                onReschedule={() => setRescheduleTarget(s)}
-              />
+        <>
+          {conflicts.size > 0 ? (
+            <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+              有 {conflicts.size} 个排期时段重叠（仅提示，不阻止保存）。
             </div>
-          ))}
-        </div>
+          ) : null}
+
+          {isLoading ? (
+            <p className="text-ink-muted">加载中…</p>
+          ) : sorted.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/10 p-10 text-center">
+              <p className="text-ink-muted">这一天还没有排期。</p>
+              <button
+                type="button"
+                className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm text-white"
+                onClick={openCreate}
+              >
+                创建第一个排期
+              </button>
+            </div>
+          ) : (
+            <TodayTimeline
+              sessions={sorted}
+              now={now}
+              timeAware={isViewingToday}
+              onComplete={setCompleteTarget}
+              onReschedule={setRescheduleTarget}
+            />
+          )}
+        </>
       )}
 
       <Modal

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/tauri";
+import { broadcastSessionUpdated } from "../lib/widgetWindow";
 import type { CompleteSessionInput, RescheduleInput } from "../types";
 import { useUiStore } from "../store/ui";
 
@@ -7,6 +8,14 @@ export function useSessionsByDate(date: string) {
   return useQuery({
     queryKey: ["sessions", date],
     queryFn: () => api.listSessionsByDate(date),
+  });
+}
+
+export function useSessionsInRange(start: string, end: string, enabled = true) {
+  return useQuery({
+    queryKey: ["sessions-range", start, end],
+    queryFn: () => api.listSessionsInRange(start, end),
+    enabled,
   });
 }
 
@@ -24,6 +33,7 @@ export function useSessionMutations() {
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["sessions"] });
+    qc.invalidateQueries({ queryKey: ["sessions-range"] });
     qc.invalidateQueries({ queryKey: ["sessions-task"] });
     qc.invalidateQueries({ queryKey: ["tasks"] });
     qc.invalidateQueries({ queryKey: ["task"] });
@@ -31,6 +41,7 @@ export function useSessionMutations() {
     qc.invalidateQueries({ queryKey: ["user-stats"] });
     qc.invalidateQueries({ queryKey: ["achievements"] });
     qc.invalidateQueries({ queryKey: ["stats"] });
+    broadcastSessionUpdated();
   };
 
   const create = useMutation({

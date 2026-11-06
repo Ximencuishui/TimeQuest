@@ -102,6 +102,7 @@
 | first_round_can_unlock_on_round_past_total_rounds | 过顶后 round=3 达标：环计入本轮；first_round 全局只一次不重解 | `src-tauri/tests/progress_test.rs` |
 | export_import_round_trip_preserves_rows | JSON 全表往返：行数、rescheduled_to、archived/pinned、可空字段、时间戳保留、user_stats | `src-tauri/tests/export_import_test.rs` |
 | export_json_includes_every_user_table | sqlite_master 用户表 vs 导出顶层表键双向覆盖；临时 `_probe_table` 自证漏导出红灯 | `src-tauri/tests/export_import_test.rs` |
+| set_setting_then_get_is_idempotent | 未写入返回 None；set 后 get 取到值；同 key 再 set 仍一行且值为最后一次（ON CONFLICT DO UPDATE） | `src-tauri/tests/app_settings_test.rs` |
 | import_failure_rolls_back_to_pre_import_state | 毒化 rescheduled_to 导入失败；各表行数与 XP 回滚，无半清空 | `src-tauri/tests/export_import_test.rs` |
 | import_preserves_foreign_key_integrity | 导入后 `PRAGMA foreign_key_check` 无违规且 `foreign_keys=ON` | `src-tauri/tests/export_import_test.rs` |
 | import_preserves_current_round_above_total_rounds | 导入 `current_round=5`、`total_rounds=2` 返回 Ok；两列原样保留；`foreign_key_check` 空 | `src-tauri/tests/export_import_test.rs` |
@@ -169,10 +170,22 @@
 | countdown_panel_transitions_to_arrived_at_target_moment | 零点前 1.5 秒为 `00:00:01`；下一次 1 秒 tick 直接「已到达」+ `00:00:00`，不停留在天数 | `src/components/__tests__/countdown_panel.test.tsx` |
 | countdown_panel_recomputes_when_target_changes_to_past | 目标从未来改为过去：立刻「已到达」，原天数消失，无 console.error | `src/components/__tests__/countdown_panel.test.tsx` |
 | countdown_panel_past_target_hides_day_field_if_design_requires | 已过：隐藏「天」，保留 `00:00:00` 与「0 周」「0 月」 | `src/components/__tests__/countdown_panel.test.tsx` |
+| widget_page_renders_countdown | 悬浮窗渲染高考倒计时大数字、进行中场次，以及拖拽区域和关闭按钮 | `src/pages/__tests__/widget_page.test.tsx` |
+| widget_label_skips_main_shell | 窗口 label 为 `widget` 时只渲染 WidgetPage，不挂侧边栏、今日排期和悬浮窗开关 | `src/pages/__tests__/widget_page.test.tsx` |
+| session_notifier_fires_prep_then_start_once | 08:55 课前 5 分钟提醒，09:00 开课提醒，09:01 不再弹 | `src/hooks/__tests__/session_notifier.test.tsx` |
+| session_notifier_stays_quiet_when_disabled_or_permission_denied | 设置关闭或系统权限拒绝时不调用 sendNotification，也不把错误打到控制台 | `src/hooks/__tests__/session_notifier.test.tsx` |
 | export_json_errors_when_user_stats_id_1_row_missing | 删除 user_stats 后导出 Err（点名缺失/损坏）；不 panic、不产出缺字段备份 | `src-tauri/tests/export_import_test.rs` |
 | export_after_user_stats_restored_succeeds | 缺行失败后手动 INSERT id=1 再导出 Ok，payload 含 user_stats | `src-tauri/tests/export_import_test.rs` |
 | task_detail_progress_ring_reads_task_progress | mock `task_progress.round_units=7` 与 sessions 自算=3 分叉；环与「本轮」显示 7/20 | `src/pages/Tasks/__tests__/task_detail_progress.test.tsx` |
 | task_detail_progress_ring_reflects_advance_round | 推进后 mock `round_units=0`；环显示 0/20，不把旧轮 actual_units 卷入 | `src/pages/Tasks/__tests__/task_detail_progress.test.tsx` |
+| task_view_toggle_unmounts_list_and_skips_refetch | 点「网格视图」后 `task-list-view` 卸载、同一批任务留在网格里，`taskView` 写入 Zustand；来回切换不追加 `list_tasks` | `src/pages/Tasks/__tests__/task_view_toggle.test.tsx` |
+| task_grid_view_lights_four_of_ten_cells | `total_units=10`、`current_round_units=4`：10 个格子，4 个 `bg-orange-500`，其余 `bg-zinc-800`；头部有课本和轮次 | `src/pages/Tasks/__tests__/task_grid_view.test.tsx` |
+| task_grid_view_side_task_shows_icon_without_micro_grid | `type=side` 不渲染微观点阵，渲染 `side-task-icon` 和累计完成课数 | `src/pages/Tasks/__tests__/task_grid_view.test.tsx` |
+| task_grid_view_caps_cells_at_50 | `total_units=200` 只渲染 50 格，文案标明每格 4 课、已完成 8/200 | `src/pages/Tasks/__tests__/task_grid_view.test.tsx` |
+| daily_units_sum_done_sessions_and_ignore_logs | 同日多场 `done` 的 `actual_units` 相加；planned / missed 与 `actual_logs` 不进合计；区间外不计 | `src-tauri/tests/stats_test.rs` |
+| accumulation_wall_colors_match_unit_buckets | 7 天单位 0/1/3/4/6/7/12 分别是 zinc-800、orange-900、orange-900、orange-600、orange-600、orange-400、orange-400；title 含日期和完成数；今天 `data-today="true"` 且 `ring-orange-500`；左侧有 Mon/Wed/Fri | `src/components/__tests__/accumulation_wall.test.tsx` |
+| accumulation_wall_zero_units_is_zinc_800 | 显式 0 与窗口内缺记录的日期都是 `bg-zinc-800`，title 为「完成 0」；今天边框 `ring-zinc-500`；最近 7 天为 0 时出现「开始第一课」链接 | `src/components/__tests__/accumulation_wall.test.tsx` |
+| accumulation_wall_month_labels_when_range_crosses | 2026-10-09 至 2026-11-05 在对应周列上方标「10月」「11月」 | `src/components/__tests__/accumulation_wall.test.tsx` |
 | settings_past_exam_date_shows_confirmation_before_write | 本地今天 2026-01-01 选 2025-06-07：确认框含「已过去」「已到达」；确认前不写 store / `timequest.exams`；输入框先显示所选日期 | `src/pages/Settings/__tests__/settings_exam_date.test.tsx` |
 | settings_past_exam_date_cancel_does_not_write | 取消后 store 与 localStorage 仍是原日期，输入框恢复原值，确认框关闭，无错误提示 | `src/pages/Settings/__tests__/settings_exam_date.test.tsx` |
 | settings_past_exam_date_confirm_writes | 确认后 `upsertExam` 写入 2025-06-07（Zustand + `timequest.exams`）；无 `upsert_exam` command；确认框关闭；输入框保持该日期 | `src/pages/Settings/__tests__/settings_exam_date.test.tsx` |
@@ -180,6 +193,12 @@
 | settings_date_change_does_not_write_on_every_keystroke | **跳过**：已有目标是原生 `type="date"`，`onChange` 只在完整日期时触发，不逐字符写 | `src/pages/Settings/__tests__/settings_exam_date.test.tsx` |
 | dashboard_countdown_updates_when_exam_date_changes_in_store | 仪表盘挂着时 `setExams` 从 2026-06-07 改为 2026-07-01：天数立刻更新，旧 interval 清理并新建，无 console.error | `src/pages/Dashboard/__tests__/dashboard_countdown.test.tsx` |
 | dashboard_countdown_does_not_use_stale_date_after_remount | `upsertExam` 写成日期 B 后卸载再挂载：显示 B 的天数；卸载时清掉当时的 interval，重新挂载新建一条 | `src/pages/Dashboard/__tests__/dashboard_countdown.test.tsx` |
+| daily_motivation_index_is_yyyymmdd_modulo_length | `YYYY-MM-DD` 去横线后对句数取余；同日同一句，次日换一句 | `src/lib/__tests__/motivation.test.ts` |
+| resolve_motivation_uses_custom_text_and_treats_blank_as_unset | 非空自定义原文（trim）优先；`null` / 缺省 / 空白回落到当天默认句 | `src/lib/__tests__/motivation.test.ts` |
+| dashboard_motivation_uses_default_when_setting_empty | `useAppSetting('motivation_text')` 为 null：标题行右侧渲染 `DEFAULT_MOTIVATIONS` 中的一句，`text-zinc-400` + italic；同日重挂不变，次日更换 | `src/pages/Dashboard/__tests__/dashboard_motivation.test.tsx` |
+| dashboard_motivation_renders_custom_text | 设置为「我要上清华」时原文出现在标题行右侧，不渲染默认句 | `src/pages/Dashboard/__tests__/dashboard_motivation.test.tsx` |
+| settings_motivation_save_invokes_set_setting | 输入框先显示 `get_setting` 的已存句子；改成新文本点「保存」后 `invoke('set_setting', { key: 'motivation_text', value })` | `src/pages/Settings/__tests__/settings_motivation.test.tsx` |
+| settings_motivation_clear_writes_empty_and_shows_default | 「清空」把输入框置空，`set_setting` 的 value 为 `""`，并显示当天默认句 | `src/pages/Settings/__tests__/settings_motivation.test.tsx` |
 | exam_date_change_does_not_shift_open_complete_dialog_date | 完成弹窗「剩余改到下次」默认本地今天；改 exam 不覆盖默认值，也不覆盖用户已选日期 | `src/pages/__tests__/exam_date_isolation.test.tsx` |
 | exam_date_change_does_not_shift_open_stats_range | 统计页本周/本月区间按本地今天；改 exam 后文案与 stats 查询的 from/to 都不跟考试日 | `src/pages/__tests__/exam_date_isolation.test.tsx` |
 | exam_date_change_only_affects_countdown | 仪表盘改 exam 后天数更新；今日排期标题与连击条不变，且不再请求 sessions / user_stats | `src/pages/__tests__/exam_date_isolation.test.tsx` |
@@ -224,7 +243,15 @@
 - **路由：** `Layout` 的 `<Outlet />` 在 `/` 与 `/settings` 之间切换时卸载 `Dashboard` 和 `CountdownPanel`。离开时 effect cleanup 调用 `clearInterval`；回来是新实例，读当时的 store。
 - **没有事件总线，考试日期不进 React Query。** 只改 `localStorage` 而不调用 `setExams` / `upsertExam`，已经创建的 store 保持原值。
 - 由 `dashboard_countdown_updates_when_exam_date_changes_in_store` / `dashboard_countdown_does_not_use_stale_date_after_remount` 锁定。组件级 interval 仍由 `countdown_panel_recreates_interval_on_target_change` 锁定。
-- **考试日期影响面**：exam date 只影响倒计时面板。不影响完成弹窗的改期日期（「剩余改到下次」用打开时的本地今天，用户改过的值留在组件 state），也不影响统计页的周/月范围（`rangeFor(new Date())`）。今日排期仍按 `todayStr()` 请求，连击条仍是 `get_user_stats`。若发现其他模块读取 exam date，需在此记录并说明理由。由 `exam_date_change_does_not_shift_open_complete_dialog_date` / `exam_date_change_does_not_shift_open_stats_range` / `exam_date_change_only_affects_countdown` 锁定。
+- **考试日期影响面**：exam date 影响倒计时。主窗口是 `CountdownPanel`；桌面悬浮窗 `WidgetPage` 读同一份 `useUiStore.exams`，主窗口改日期后通过 `session-updated` 把 exams 推过去。不影响完成弹窗的改期日期（「剩余改到下次」用打开时的本地今天，用户改过的值留在组件 state），也不影响统计页的周/月范围（`rangeFor(new Date())`）。今日排期仍按 `todayStr()` 请求，连击条仍是 `get_user_stats`。每日激励语按本地今天对默认句取余，不读 exam date。由 `exam_date_change_does_not_shift_open_complete_dialog_date` / `exam_date_change_does_not_shift_open_stats_range` / `exam_date_change_only_affects_countdown` / `widget_page_renders_countdown` 锁定。
+
+### 每日激励语
+
+- **数据**：看板 `DailyMotivation` 读 `useAppSetting('motivation_text')`。非空字符串 trim 后原样展示。`null`、未返回、以及 trim 后为空，用 `dailyMotivation(todayStr())`。
+- **设置**：设置页「每日激励语」。输入框标签「自定义激励语」，初值来自同一条 `useAppSetting`。未编辑前跟随查询结果；用户改过之后以输入框为准，避免刷新把草稿盖掉。「保存」调用 `useSetSetting('motivation_text')`，即 `invoke('set_setting', { key: 'motivation_text', value })`。「清空」把输入框置为 `""` 并写入空字符串。输入为空时，框下显示当天默认句。
+- **同一天同一句**：下标是 `Number(YYYYMMDD) % DEFAULT_MOTIVATIONS.length`（`2026-01-01` → `20260101`）。不使用 `Math.random()`。刷新页面日期不变则句子不变；本地日期加一天，余数加一，换成下一句。
+- **位置与样式**：`Dashboard` 标题行右侧。`text-zinc-400`、`italic`，两侧引号 `-rotate-6` / `rotate-6`。
+- 由 `daily_motivation_index_is_yyyymmdd_modulo_length` / `resolve_motivation_uses_custom_text_and_treats_blank_as_unset` / `dashboard_motivation_uses_default_when_setting_empty` / `dashboard_motivation_renders_custom_text` / `settings_motivation_save_invokes_set_setting` / `settings_motivation_clear_writes_empty_and_shows_default` 锁定。
 
 ### 倒计时生命周期
 
@@ -238,6 +265,24 @@
 - **时分秒格式**：`pad2` 拼成 `HH:MM:SS`。已过期时钟是 `00:00:00`，「天」不渲染，周/月仍是「0 周」「0 月」。由 `countdown_panel_past_target_shows_arrived_not_negative` / `countdown_panel_past_target_hides_day_field_if_design_requires` 锁定。
 - **Invalid Date**：不抛异常。返回全 0 且 `isPast = false`。`CountdownPanel` 无 try/catch，抛错会让面板崩溃；`isPast = false` 与「已到达」分开，乱码显示成「0 天」和 `00:00:00`。由 `compute_countdown_handles_invalid_target_date` 锁定。
 - **时区口径（本批不改）**：锚点是 `startOfDay(parseISO(targetDate))`，日期串按本地零点解释。`"2026-06-07"` 在 UTC+8 是本地 2026-06-07 00:00:00，不是 `new Date("2026-06-07")` 的 UTC 午夜（当地 08:00）。字符串里的时刻会被 `startOfDay` 丢掉。改这条会影响已保存目标的剩余天数，需要单独评估，不放进钳制修复里。
+
+### 桌面悬浮窗
+
+- **窗口**：`tauri.conf.json` 的 `widget` 无边框、透明、置顶、不进任务栏，启动时 `visible: false`。`main` 显式标了 label，托盘「显示窗口」仍找 `main`。
+- **权限**：`capabilities/default.json` 的 windows 含 `main` 与 `widget`，并允许 `show` / `hide` / `start-dragging`。主窗口另有 `create-webview-window`，悬浮窗被关掉后可以按同一 label 再建。
+- **入口**：`readWindowLabel()` 为 `widget` 时只渲染 `WidgetPage`，不挂 `Layout`。`BootSync` 的「窗口置顶」只作用在主窗口，避免把悬浮窗的置顶关掉。
+- **页面**：倒计时用 `computeCountdown`（与看板同一口径）。进行中 / 下一场用 `findScrollTargetSession`。拖拽区域是 `data-tauri-drag-region`。关闭按钮调用 `hide()`，不销毁窗口。
+- **同步**：两个 Webview 各有一份 QueryClient 和 Zustand。完成 / 改期 / 新建场次后主窗口 `emit("session-updated")`。改考试日期时同一事件带上 `exams`。悬浮窗 `listen` 后 `invalidateQueries({ queryKey: ["sessions"] })`，并 `setExams`。悬浮窗挂载后发 `widget-ready`，主窗口把当前 exams 再推一次。
+- **退出**：主窗口真正销毁（不是缩到托盘）时关掉 widget，避免隐藏悬浮窗把进程留住。缩到托盘时悬浮窗可以继续显示。
+- 由 `widget_page_renders_countdown` / `widget_label_skips_main_shell` 锁定页面。窗口 show/hide 靠代码路径，测试环境没有原生窗口。
+
+### 系统通知
+
+- **开关**：设置页「系统通知」，默认开。存在 `localStorage` 键 `timequest.notifications`（`"0"` 关闭，缺省或其他值开启），Zustand 字段 `notificationsEnabled`。关掉后主窗口不再调度提醒。
+- **调度**：只挂在主窗口（`SessionNotifier`），悬浮窗不挂，避免两扇 Webview 各弹一次。时钟是 `useCurrentTime(60_000)`。今日 `planned` 场次按分钟比较：开始前正好 5 分钟弹「【准备】距离下一场学习还有 5 分钟，准备进入状态。」；到达 `start_time` 那一分钟弹「【开始】该学【任务名】了，冲！」。
+- **去重**：同一 `sessionId + prep|start` 写入 `localStorage`（`timequest.sessionNotices`，按本地日重置）。分钟轮询和 Strict Mode 重跑都不会再弹。
+- **权限**：`isPermissionGranted` 未通过时请求一次；仍拒绝或插件抛错则直接返回，不 `console.error`。
+- 由 `session_notifier_fires_prep_then_start_once` / `session_notifier_stays_quiet_when_disabled_or_permission_denied` 锁定。Vitest mock 了 `sendNotification`，看不到系统弹窗。
 
 ### 导出表覆盖（硬编码）
 
@@ -276,8 +321,9 @@
 
 ### 导入导出语义
 
-- **格式**：JSON（`version: 1`），非 SQLite 文件拷贝。表键：`tasks` / `task_sessions` / `actual_logs` / `notes` / `user_stats`（单对象）/ `user_achievements`。`archived` / `pinned` 序列化为整数 **0/1**（非 JSON boolean）。前端默认文件名 `timequest-backup-YYYYMMDD.json`。
-- **事务**：`import_json_impl` 在单个 `unchecked_transaction` 内先清空再插入，成功才 `commit`；失败整笔回滚到导入前库内容。清空顺序：`user_achievements` → `actual_logs` → `task_sessions` → `notes` → `tasks`，再 `UPDATE user_stats` 重置为默认（保留 `id=1` 行，不 `DELETE`）。
+- **格式**：JSON（`version: 1`），非 SQLite 文件拷贝。表键：`tasks` / `task_sessions` / `actual_logs` / `notes` / `user_stats`（单对象）/ `user_achievements` / `app_settings`（`{key, value, updated_at}` 数组，按 key 排序）。`archived` / `pinned` 序列化为整数 **0/1**（非 JSON boolean）。前端默认文件名 `timequest-backup-YYYYMMDD.json`。
+- **事务**：`import_json_impl` 在单个 `unchecked_transaction` 内先清空再插入，成功才 `commit`；失败整笔回滚到导入前库内容。清空顺序：`user_achievements` → `actual_logs` → `task_sessions` → `notes` → `tasks` → `app_settings`，再 `UPDATE user_stats` 重置为默认（保留 `id=1` 行，不 `DELETE`）。
+- **`app_settings`**：key-value，`key` 主键。`set_setting` 用 `INSERT ... ON CONFLICT(key) DO UPDATE`，重复写入覆盖 `value` 并刷新 `updated_at`，不新增行。不存在的 key：`get_setting` 返回 `None`（前端 `null`）。时间戳与建表默认一致，用 `datetime('now')`（UTC），不跟其它表的 `localtime`。旧备份没有 `app_settings` 键时，导入清空后表为空。激励语默认值在前端 `DEFAULT_MOTIVATIONS`，不预写入这张表。由 `set_setting_then_get_is_idempotent` 锁定读写幂等。
 - **`rescheduled_to` 自引用**：导入时先 `INSERT` 各 session 且 `rescheduled_to=NULL`，全部插入后再 `UPDATE` 写回指针（FK 保持 `ON`，不关 `PRAGMA foreign_keys`）。由 `export_import_round_trip_preserves_rows` / `import_failure_rolls_back_to_pre_import_state` / `import_preserves_foreign_key_integrity` 锁定。
 - **`user_stats` 单例**：导入必须保证恰好一行 `id=1`。写回用 `INSERT ... ON CONFLICT(id) DO UPDATE`（UPSERT）；payload 缺行时清空阶段的 `UPDATE ... WHERE id=1` 仍依赖已有行。显式 `user_stats.id ≠ 1` **拒绝**（`Err`），缺省 `id`（导出格式）视为 1。由 `import_user_stats_update_is_noop_when_id_1_row_missing` / `import_rejects_user_stats_payload_with_wrong_id` 锁定。
 - **`total_xp` / `current_level` 一致性**：理论上应满足 `level_from_total_xp(total_xp) == current_level`。导出/导入**不**对该一致性做校验或修复：导出原样快照；导入原样写入；若数据不一致，视为用户数据状态，不静默改写。未来如需修复，应提供显式「重算等级」操作，而非隐藏在导入导出里。由 `export_keeps_current_level_when_inconsistent_with_total_xp` / `export_does_not_fail_on_level_xp_mismatch` / `import_preserves_inconsistent_level_xp_as_is` 锁定。
@@ -285,7 +331,7 @@
 - **`actual_logs.session_id` 引用**：写入前校验非空 `session_id` 必须出现在 payload `task_sessions`；`NULL`（手动补记）合法。悬空引用返回明确 `Err` 且不改库；commit 前另跑 `PRAGMA foreign_key_check` 兜底。由 `import_rejects_actual_log_with_dangling_session_id` / `import_allows_actual_log_with_null_session_id` 锁定。
 - **不校验 session status**：校验只收集 `task_sessions.id`，不读 `status`。log 指向 `status='rescheduled'` 的 session 导入成功，status 与 `rescheduled_to` 原样保留，不改成 `done`。`stats_tag_type_totals` 只读 `actual_logs`，这条流水的分钟会计入 study。由 `import_allows_actual_log_for_rescheduled_session` / `imported_rescheduled_session_log_counts_in_stats` / `export_round_trip_preserves_log_for_rescheduled_session` / `import_does_not_auto_flip_rescheduled_to_done` 锁定。
 - **`user_achievements` 导入幂等**：`INSERT OR IGNORE`（主键 `achievement_id`）；payload 内重复 id 静默去重并**保留第一条** `unlocked_at`。每次导入先 `DELETE FROM user_achievements` 再按 payload 写入，故同 payload 连续导入行数不翻倍、内容与 payload 一致。悬空 `achievement_id`（不在目录表 `achievements`）在清空前预校验 `Err` 并回滚——`OR IGNORE` 本会吞掉 FK 失败，故不能只靠 SQLite FK。由 `import_user_achievements_duplicate_ids_are_idempotent` / `import_user_achievements_twice_keeps_single_row_per_id` / `import_user_achievements_payload_with_dangling_reference` 锁定。
-- **时间戳**：payload 有 `created_at` / `updated_at` / `unlocked_at` 则保留；缺省 `COALESCE(..., datetime('now','localtime'))`。
+- **时间戳**：payload 有 `created_at` / `updated_at` / `unlocked_at` 则保留；缺省 `COALESCE(..., datetime('now','localtime'))`。`app_settings.updated_at` 例外，缺省与列默认相同，用 `datetime('now')`。
 - **导入前备份**：Tauri `import_json` 在改库前把 `timequest.db` 复制到同目录 `timequest.bak-YYYYMMDDHHMMSS.db`（`app_data_dir`）。纯 `import_json_impl`（测试路径）不做文件备份。
 
 ### 导入与业务语义一致性
@@ -342,6 +388,24 @@
 - **TaskDetail**：环与「本轮 N/M」文案读 `useTaskProgress` → `invoke('task_progress')` 的 `round_units`；sessions 只用于排期历史，**不再**参与环求和。由 `task_detail_progress_ring_reads_task_progress` / `task_detail_progress_ring_reflects_advance_round` 锁定。
 - **TaskCard（列表）**：读 `list_tasks` 内嵌 SQL 的 `actual_units_sum`（与 `task_progress.round_units` 同过滤口径，一次查询无 N+1），不是对 sessions 客户端求和；未另写 `task_list_card_reads_task_progress_not_raw_sessions`。
 - **与 `first_round`**：环看 `tasks.current_round`；成就看完成当场 `session.round`——口径差异保持不变。
+
+### 任务页视图
+
+- **模式**：`useUiStore.taskView` 为 `"list" | "grid"`，默认 `"list"`。只放在内存里，不写 `localStorage`。顶部是列表 / 网格两个图标按钮（`aria-label` 为「列表视图」「网格视图」）。
+- **列表**：`TaskListView` 承接原来的主线 / 副本分组和卡片，类名与空态文案不变。
+- **网格**：`TaskGridView` 接收页面已经拿到的 `tasks`，自己不再调用 `useTasks`。主线按 `total_units` 画微观点阵，点亮数读 `current_round_units`，没有该字段时用 `list_tasks` 的 `actual_units_sum`（当前轮 `sum(actual_units)`）。超过 50 课时时格子数封顶 50，每格代表 `ceil(total/50)` 课，末格不足时文案写明。副本不画点阵，用无限符号图标，旁边是累计完成的课数。卡片 hover 上浮。点亮格统一 `bg-orange-500`，任务色留在卡片左边。
+- **请求**：`useTasks(false)` 留在 `Tasks` 页面。切换只换子组件，查询观察者不卸载，所以不会再打 `list_tasks`。由 `task_view_toggle_unmounts_list_and_skips_refetch` / `task_grid_view_lights_four_of_ten_cells` / `task_grid_view_side_task_shows_icon_without_micro_grid` / `task_grid_view_caps_cells_at_50` 锁定。
+
+### 积累墙
+
+- **位置**：看板「今日排期」下方。文案「你的一砖一瓦，正在垒成城堡。」在网格上方。
+- **网格**：含今天在内的最近 28 个本地日。周一为一周的第一天，从上到下是 Mon…Sun，从左到右是连续的周。窗口起止不落在周一或周日时，首尾周留空，不补砖。缺记录的日期按 0。
+- **星期与月份**：左侧只标 `Mon`、`Wed`、`Fri`，`text-[10px] text-zinc-500`。跨月时，在该月第一次出现的那一列上方标 `M月`。单月不标。
+- **今天**：结束日砖块带 `data-today="true"`。当天单位大于 0 用 `ring-1 ring-orange-500`，否则 `ring-1 ring-zinc-500`。
+- **上色**：当天 `status='done'` 的 `task_sessions.actual_units` 合计。0 为 `bg-zinc-800`，1–3 为 `bg-orange-900`，4–6 为 `bg-orange-600`，大于 6 为 `bg-orange-400`。`actual_logs` 只有分钟、没有单位，不参与上色，避免和完成单位重复计算。
+- **空周引导**：最近 7 个本地日单位都是 0 时，城堡文案后接「今天还是空的，开始第一课吧！」，链接到 `/today`。有完成的一周不显示。
+- **悬浮**：砖块 `title` 与悬浮层都是 `YYYY-MM-DD · 完成 N`。
+- **查询**：`stats_daily_units(from, to)` 在 SQL 里 `GROUP BY date`。不读考试日期。由 `daily_units_sum_done_sessions_and_ignore_logs` / `accumulation_wall_colors_match_unit_buckets` / `accumulation_wall_zero_units_is_zinc_800` / `accumulation_wall_month_labels_when_range_crosses` 锁定。
 
 本批时间 / 统计 / 轮次用例固化的约束：
 

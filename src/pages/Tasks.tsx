@@ -1,29 +1,41 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { TaskProgressRing } from "../components/ProgressRing";
+import { useEffect, useState, type ReactNode } from "react";
+import { TaskGridView } from "../components/TaskGridView";
+import { TaskListView } from "../components/TaskListView";
 import { Modal } from "../components/Modal";
+import { TextbookCombobox } from "../components/TextbookCombobox";
+import { TextbookImportWizard } from "../components/TextbookImportWizard";
 import { useTaskMutations, useTasks } from "../hooks/useTasks";
 import { SUBJECTS } from "../lib/constants";
 import { TASK_PALETTE } from "../lib/colors";
-import type { Task, TaskType } from "../types";
+import { useUiStore } from "../store/ui";
+import type { TaskType } from "../types";
+
+const DEFAULT_TOTAL_UNITS = 40;
 
 export function Tasks() {
   const { data: tasks = [], isLoading } = useTasks(false);
+  const taskView = useUiStore((s) => s.taskView);
+  const setTaskView = useUiStore((s) => s.setTaskView);
   const { create } = useTaskMutations();
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: "",
     type: "main" as TaskType,
     subject: "数学",
     textbook: "",
     unit_name: "课",
-    total_units: 40,
+    total_units: DEFAULT_TOTAL_UNITS,
     total_rounds: 2,
     color: TASK_PALETTE[0],
   });
 
-  const main = useMemo(() => tasks.filter((t) => t.type === "main"), [tasks]);
-  const side = useMemo(() => tasks.filter((t) => t.type === "side"), [tasks]);
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2800);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const submit = async () => {
     if (!form.title.trim()) return;
@@ -43,24 +55,48 @@ export function Tasks() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-5 flex items-center justify-between gap-3">
         <h1 className="font-display text-2xl">任务</h1>
-        <button
-          type="button"
-          className="rounded-lg bg-accent px-3 py-2 text-sm text-white hover:bg-accent-soft"
-          onClick={() => setOpen(true)}
-        >
-          新建任务
-        </button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex rounded-lg border border-white/10 p-0.5">
+            <ViewButton
+              label="列表视图"
+              active={taskView === "list"}
+              onClick={() => setTaskView("list")}
+            >
+              <ListIcon />
+            </ViewButton>
+            <ViewButton
+              label="网格视图"
+              active={taskView === "grid"}
+              onClick={() => setTaskView("grid")}
+            >
+              <GridIcon />
+            </ViewButton>
+          </div>
+          <button
+            type="button"
+            className="rounded-lg bg-accent px-3 py-2 text-sm text-white hover:bg-accent-soft"
+            onClick={() => setImportOpen(true)}
+          >
+            从教材导入
+          </button>
+          <button
+            type="button"
+            className="rounded-lg bg-accent px-3 py-2 text-sm text-white hover:bg-accent-soft"
+            onClick={() => setOpen(true)}
+          >
+            新建任务
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
         <p className="text-ink-muted">加载中…</p>
+      ) : taskView === "list" ? (
+        <TaskListView tasks={tasks} />
       ) : (
-        <div className="space-y-8">
-          <TaskGroup title="主线" items={main} />
-          <TaskGroup title="副本" items={side} />
-        </div>
+        <TaskGridView tasks={tasks} />
       )}
 
       <Modal
@@ -91,7 +127,7 @@ export function Tasks() {
           <label className="block">
             <span className="text-ink-muted">标题</span>
             <input
-              className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2"
+              className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-ink outline-none hover:border-white/20 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
             />
@@ -115,30 +151,40 @@ export function Tasks() {
               <label className="block">
                 <span className="text-ink-muted">科目</span>
                 <select
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2"
+                  className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-ink outline-none hover:border-white/20 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
                   value={form.subject}
-                  onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                  onChange={(e) =>
+                    setForm((current) => ({
+                      ...current,
+                      subject: e.target.value,
+                      textbook: "",
+                      total_units: DEFAULT_TOTAL_UNITS,
+                    }))
+                  }
                 >
                   {SUBJECTS.map((s) => (
                     <option key={s}>{s}</option>
                   ))}
                 </select>
               </label>
-              <label className="block">
-                <span className="text-ink-muted">课本</span>
-                <input
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2"
-                  value={form.textbook}
-                  onChange={(e) =>
-                    setForm({ ...form, textbook: e.target.value })
-                  }
-                />
-              </label>
+              <TextbookCombobox
+                subject={form.subject}
+                value={form.textbook}
+                onChange={(textbook) => setForm((current) => ({ ...current, textbook }))}
+                onPick={(book, totalUnits) =>
+                  setForm((current) => ({
+                    ...current,
+                    textbook: book.volume,
+                    subject: book.subject,
+                    ...(totalUnits != null ? { total_units: totalUnits } : {}),
+                  }))
+                }
+              />
               <div className="grid grid-cols-3 gap-2">
                 <label className="block">
                   <span className="text-ink-muted">单位</span>
                   <input
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-2 py-2"
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-2 py-2 text-ink outline-none hover:border-white/20 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
                     value={form.unit_name}
                     onChange={(e) =>
                       setForm({ ...form, unit_name: e.target.value })
@@ -149,7 +195,7 @@ export function Tasks() {
                   <span className="text-ink-muted">总课数</span>
                   <input
                     type="number"
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-2 py-2"
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-2 py-2 text-ink outline-none hover:border-white/20 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
                     value={form.total_units}
                     onChange={(e) =>
                       setForm({ ...form, total_units: Number(e.target.value) })
@@ -160,7 +206,7 @@ export function Tasks() {
                   <span className="text-ink-muted">总轮次</span>
                   <input
                     type="number"
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-2 py-2"
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-2 py-2 text-ink outline-none hover:border-white/20 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
                     value={form.total_rounds}
                     onChange={(e) =>
                       setForm({ ...form, total_rounds: Number(e.target.value) })
@@ -188,52 +234,81 @@ export function Tasks() {
           </div>
         </div>
       </Modal>
+      {toast ? (
+        <p
+          role="status"
+          className="fixed left-1/2 top-4 z-[60] -translate-x-1/2 rounded-lg border border-accent/40 bg-surface-2 px-4 py-2 text-sm text-ink shadow-lg"
+        >
+          {toast}
+        </p>
+      ) : null}
+      {importOpen ? (
+        <TextbookImportWizard
+          onClose={() => setImportOpen(false)}
+          onCreated={(plannedCount, autoSchedule) => {
+            setImportOpen(false);
+            setToast(
+              autoSchedule
+                ? `任务创建成功，已生成 ${plannedCount} 个排期。`
+                : "任务创建成功。",
+            );
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
-function TaskGroup({ title, items }: { title: string; items: Task[] }) {
+function ViewButton({
+  label,
+  active,
+  onClick,
+  children,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
   return (
-    <section>
-      <h2 className="mb-3 font-display text-lg text-ink-muted">{title}</h2>
-      {items.length === 0 ? (
-        <p className="text-sm text-ink-muted">暂无{title}任务</p>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {items.map((t) => (
-            <Link
-              key={t.id}
-              to={`/tasks/${t.id}`}
-              className="flex items-center gap-4 rounded-xl border border-white/5 bg-surface-2/90 p-4 hover:border-accent/30"
-            >
-              {t.type === "main" && t.total_units ? (
-                <TaskProgressRing
-                  roundDone={t.actual_units_sum ?? 0}
-                  roundTotal={t.total_units}
-                  roundsDone={Math.max(0, t.current_round - 1)}
-                  roundsTotal={t.total_rounds}
-                  size={88}
-                  unitName={t.unit_name}
-                />
-              ) : (
-                <div
-                  className="flex h-[88px] w-[88px] items-center justify-center rounded-full border border-white/10 text-xs text-ink-muted"
-                  style={{ borderColor: t.color || undefined }}
-                >
-                  副本
-                </div>
-              )}
-              <div className="min-w-0">
-                <div className="truncate font-medium">{t.title}</div>
-                <div className="mt-1 text-xs text-ink-muted">
-                  {t.subject ?? "无科目"}
-                  {t.textbook ? ` · ${t.textbook}` : ""}
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-    </section>
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={active}
+      title={label}
+      className={`rounded-md p-1.5 ${
+        active ? "bg-white/10 text-ink" : "text-ink-muted hover:text-ink"
+      }`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ListIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        d="M8 7h11M8 12h11M8 17h11M4.5 7h.01M4.5 12h.01M4.5 17h.01"
+      />
+    </svg>
+  );
+}
+
+function GridIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        d="M5 5h5.5v5.5H5zM13.5 5H19v5.5h-5.5zM5 13.5h5.5V19H5zM13.5 13.5H19V19h-5.5z"
+      />
+    </svg>
   );
 }

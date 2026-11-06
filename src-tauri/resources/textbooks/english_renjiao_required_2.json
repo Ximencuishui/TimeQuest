@@ -1,0 +1,43 @@
+{
+  "subject": "英语",
+  "version": "人教版",
+  "volume": "必修第二册",
+  "chapters": [
+    {
+      "name": "Unit 1 Cultural Heritage",
+      "sections": [
+        "1.1 Listening and Speaking",
+        "1.2 Reading and Thinking",
+        "1.3 Discovering Useful Structures",
+        "1.4 Reading for Writing"
+      ]
+    },
+    {
+      "name": "Unit 2 Wildlife Protection",
+      "sections": [
+        "2.1 Listening and Speaking",
+        "2.2 Reading and Thinking",
+        "2.3 Discovering Useful Structures",
+        "2.4 Reading for Writing"
+      ]
+    },
+    {
+      "name": "Unit 3 The Internet",
+      "sections": [
+        "3.1 Listening and Speaking",
+        "3.2 Reading and Thinking",
+        "3.3 Discovering Useful Structures",
+        "3.4 Reading for Writing"
+      ]
+    },
+    {
+      "name": "Unit 4 History and Traditions",
+      "sections": [
+        "4.1 Listening and Speaking",
+        "4.2 Reading and Thinking",
+        "4.3 Discovering Useful Structures",
+        "4.4 Reading for Writing"
+      ]
+    }
+  ]
+}

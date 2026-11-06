@@ -227,6 +227,49 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         rows
     };
 
+    let app_settings: Vec<Value> = {
+        let mut stmt = conn
+            .prepare("SELECT key, value, updated_at FROM app_settings ORDER BY key")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(json!({
+                    "key": r.get::<_, String>(0)?,
+                    "value": r.get::<_, String>(1)?,
+                    "updated_at": r.get::<_, String>(2)?,
+                }))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    };
+
+    let imported_textbooks: Vec<Value> = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, subject, version, volume, outline_json, created_at, updated_at
+                 FROM imported_textbooks ORDER BY id",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(json!({
+                    "id": r.get::<_, i64>(0)?,
+                    "subject": r.get::<_, String>(1)?,
+                    "version": r.get::<_, String>(2)?,
+                    "volume": r.get::<_, String>(3)?,
+                    "outline_json": r.get::<_, String>(4)?,
+                    "created_at": r.get::<_, String>(5)?,
+                    "updated_at": r.get::<_, String>(6)?,
+                }))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    };
+
     let payload = json!({
         "version": 1,
         "exported_at": chrono::Local::now().to_rfc3339(),
@@ -236,6 +279,8 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         "notes": notes,
         "user_stats": stats,
         "user_achievements": achievements,
+        "app_settings": app_settings,
+        "imported_textbooks": imported_textbooks,
     });
     serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())
 }
@@ -257,6 +302,8 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
             DELETE FROM task_sessions;
             DELETE FROM notes;
             DELETE FROM tasks;
+            DELETE FROM app_settings;
+            DELETE FROM imported_textbooks;
             UPDATE user_stats SET total_xp=0, current_level=1, current_streak=0, longest_streak=0, last_done_date=NULL WHERE id=1;
             "#,
     )
@@ -373,9 +420,7 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
         // Missing id (export format) is treated as 1.
         if let Some(id) = s.get("id").and_then(|v| v.as_i64()) {
             if id != 1 {
-                return Err(format!(
-                    "user_stats.id must be 1 (singleton), got {id}"
-                ));
+                return Err(format!("user_stats.id must be 1 (singleton), got {id}"));
             }
         }
         // UPSERT: plain UPDATE is a silent no-op when id=1 is missing.
@@ -412,6 +457,40 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
         }
     }
 
+    if let Some(arr) = data.get("imported_textbooks").and_then(|v| v.as_array()) {
+        for row in arr {
+            tx.execute(
+                r#"INSERT INTO imported_textbooks (id, subject, version, volume, outline_json, created_at, updated_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5, COALESCE(?6, datetime('now','localtime')), COALESCE(?7, datetime('now','localtime')))"#,
+                params![
+                    row.get("id").and_then(|v| v.as_i64()),
+                    row.get("subject").and_then(|v| v.as_str()).unwrap_or(""),
+                    row.get("version").and_then(|v| v.as_str()).unwrap_or(""),
+                    row.get("volume").and_then(|v| v.as_str()).unwrap_or(""),
+                    row.get("outline_json").and_then(|v| v.as_str()).unwrap_or(""),
+                    row.get("created_at").and_then(|v| v.as_str()),
+                    row.get("updated_at").and_then(|v| v.as_str()),
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
+    if let Some(arr) = data.get("app_settings").and_then(|v| v.as_array()) {
+        for row in arr {
+            tx.execute(
+                r#"INSERT INTO app_settings (key, value, updated_at)
+                   VALUES (?1, ?2, COALESCE(?3, datetime('now')))"#,
+                params![
+                    row.get("key").and_then(|v| v.as_str()).unwrap_or(""),
+                    row.get("value").and_then(|v| v.as_str()).unwrap_or(""),
+                    row.get("updated_at").and_then(|v| v.as_str()),
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
     // B 兜底：其它 FK（如 rescheduled_to）仍可能漏网；有违规则不 commit。
     {
         let mut stmt = tx
@@ -423,9 +502,7 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
         if !violations.is_empty() {
-            return Err(format!(
-                "import foreign_key_check failed: {violations:?}"
-            ));
+            return Err(format!("import foreign_key_check failed: {violations:?}"));
         }
     }
 
@@ -439,11 +516,7 @@ pub fn export_json(state: State<'_, DbState>) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn import_json(
-    app: AppHandle,
-    state: State<'_, DbState>,
-    json: String,
-) -> Result<(), String> {
+pub fn import_json(app: AppHandle, state: State<'_, DbState>, json: String) -> Result<(), String> {
     let path = db_path(&app)?;
     // backup current db file
     let backup = path.with_extension(format!(

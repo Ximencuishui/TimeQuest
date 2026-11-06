@@ -1,13 +1,17 @@
+pub mod app_settings;
 pub mod data;
 pub mod logs;
 pub mod notes;
 pub mod sessions;
 pub mod stats;
 pub mod tasks;
+pub mod textbook;
 
+pub use app_settings::*;
 pub use data::*;
 pub use logs::*;
 pub use notes::*;
 pub use sessions::*;
 pub use stats::*;
 pub use tasks::*;
+pub use textbook::*;

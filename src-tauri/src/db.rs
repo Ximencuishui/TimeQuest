@@ -29,10 +29,7 @@ impl AppPrefs {
 }
 
 pub fn db_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?;
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.join("timequest.db"))
 }
@@ -188,10 +185,8 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     fn scratch_db(label: &str) -> PathBuf {
-        let path = std::env::temp_dir().join(format!(
-            "timequest-{label}-{}.db",
-            uuid::Uuid::new_v4()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("timequest-{label}-{}.db", uuid::Uuid::new_v4()));
         remove_sqlite(&path);
         path
     }

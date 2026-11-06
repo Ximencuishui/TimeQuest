@@ -8,7 +8,75 @@ import { APP_FULL_NAME, APP_NAME } from "../lib/constants";
 import { useUiStore } from "../store/ui";
 import type { ExamTarget } from "../types";
 import { useAchievements, useUserStats } from "../hooks/useStats";
+import { useAppSetting, useSetSetting } from "../hooks/useAppSetting";
+import { todayStr } from "../lib/date";
+import { dailyMotivation } from "../lib/motivation";
 import { format } from "date-fns";
+
+const MOTIVATION_KEY = "motivation_text";
+
+function MotivationSetting() {
+  const { data } = useAppSetting(MOTIVATION_KEY);
+  const setSetting = useSetSetting(MOTIVATION_KEY);
+  const [draft, setDraft] = useState<string | null>(null);
+  const value = draft ?? data ?? "";
+  const showingDefault = value.trim() === "";
+  const todayLine = dailyMotivation(todayStr());
+
+  const save = (next: string) => {
+    setSetting.mutate(next);
+  };
+
+  return (
+    <section className="rounded-2xl border border-white/5 bg-surface-2/80 p-4">
+      <h2 className="font-display text-lg">每日激励语</h2>
+      <form
+        className="mt-3 space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          save(value);
+        }}
+      >
+        <label htmlFor="motivation-text" className="block text-sm">
+          自定义激励语
+        </label>
+        <input
+          id="motivation-text"
+          className="w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
+          value={value}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="submit"
+            className="rounded-lg bg-accent px-3 py-2 text-sm text-white"
+          >
+            保存
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-white/15 px-3 py-2 text-sm"
+            onClick={() => {
+              setDraft("");
+              save("");
+            }}
+          >
+            清空
+          </button>
+        </div>
+        <p id="motivation-hint" className="text-sm text-zinc-400">
+          {showingDefault ? (
+            <>
+              今天的默认句：「<span className="italic">{todayLine}</span>」
+            </>
+          ) : (
+            "清空后恢复每天自动更换的默认句。"
+          )}
+        </p>
+      </form>
+    </section>
+  );
+}
 
 /** 本地日历日，不含时刻。`yyyy-MM-dd` 字符串可直接比较。 */
 function isPastLocalDate(value: string, now = new Date()): boolean {
@@ -29,6 +97,8 @@ export function Settings() {
   };
   const alwaysOnTop = useUiStore((s) => s.alwaysOnTop);
   const setAlwaysOnTop = useUiStore((s) => s.setAlwaysOnTop);
+  const notificationsEnabled = useUiStore((s) => s.notificationsEnabled);
+  const setNotificationsEnabled = useUiStore((s) => s.setNotificationsEnabled);
   const { data: stats } = useUserStats();
   const { data: achievements = [] } = useAchievements();
 
@@ -212,6 +282,8 @@ export function Settings() {
         </div>
       </section>
 
+      <MotivationSetting />
+
       <section className="rounded-2xl border border-white/5 bg-surface-2/80 p-4 space-y-3">
         <h2 className="font-display text-lg">窗口与托盘</h2>
         <label className="flex items-center gap-2 text-sm">
@@ -230,6 +302,21 @@ export function Settings() {
           />
           窗口置顶
         </label>
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-white/5 bg-surface-2/80 p-4">
+        <h2 className="font-display text-lg">系统通知</h2>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={notificationsEnabled}
+            onChange={(e) => setNotificationsEnabled(e.target.checked)}
+          />
+          系统通知
+        </label>
+        <p className="text-xs text-ink-muted">
+          课前 5 分钟和开课时弹出系统提醒。默认开启。
+        </p>
       </section>
 
       <section className="rounded-2xl border border-white/5 bg-surface-2/80 p-4">

@@ -52,10 +52,7 @@ pub fn compute_duration_min(
 }
 
 /// Pure (no Tauri) manual log insert for tests and the command wrapper.
-pub fn create_log_impl(
-    conn: &Connection,
-    payload: CreateLogPayload,
-) -> Result<ActualLog, String> {
+pub fn create_log_impl(conn: &Connection, payload: CreateLogPayload) -> Result<ActualLog, String> {
     let duration = compute_duration_min(&payload.start_at, &payload.end_at, payload.duration_min);
     let tag_type = payload.tag_type.unwrap_or_else(|| "study".into());
     conn.execute(

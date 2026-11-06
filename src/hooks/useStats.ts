@@ -49,3 +49,10 @@ export function useAvgRatings(from: string, to: string) {
     queryFn: () => api.avgRatings(from, to),
   });
 }
+
+export function useDailyUnits(from: string, to: string) {
+  return useQuery({
+    queryKey: ["stats", "daily-units", from, to],
+    queryFn: () => api.dailyUnits(from, to),
+  });
+}

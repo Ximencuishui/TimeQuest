@@ -62,3 +62,44 @@ impl From<SessionError> for String {
         value.to_string()
     }
 }
+
+/// Textbook catalog lookup and outline-to-task generation.
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum TextbookError {
+    #[error("textbook not found: {subject} / {version} / {volume}")]
+    NotFound {
+        subject: String,
+        version: String,
+        volume: String,
+    },
+
+    #[error("invalid textbook json: {0}")]
+    InvalidJson(String),
+
+    #[error("invalid outline: {0}")]
+    InvalidOutline(String),
+
+    #[error("task title must not be empty")]
+    EmptyTitle,
+
+    #[error("outline has no sections")]
+    EmptyOutline,
+
+    #[error("section is not in this textbook: {section}")]
+    UnknownSection { section: String },
+
+    #[error("database error: {0}")]
+    Db(String),
+}
+
+impl From<sqlx::Error> for TextbookError {
+    fn from(value: sqlx::Error) -> Self {
+        Self::Db(value.to_string())
+    }
+}
+
+impl From<TextbookError> for String {
+    fn from(value: TextbookError) -> Self {
+        value.to_string()
+    }
+}
