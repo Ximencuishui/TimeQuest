@@ -1944,3 +1944,57 @@ async fn import_positive_streak_with_null_last_done_resets_on_next_complete() {
     pool.close().await;
     let _ = std::fs::remove_file(&path);
 }
+
+#[tokio::test]
+async fn export_import_round_trip_preserves_task_knowledge_points() {
+    let (path, conn) = open_rusqlite_migrated().await;
+    conn.execute(
+        r#"INSERT INTO tasks (id, title, type, subject, textbook, unit_name, total_units, total_rounds, current_round, color, archived, created_at)
+           VALUES (1, '数学', 'main', '数学', '人教版 必修第一册', '节', 15, 1, 1, '#F97316', 0, '2026-11-07 10:00:00')"#,
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        r#"INSERT INTO task_knowledge_points (id, task_id, section_name, name, is_mastered, position, created_at)
+           VALUES (7, 1, '1.1 集合的概念', '集合的含义', 1, 0, '2026-11-07 10:00:00'),
+                  (8, 1, '1.2 集合间的基本关系', '空集', 0, 2, '2026-11-07 10:01:00'),
+                  (9, 1, '自定义节', '韦达定理', 0, 0, '2026-11-07 12:00:00')"#,
+        [],
+    )
+    .unwrap();
+
+    let json = export_json_impl(&conn).expect("export");
+    let payload: Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(payload["task_knowledge_points"].as_array().unwrap().len(), 3);
+
+    import_json_impl(&conn, &json).expect("import");
+    let (name, mastered, position, created): (String, i64, i64, String) = conn
+        .query_row(
+            "SELECT name, is_mastered, position, created_at FROM task_knowledge_points WHERE id = 8",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .unwrap();
+    assert_eq!(name, "空集");
+    assert_eq!(mastered, 0);
+    assert_eq!(position, 2);
+    assert_eq!(created, "2026-11-07 10:01:00");
+    let custom: (String, i64) = conn
+        .query_row(
+            "SELECT name, is_mastered FROM task_knowledge_points WHERE id = 9",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(custom, ("韦达定理".to_string(), 0));
+
+    let mut old = payload;
+    old.as_object_mut().unwrap().remove("task_knowledge_points");
+    import_json_impl(&conn, &old.to_string()).expect("old backup");
+    let left: i64 = conn
+        .query_row("SELECT COUNT(*) FROM task_knowledge_points", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(left, 0);
+
+    let _ = std::fs::remove_file(&path);
+}

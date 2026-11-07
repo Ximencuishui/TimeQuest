@@ -6,46 +6,149 @@
     {
       "name": "Unit 1 Science and Scientists",
       "sections": [
-        "1.1 Listening and Speaking",
-        "1.2 Reading and Thinking",
-        "1.3 Discovering Useful Structures",
-        "1.4 Reading for Writing"
+        {
+          "name": "1.1 Listening and Speaking",
+          "knowledge_points": [
+            "中国航天科学家钱学森的科学精神特质",
+            "基于图片的听力预测策略",
+            "科学场馆活动的功能性语言描述",
+            "霍金宇宙观突破中的批判性科学思维"
+          ]
+        },
+        {
+          "name": "1.2 Reading and Thinking",
+          "knowledge_points": [
+            "基于科学史文本的WH-疑问句逆向生成",
+            "科学探究中的理论、证据、结论与解决方案辨识",
+            "约翰·斯诺战胜霍乱的科学探究过程"
+          ]
+        },
+        {
+          "name": "1.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "1.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 2 Bridging Cultures",
       "sections": [
-        "2.1 Listening and Speaking",
-        "2.2 Reading and Thinking",
-        "2.3 Discovering Useful Structures",
-        "2.4 Reading for Writing"
+        {
+          "name": "2.1 Listening and Speaking",
+          "knowledge_points": [
+            "听力理解中的语境推断",
+            "英语弱读现象的认知与辨识",
+            "议论文观点-理由结构的文本解码",
+            "跨文化机构主题下的功能型口语表达"
+          ]
+        },
+        {
+          "name": "2.2 Reading and Thinking",
+          "knowledge_points": [
+            "学术文化差异中的批判性思维表达",
+            "跨文化身份建构中的文化信使角色认知",
+            "跨文化适应中的日常挑战识别与表达"
+          ]
+        },
+        {
+          "name": "2.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "2.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 3 Food and Culture",
       "sections": [
-        "3.1 Listening and Speaking",
-        "3.2 Reading and Thinking",
-        "3.3 Discovering Useful Structures",
-        "3.4 Reading for Writing"
+        {
+          "name": "3.1 Listening and Speaking",
+          "knowledge_points": [
+            "中餐特色菜名的英汉互译与文化内涵理解",
+            "基于地域饮食文化的听力信息提取与比较分析",
+            "跨文化餐饮场景中的点餐功能话语结构"
+          ]
+        },
+        {
+          "name": "3.2 Reading and Thinking",
+          "knowledge_points": [
+            "中国地域饮食特征与人文地理关联",
+            "跨文化饮食改编现象分析",
+            "食物与文化关联性理解"
+          ]
+        },
+        {
+          "name": "3.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "3.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 4 Journey Across a Vast Land",
       "sections": [
-        "4.1 Listening and Speaking",
-        "4.2 Reading and Thinking",
-        "4.3 Discovering Useful Structures",
-        "4.4 Reading for Writing"
+        {
+          "name": "4.1 Listening and Speaking",
+          "knowledge_points": [
+            "空间方位与地理距离的英语描述框架",
+            "自然结束对话的礼貌话术系统",
+            "英语习语与明喻的理解与匹配",
+            "表达惊讶与好奇的功能性交际用语"
+          ]
+        },
+        {
+          "name": "4.2 Reading and Thinking",
+          "knowledge_points": [
+            "加拿大铁路旅行的地理与文化内容理解",
+            "英语语篇标记语（discourse markers）的识别与功能归类"
+          ]
+        },
+        {
+          "name": "4.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "4.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 5 First Aid",
       "sections": [
-        "5.1 Listening and Speaking",
-        "5.2 Reading and Thinking",
-        "5.3 Discovering Useful Structures",
-        "5.4 Reading for Writing"
+        {
+          "name": "5.1 Listening and Speaking",
+          "knowledge_points": [
+            "国际常用急救电话号码识别与匹配",
+            "常见急症场景的英文术语识别与分类",
+            "急救电话情境下的关键信息提取与应答",
+            "溺水急救操作的英文指令性语言产出"
+          ]
+        },
+        {
+          "name": "5.2 Reading and Thinking",
+          "knowledge_points": [
+            "烧伤现场急救的六步操作流程",
+            "烧伤的三度分类及其特征",
+            "说明文语类特征与功能识别"
+          ]
+        },
+        {
+          "name": "5.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "5.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     }
   ]

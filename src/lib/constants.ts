@@ -8,6 +8,10 @@ export const DEFAULT_EXAM_DATE = "2027-06-07";
 
 export const ACCENT = "#F97316"; // sprint orange
 
+/** Built-in outlines are AI-generated and may lag the latest exam syllabus. */
+export const KNOWLEDGE_POINT_DISCLAIMER =
+  "注：内置考点目录仅供参考，请以学校老师要求和最新考纲为准。";
+
 export const NOTE_COLORS = [
   "yellow",
   "orange",

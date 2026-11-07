@@ -4,12 +4,14 @@ import { useTaskMutations } from "../hooks/useTasks";
 import {
   defaultOutlineTaskName,
   groupTextbooksBySubject,
+  knowledgePointPreview,
   sectionKey,
   sectionPlan,
   subjectAccent,
   volumeTrack,
   type AvailableTextbook,
 } from "../lib/textbooks";
+import { KNOWLEDGE_POINT_DISCLAIMER } from "../lib/constants";
 import type { TextbookOutline } from "../types";
 import { Modal } from "./Modal";
 
@@ -149,29 +151,34 @@ export function TextbookImportWizard({
       title="从教材导入"
       onClose={onClose}
       footer={
-        <Footer
-          step={step}
-          loadingOutline={loadingOutline}
-          generating={generateFromOutline.isPending}
-          canSelectBook={selectedBook != null && !loadingBooks}
-          canGenerate={!titleMissing}
-          onClose={onClose}
-          onBack={() => {
-            setError(null);
-            setStep((current) => (current === 3 ? 2 : 1));
-          }}
-          onNext={() => {
-            if (step === 1) {
-              void loadOutline();
-              return;
-            }
-            setError(null);
-            setStep(3);
-          }}
-          onGenerate={() => {
-            void generate();
-          }}
-        />
+        <div className="flex w-full flex-col gap-3">
+          <p className="text-left text-xs text-zinc-500">{KNOWLEDGE_POINT_DISCLAIMER}</p>
+          <div className="flex justify-end gap-2">
+            <Footer
+              step={step}
+              loadingOutline={loadingOutline}
+              generating={generateFromOutline.isPending}
+              canSelectBook={selectedBook != null && !loadingBooks}
+              canGenerate={!titleMissing}
+              onClose={onClose}
+              onBack={() => {
+                setError(null);
+                setStep((current) => (current === 3 ? 2 : 1));
+              }}
+              onNext={() => {
+                if (step === 1) {
+                  void loadOutline();
+                  return;
+                }
+                setError(null);
+                setStep(3);
+              }}
+              onGenerate={() => {
+                void generate();
+              }}
+            />
+          </div>
+        </div>
       }
     >
       <ol className="mb-4 flex gap-2 text-xs text-ink-muted">
@@ -382,17 +389,23 @@ function SectionStep({
                 <ul className="space-y-0.5 px-2 pb-2">
                   {chapter.sections.map((section, sectionIndex) => {
                     const key = sectionKey(chapterIndex, sectionIndex);
+                    const preview = knowledgePointPreview(section.knowledge_points);
                     return (
                       <li key={key}>
-                        <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5">
+                        <label className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 accent-accent"
-                            aria-label={section}
+                            className="mt-0.5 h-4 w-4 accent-accent"
+                            aria-label={section.name}
                             checked={masteredKeys.has(key)}
                             onChange={() => onToggleSection(key)}
                           />
-                          <span className="text-ink">{section}</span>
+                          <span className="min-w-0">
+                            <span className="block text-ink">{section.name}</span>
+                            {preview ? (
+                              <span className="block text-xs text-zinc-500">{preview}</span>
+                            ) : null}
+                          </span>
                         </label>
                       </li>
                     );

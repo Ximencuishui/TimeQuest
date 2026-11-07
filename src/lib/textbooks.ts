@@ -131,6 +131,15 @@ export function sectionKey(chapterIndex: number, sectionIndex: number): string {
   return `${chapterIndex}:${sectionIndex}`;
 }
 
+/** Knowledge points under a section name, separated by commas. */
+export function knowledgePointPreview(points: readonly string[] | undefined): string {
+  if (!points) return "";
+  return points
+    .map((point) => point.trim())
+    .filter((point) => point.length > 0)
+    .join("，");
+}
+
 export type PlannedSection = {
   chapter: string;
   section: string;
@@ -151,9 +160,9 @@ export function sectionPlan(
     chapter.sections.forEach((section, sectionIndex) => {
       total += 1;
       if (masteredSectionKeys.has(sectionKey(chapterIndex, sectionIndex))) {
-        selectedSections.push(section);
+        selectedSections.push(section.name);
       } else {
-        planned.push({ chapter: chapter.name, section });
+        planned.push({ chapter: chapter.name, section: section.name });
       }
     });
   });

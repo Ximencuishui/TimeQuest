@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { startOfMonth } from "date-fns";
 import { CalendarView } from "../components/CalendarView";
+import { KnowledgePointDrawer, type KnowledgeTask } from "../components/KnowledgePointDrawer";
 import { CompleteDialog } from "../components/CompleteDialog";
 import { RescheduleDialog } from "../components/RescheduleDialog";
 import { Modal } from "../components/Modal";
@@ -51,6 +52,7 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
   const isViewingToday = date === todayStr(now);
 
   const [completeTarget, setCompleteTarget] = useState<TaskSession | null>(null);
+  const [knowledgeTask, setKnowledgeTask] = useState<KnowledgeTask | null>(null);
   const [rescheduleTarget, setRescheduleTarget] = useState<TaskSession | null>(
     null,
   );
@@ -226,10 +228,18 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
               onComplete={setCompleteTarget}
               onReschedule={setRescheduleTarget}
               onFocus={startFocus}
+              onOpenKnowledge={(session) =>
+                setKnowledgeTask({
+                  id: session.task_id,
+                  title: session.task_title ?? "主线",
+                })
+              }
             />
           )}
         </>
       )}
+
+      <KnowledgePointDrawer task={knowledgeTask} onClose={() => setKnowledgeTask(null)} />
 
       <Modal
         open={createOpen}

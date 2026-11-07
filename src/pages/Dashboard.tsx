@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { KnowledgePointDrawer, type KnowledgeTask } from "../components/KnowledgePointDrawer";
 import { DashboardAccumulationWall } from "../components/AccumulationWall";
 import { CountdownPanel } from "../components/CountdownPanel";
 import { DashboardScoreOverview } from "../components/ScoreOverviewCapsule";
@@ -14,6 +16,7 @@ import { APP_NAME } from "../lib/constants";
 export function Dashboard() {
   const navigate = useNavigate();
   const today = todayStr();
+  const [knowledgeTask, setKnowledgeTask] = useState<KnowledgeTask | null>(null);
   const { data: sessions = [], isLoading } = useSessionsByDate(today);
   const planned = sessions.filter((s) => s.status === "planned");
 
@@ -57,12 +60,22 @@ export function Dashboard() {
                 onClick={() =>
                   navigate("/today", { state: { focusSessionId: s.id } })
                 }
+                onOpenKnowledge={
+                  s.task_type === "main"
+                    ? () =>
+                        setKnowledgeTask({
+                          id: s.task_id,
+                          title: s.task_title ?? "主线",
+                        })
+                    : undefined
+                }
               />
             ))}
           </div>
         )}
       </section>
       <DashboardAccumulationWall />
+      <KnowledgePointDrawer task={knowledgeTask} onClose={() => setKnowledgeTask(null)} />
     </div>
   );
 }

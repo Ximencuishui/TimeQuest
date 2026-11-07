@@ -21,7 +21,7 @@ pub struct GenerateTasksFromOutlineInput {
     pub task_name: String,
     /// Section titles the student already knows. Matched after trim, in any order.
     pub selected_sections: Vec<String>,
-    /// When false, insert the main task only and no `task_sessions`.
+    /// When false, insert the main task and its knowledge points, and no `task_sessions`.
     pub auto_schedule: bool,
 }
 
@@ -36,9 +36,13 @@ pub struct GenerateTasksResult {
 
 /// Create one main task from the outline of `(subject, version, volume)`.
 ///
-/// `total_units` is the number of sections in that book.
+/// `total_units` is the number of sections in that book. Knowledge points are
+/// rows on `task_knowledge_points`, not extra tasks. Every section is written
+/// in this transaction, before commit. A section in `selected_sections` marks
+/// its points mastered (`is_mastered = 1`); the rest stay `0`.
 ///
-/// When `auto_schedule` is false, only the main task row is inserted.
+/// When `auto_schedule` is false, the task and its knowledge points are inserted
+/// and no `task_sessions` are created.
 /// When it is true, every section becomes one session dated today
 /// (`YYYY-MM-DD` in local time), `19:00–20:00`.
 ///
@@ -82,6 +86,32 @@ pub async fn generate_tasks_from_outline_impl(
     .execute(&mut *tx)
     .await?
     .last_insert_rowid();
+
+    for chapter in &outline.chapters {
+        for section in &chapter.sections {
+            let section_mastered = mastered.contains(section.name.as_str());
+            for (index, point) in section.knowledge_points.iter().enumerate() {
+                let name = point.trim();
+                if name.is_empty() {
+                    continue;
+                }
+                let position = i64::try_from(index).map_err(|_| {
+                    TextbookError::InvalidOutline("knowledge point index does not fit in i64".into())
+                })?;
+                sqlx::query(
+                    r#"INSERT INTO task_knowledge_points (task_id, section_name, name, is_mastered, position)
+                       VALUES (?1, ?2, ?3, ?4, ?5)"#,
+                )
+                .bind(task_id)
+                .bind(&section.name)
+                .bind(name)
+                .bind(if section_mastered { 1i64 } else { 0i64 })
+                .bind(position)
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
+    }
 
     let mut planned_count = 0i64;
     let mut done_count = 0i64;
@@ -318,4 +348,176 @@ pub async fn generate_tasks_from_outline(
     )
     .await
     .map_err(Into::into)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct TaskKnowledgePoint {
+    pub id: i64,
+    pub task_id: i64,
+    pub section_name: String,
+    pub name: String,
+    pub is_mastered: i64,
+    pub position: i64,
+}
+
+pub async fn get_task_knowledge_points_impl(
+    db: &SqlitePool,
+    task_id: i64,
+) -> Result<Vec<TaskKnowledgePoint>, TextbookError> {
+    let rows = sqlx::query_as::<_, TaskKnowledgePoint>(
+        "SELECT id, task_id, section_name, name, is_mastered, position
+         FROM task_knowledge_points
+         WHERE task_id = ?1
+         ORDER BY id ASC",
+    )
+    .bind(task_id)
+    .fetch_all(db)
+    .await?;
+    Ok(rows)
+}
+
+/// Flip `is_mastered`. Checking a point sets it to 1; checking again clears it.
+pub async fn toggle_knowledge_point_impl(
+    db: &SqlitePool,
+    id: i64,
+) -> Result<TaskKnowledgePoint, TextbookError> {
+    let changed = sqlx::query(
+        "UPDATE task_knowledge_points
+         SET is_mastered = CASE is_mastered WHEN 1 THEN 0 ELSE 1 END
+         WHERE id = ?1",
+    )
+    .bind(id)
+    .execute(db)
+    .await?
+    .rows_affected();
+    if changed == 0 {
+        return Err(TextbookError::KnowledgePointNotFound { id });
+    }
+    let row = sqlx::query_as::<_, TaskKnowledgePoint>(
+        "SELECT id, task_id, section_name, name, is_mastered, position
+         FROM task_knowledge_points WHERE id = ?1",
+    )
+    .bind(id)
+    .fetch_one(db)
+    .await?;
+    Ok(row)
+}
+
+#[tauri::command]
+pub async fn get_task_knowledge_points(
+    pool: State<'_, SqlitePool>,
+    task_id: i64,
+) -> Result<Vec<TaskKnowledgePoint>, String> {
+    get_task_knowledge_points_impl(pool.inner(), task_id)
+        .await
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn toggle_knowledge_point(
+    pool: State<'_, SqlitePool>,
+    id: i64,
+) -> Result<TaskKnowledgePoint, String> {
+    toggle_knowledge_point_impl(pool.inner(), id)
+        .await
+        .map_err(Into::into)
+}
+
+/// Insert one student-authored point. `is_mastered` stays 0. `position` is one
+/// past the last point in the same section, or 0 when the section is new.
+/// Names are trimmed and then stored unchanged: a section title taken from the
+/// textbook outline is not rewritten, and a custom title is kept as typed.
+/// A repeated `(task, section, name)` is rejected.
+pub async fn add_custom_knowledge_point_impl(
+    db: &SqlitePool,
+    task_id: i64,
+    section_name: String,
+    name: String,
+) -> Result<TaskKnowledgePoint, TextbookError> {
+    let section_name = section_name.trim().to_string();
+    let name = name.trim().to_string();
+    if section_name.is_empty() {
+        return Err(TextbookError::EmptySectionName);
+    }
+    if name.is_empty() {
+        return Err(TextbookError::EmptyKnowledgePointName);
+    }
+    let task_exists: Option<i64> = sqlx::query_scalar("SELECT id FROM tasks WHERE id = ?1")
+        .bind(task_id)
+        .fetch_optional(db)
+        .await?;
+    if task_exists.is_none() {
+        return Err(TextbookError::TaskNotFound { id: task_id });
+    }
+    let position: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(MAX(position), -1) + 1
+         FROM task_knowledge_points
+         WHERE task_id = ?1 AND section_name = ?2",
+    )
+    .bind(task_id)
+    .bind(&section_name)
+    .fetch_one(db)
+    .await?;
+    let inserted = sqlx::query(
+        r#"INSERT INTO task_knowledge_points (task_id, section_name, name, is_mastered, position)
+           VALUES (?1, ?2, ?3, 0, ?4)"#,
+    )
+    .bind(task_id)
+    .bind(&section_name)
+    .bind(&name)
+    .bind(position)
+    .execute(db)
+    .await
+    .map_err(|err| {
+        if err
+            .as_database_error()
+            .is_some_and(|db_err| db_err.is_unique_violation())
+        {
+            TextbookError::DuplicateKnowledgePoint
+        } else {
+            TextbookError::from(err)
+        }
+    })?;
+    Ok(TaskKnowledgePoint {
+        id: inserted.last_insert_rowid(),
+        task_id,
+        section_name,
+        name,
+        is_mastered: 0,
+        position,
+    })
+}
+
+pub async fn delete_knowledge_point_impl(db: &SqlitePool, id: i64) -> Result<(), TextbookError> {
+    let changed = sqlx::query("DELETE FROM task_knowledge_points WHERE id = ?1")
+        .bind(id)
+        .execute(db)
+        .await?
+        .rows_affected();
+    if changed == 0 {
+        return Err(TextbookError::KnowledgePointNotFound { id });
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn add_custom_knowledge_point(
+    pool: State<'_, SqlitePool>,
+    task_id: i64,
+    section_name: String,
+    name: String,
+) -> Result<TaskKnowledgePoint, String> {
+    add_custom_knowledge_point_impl(pool.inner(), task_id, section_name, name)
+        .await
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn delete_knowledge_point(
+    pool: State<'_, SqlitePool>,
+    id: i64,
+) -> Result<(), String> {
+    delete_knowledge_point_impl(pool.inner(), id)
+        .await
+        .map_err(Into::into)
 }

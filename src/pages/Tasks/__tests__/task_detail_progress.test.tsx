@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TaskDetail } from "../../TaskDetail";
-import type { Task, TaskSession } from "../../../types";
+import type { Task, TaskKnowledgePoint, TaskSession } from "../../../types";
 
 const mockedInvoke = vi.mocked(invoke);
 
@@ -80,6 +80,7 @@ function mockDetailApis(opts: {
   progress: { round_units: number; total_units_done: number };
   sessions?: TaskSession[];
   taskOverride?: Partial<Task>;
+  knowledgePoints?: TaskKnowledgePoint[] | null;
 }) {
   const t = { ...task, ...opts.taskOverride };
   const sessions = opts.sessions ?? sessionsSumTo3;
@@ -91,6 +92,8 @@ function mockDetailApis(opts: {
         return sessions;
       case "task_progress":
         return opts.progress;
+      case "get_task_knowledge_points":
+        return opts.knowledgePoints ?? null;
       default:
         return null;
     }
@@ -118,6 +121,7 @@ describe("TaskDetail progress ring", () => {
     await waitFor(() => {
       expect(screen.getByText("7/20")).toBeInTheDocument();
     });
+    expect(screen.queryByRole("heading", { name: "考点" })).not.toBeInTheDocument();
     expect(screen.queryByText("3/20")).not.toBeInTheDocument();
 
     expect(mockedInvoke).toHaveBeenCalledWith(
@@ -194,6 +198,59 @@ describe("TaskDetail progress ring", () => {
     expect(screen.getByText(/本轮\s*25\/20/)).toBeInTheDocument();
     expect(screen.queryByText("20/20")).not.toBeInTheDocument();
     expect(screen.queryByText("100%+")).not.toBeInTheDocument();
+  });
+
+  it("task_detail_shows_knowledge_points_grouped_by_section", async () => {
+    mockDetailApis({
+      progress: { round_units: 0, total_units_done: 0 },
+      sessions: [],
+      knowledgePoints: [
+        {
+          id: 1,
+          task_id: 1,
+          section_name: "1.1 集合的概念",
+          name: "集合的含义",
+          is_mastered: 1,
+          position: 0,
+        },
+        {
+          id: 2,
+          task_id: 1,
+          section_name: "1.1 集合的概念",
+          name: "元素与集合的关系",
+          is_mastered: 0,
+          position: 1,
+        },
+        {
+          id: 3,
+          task_id: 1,
+          section_name: "1.2 集合间的基本关系",
+          name: "子集与真子集",
+          is_mastered: 0,
+          position: 0,
+        },
+      ],
+    });
+
+    renderDetail(1);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "考点" })).toBeInTheDocument();
+    });
+    expect(screen.getByText("1.1 集合的概念")).toBeInTheDocument();
+    expect(screen.getByText("1.2 集合间的基本关系")).toBeInTheDocument();
+    const mastered = screen.getByText("集合的含义");
+    expect(mastered).toHaveClass("line-through");
+    expect(mastered).toHaveClass("text-green-400");
+    expect(screen.getByRole("checkbox", { name: "集合的含义" })).toBeChecked();
+    expect(screen.getByText("元素与集合的关系")).not.toHaveClass("line-through");
+    expect(screen.getByRole("checkbox", { name: "元素与集合的关系" })).not.toBeChecked();
+    expect(screen.getByText("子集与真子集")).not.toHaveClass("line-through");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "元素与集合的关系" }));
+    await waitFor(() => {
+      expect(mockedInvoke).toHaveBeenCalledWith("toggle_knowledge_point", { id: 2 });
+    });
   });
 });
 

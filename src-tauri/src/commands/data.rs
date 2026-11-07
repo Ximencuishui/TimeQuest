@@ -348,6 +348,31 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         rows
     };
 
+    let task_knowledge_points: Vec<Value> = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, task_id, section_name, name, is_mastered, position, created_at
+                 FROM task_knowledge_points ORDER BY id",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(json!({
+                    "id": r.get::<_, i64>(0)?,
+                    "task_id": r.get::<_, i64>(1)?,
+                    "section_name": r.get::<_, String>(2)?,
+                    "name": r.get::<_, String>(3)?,
+                    "is_mastered": r.get::<_, i64>(4)?,
+                    "position": r.get::<_, i64>(5)?,
+                    "created_at": r.get::<_, String>(6)?,
+                }))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    };
+
     let payload = json!({
         "version": 1,
         "exported_at": chrono::Local::now().to_rfc3339(),
@@ -361,6 +386,7 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         "app_settings": app_settings,
         "imported_textbooks": imported_textbooks,
         "exam_records": exam_records,
+        "task_knowledge_points": task_knowledge_points,
     });
     serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())
 }
@@ -381,6 +407,7 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
             DELETE FROM actual_logs;
             DELETE FROM task_sessions;
             DELETE FROM notes;
+            DELETE FROM task_knowledge_points;
             DELETE FROM tasks;
             DELETE FROM app_settings;
             DELETE FROM imported_textbooks;
@@ -566,6 +593,27 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
         upsert_user_profile_row(&tx, &profile, updated_at.as_deref())?;
     } else {
         upsert_user_profile_row(&tx, &UserProfile::default(), None)?;
+    }
+
+    // Old backups omit this key. The DELETE above already left the table empty.
+    if let Some(arr) = data.get("task_knowledge_points").and_then(|v| v.as_array()) {
+        for row in arr {
+            tx.execute(
+                r#"INSERT INTO task_knowledge_points (
+                     id, task_id, section_name, name, is_mastered, position, created_at
+                   ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, COALESCE(?7, datetime('now','localtime')))"#,
+                params![
+                    row.get("id").and_then(|v| v.as_i64()),
+                    row.get("task_id").and_then(|v| v.as_i64()).unwrap_or(0),
+                    row.get("section_name").and_then(|v| v.as_str()).unwrap_or(""),
+                    row.get("name").and_then(|v| v.as_str()).unwrap_or(""),
+                    row.get("is_mastered").and_then(|v| v.as_i64()).unwrap_or(0),
+                    row.get("position").and_then(|v| v.as_i64()).unwrap_or(0),
+                    row.get("created_at").and_then(|v| v.as_str()),
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        }
     }
 
     if let Some(arr) = data.get("exam_records").and_then(|v| v.as_array()) {

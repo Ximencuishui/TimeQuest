@@ -50,13 +50,19 @@ function scaleLabel(layout: MicroGridLayout, unitName: string): string {
   return `每格 ${layout.perCell} ${unitName}，末格 ${layout.remainder} ${unitName}`;
 }
 
-export function TaskGridView({ tasks }: { tasks: GridTask[] }) {
+export function TaskGridView({
+  tasks,
+  onOpenKnowledge,
+}: {
+  tasks: GridTask[];
+  onOpenKnowledge?: (task: GridTask) => void;
+}) {
   const main = useMemo(() => tasks.filter((t) => t.type === "main"), [tasks]);
   const side = useMemo(() => tasks.filter((t) => t.type === "side"), [tasks]);
 
   return (
     <div data-testid="task-grid-view" className="space-y-8">
-      <TaskGroup title="主线" items={main} empty="暂无主线任务" />
+      <TaskGroup title="主线" items={main} empty="暂无主线任务" onOpenKnowledge={onOpenKnowledge} />
       <TaskGroup title="副本" items={side} empty="暂无副本任务" />
     </div>
   );
@@ -66,10 +72,12 @@ function TaskGroup({
   title,
   items,
   empty,
+  onOpenKnowledge,
 }: {
   title: string;
   items: GridTask[];
   empty: string;
+  onOpenKnowledge?: (task: GridTask) => void;
 }) {
   return (
     <section>
@@ -82,7 +90,7 @@ function TaskGroup({
             task.type === "side" ? (
               <SideCard key={task.id} task={task} />
             ) : (
-              <MainCard key={task.id} task={task} />
+              <MainCard key={task.id} task={task} onOpenKnowledge={onOpenKnowledge} />
             ),
           )}
         </div>
@@ -94,18 +102,20 @@ function TaskGroup({
 const cardClass =
   "block rounded-xl border border-white/5 bg-surface-2/90 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-accent/30 hover:shadow-lg";
 
-function MainCard({ task }: { task: GridTask }) {
+function MainCard({
+  task,
+  onOpenKnowledge,
+}: {
+  task: GridTask;
+  onOpenKnowledge?: (task: GridTask) => void;
+}) {
   const total = task.total_units ?? 0;
   const done = doneUnits(task);
   const layout = total > 0 ? microGridLayout(total, done) : null;
   const columns = layout ? Math.min(10, layout.cells) : 0;
-
-  return (
-    <Link
-      to={`/tasks/${task.id}`}
-      className={cardClass}
-      style={{ borderLeftWidth: 3, borderLeftColor: task.color || "#F97316" }}
-    >
+  const style = { borderLeftWidth: 3, borderLeftColor: task.color || "#F97316" };
+  const body = (
+    <>
       <CardHeader task={task} />
       {layout && layout.cells > 0 ? (
         <>
@@ -136,6 +146,26 @@ function MainCard({ task }: { task: GridTask }) {
       ) : (
         <p className="mt-3 text-xs text-ink-muted">未设置总课数</p>
       )}
+    </>
+  );
+
+  if (onOpenKnowledge) {
+    return (
+      <button
+        type="button"
+        className={`${cardClass} w-full text-left`}
+        style={style}
+        aria-label={`查看知识点 ${task.title}`}
+        onClick={() => onOpenKnowledge(task)}
+      >
+        {body}
+      </button>
+    );
+  }
+
+  return (
+    <Link to={`/tasks/${task.id}`} className={cardClass} style={style}>
+      {body}
     </Link>
   );
 }

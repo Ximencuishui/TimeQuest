@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { APP_NAME, APP_SUBTITLE } from "../lib/constants";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { AchievementHost } from "./AchievementHost";
+import { CelebrationHost } from "./CelebrationHost";
 import { FocusHost } from "./FocusHost";
 import { ProfileChip } from "./ProfileChip";
 
@@ -80,6 +81,7 @@ export function Layout() {
         </nav>
       </div>
       <AchievementHost />
+      <CelebrationHost />
       <FocusHost />
     </div>
   );

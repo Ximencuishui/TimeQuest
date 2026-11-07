@@ -90,6 +90,21 @@ pub enum TextbookError {
 
     #[error("database error: {0}")]
     Db(String),
+
+    #[error("knowledge point not found: {id}")]
+    KnowledgePointNotFound { id: i64 },
+
+    #[error("考点名称不能为空")]
+    EmptyKnowledgePointName,
+
+    #[error("节名称不能为空")]
+    EmptySectionName,
+
+    #[error("这一节里已经有同名考点")]
+    DuplicateKnowledgePoint,
+
+    #[error("任务不存在: {id}")]
+    TaskNotFound { id: i64 },
 }
 
 impl From<sqlx::Error> for TextbookError {

@@ -26,9 +26,10 @@ pub use commands::stats::{
 };
 pub use commands::tasks::{advance_round_impl, task_progress_impl};
 pub use commands::textbook::{
-    generate_tasks_from_outline_impl, import_textbook_json_impl, list_textbook_catalog_impl,
-    resolve_textbook_outline, GenerateTasksFromOutlineInput, GenerateTasksResult,
-    ImportTextbookResult, TextbookCatalogItem,
+    add_custom_knowledge_point_impl, delete_knowledge_point_impl, generate_tasks_from_outline_impl,
+    get_task_knowledge_points_impl, import_textbook_json_impl, list_textbook_catalog_impl,
+    resolve_textbook_outline, toggle_knowledge_point_impl, GenerateTasksFromOutlineInput,
+    GenerateTasksResult, ImportTextbookResult, TaskKnowledgePoint, TextbookCatalogItem,
 };
 pub use error::{AppError, SessionError, TextbookError};
 pub use gamification::{update_streak_values, RESCHEDULE_RECOVERY_BONUS};
@@ -40,7 +41,7 @@ pub use models::{
 pub use textbooks::parse_textbook_json;
 pub use textbooks::{
     get_textbook_outline, list_available_textbooks, AvailableTextbook, TextbookChapter,
-    TextbookOutline,
+    TextbookOutline, TextbookSection,
 };
 
 use db::{db_path, open_db, open_sqlx_pool, AppPrefs, DbState};
@@ -145,6 +146,10 @@ pub fn run() {
             commands::list_textbook_catalog,
             commands::import_textbook_json,
             commands::generate_tasks_from_outline,
+            commands::get_task_knowledge_points,
+            commands::toggle_knowledge_point,
+            commands::add_custom_knowledge_point,
+            commands::delete_knowledge_point,
             commands::list_sessions_by_date,
             commands::list_sessions_in_range,
             commands::list_sessions_by_task,

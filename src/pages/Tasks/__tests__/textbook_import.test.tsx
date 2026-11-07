@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { KNOWLEDGE_POINT_DISCLAIMER } from "../../../lib/constants";
 import { TEXTBOOK_CATALOG } from "../../../lib/textbooks";
 import { useUiStore } from "../../../store/ui";
 import type { TextbookOutline } from "../../../types";
@@ -31,11 +32,22 @@ const outline: TextbookOutline = {
   chapters: [
     {
       name: "第一章 集合与常用逻辑用语",
-      sections: ["1.1 集合的概念", "1.2 集合间的基本关系", "1.3 集合的基本运算"],
+      sections: [
+        {
+          name: "1.1 集合的概念",
+          knowledge_points: ["集合的含义", "元素与集合的关系", "集合的表示方法", "元素的确定性"],
+        },
+        { name: "1.2 集合间的基本关系" },
+        { name: "1.3 集合的基本运算" },
+      ],
     },
     {
       name: "第二章 一元二次函数、方程和不等式",
-      sections: ["2.1 等式性质与不等式性质", "2.2 基本不等式", "2.3 二次函数与一元二次方程、不等式"],
+      sections: [
+        { name: "2.1 等式性质与不等式性质" },
+        { name: "2.2 基本不等式" },
+        { name: "2.3 二次函数与一元二次方程、不等式" },
+      ],
     },
   ],
 };
@@ -59,6 +71,7 @@ function renderTasks() {
 
 async function openBookStep(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "从教材导入" }));
+  expect(await screen.findByText(KNOWLEDGE_POINT_DISCLAIMER)).toHaveClass("text-xs", "text-zinc-500");
   expect(await screen.findByRole("tab", { name: "数学", selected: true })).toBeInTheDocument();
   expect(screen.getAllByRole("tab").map((node) => node.textContent)).toEqual([
     "数学",
@@ -152,6 +165,9 @@ describe("textbook import wizard", () => {
     const boxes = screen.getAllByRole("checkbox");
     expect(boxes).toHaveLength(6);
     for (const box of boxes) expect(box).not.toBeChecked();
+    const preview = screen.getByText("集合的含义，元素与集合的关系，集合的表示方法，元素的确定性");
+    expect(preview.className).toContain("text-xs");
+    expect(preview.className).toContain("text-zinc-500");
 
     await user.click(screen.getByRole("checkbox", { name: "2.2 基本不等式" }));
     await user.click(screen.getByRole("checkbox", { name: "1.1 集合的概念" }));

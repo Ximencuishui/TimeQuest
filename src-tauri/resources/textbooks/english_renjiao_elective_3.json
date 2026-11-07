@@ -6,46 +6,149 @@
     {
       "name": "Unit 1 Art",
       "sections": [
-        "1.1 Listening and Speaking",
-        "1.2 Reading and Thinking",
-        "1.3 Discovering Useful Structures",
-        "1.4 Reading for Writing"
+        {
+          "name": "1.1 Listening and Speaking",
+          "knowledge_points": [
+            "中国水墨动画电影的主题性听力理解与信息结构提取",
+            "学术类口头报告中的路标语识别与功能理解",
+            "艺术类展览公告的语篇结构与功能语言分析"
+          ]
+        },
+        {
+          "name": "1.2 Reading and Thinking",
+          "knowledge_points": [
+            "艺术语境下的核心学术词汇辨析与运用",
+            "西方绘画风格的历史演变"
+          ]
+        },
+        {
+          "name": "1.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "1.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 2 Healthy Lifestyle",
       "sections": [
-        "2.1 Listening and Speaking",
-        "2.2 Reading and Thinking",
-        "2.3 Discovering Useful Structures",
-        "2.4 Reading for Writing"
+        {
+          "name": "2.1 Listening and Speaking",
+          "knowledge_points": [
+            "区分事实陈述（fact）与观点表达（opinion）的语义与语法特征",
+            "基于习惯回路模型（Cue-Routine-Reward）分析不良生活习惯",
+            "基于真实生活叙事提取健康行为改变的关键要素",
+            "运用功能化表达进行不良生活习惯的咨询与建议对话"
+          ]
+        },
+        {
+          "name": "2.2 Reading and Thinking",
+          "knowledge_points": [
+            "习惯形成的三阶段循环模型",
+            "基于习惯循环的坏习惯改造策略",
+            "青少年不良习惯的健康风险与干预必要性"
+          ]
+        },
+        {
+          "name": "2.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "2.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 3 Environmental Protection",
       "sections": [
-        "3.1 Listening and Speaking",
-        "3.2 Reading and Thinking",
-        "3.3 Discovering Useful Structures",
-        "3.4 Reading for Writing"
+        {
+          "name": "3.1 Listening and Speaking",
+          "knowledge_points": [
+            "基于听力内容的摘要写作策略",
+            "漓江水污染成因与治理措施的说明文结构认知",
+            "环境议题口语表达的功能性语言框架",
+            "空气污染术语与历史事实理解"
+          ]
+        },
+        {
+          "name": "3.2 Reading and Thinking",
+          "knowledge_points": [
+            "气候变迁的科学成因与影响",
+            "环保主题学术词汇的语境化运用",
+            "直接引语到间接引语的转述规则"
+          ]
+        },
+        {
+          "name": "3.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "3.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 4 Adversity and Courage",
       "sections": [
-        "4.1 Listening and Speaking",
-        "4.2 Reading and Thinking",
-        "4.3 Discovering Useful Structures",
-        "4.4 Reading for Writing"
+        {
+          "name": "4.1 Listening and Speaking",
+          "knowledge_points": [
+            "南极生存语境下的功能性词汇与概念理解",
+            "因果关系表达的识别与运用",
+            "基于人物特质与技能的协商性口语表达"
+          ]
+        },
+        {
+          "name": "4.2 Reading and Thinking",
+          "knowledge_points": [
+            "adversity主题下核心形容词的语义网络与语境适配",
+            "基于文本证据推断人物性格与情绪",
+            "现在完成进行时的意义与语境使用"
+          ]
+        },
+        {
+          "name": "4.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "4.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 5 Poems",
       "sections": [
-        "5.1 Listening and Speaking",
-        "5.2 Reading and Thinking",
-        "5.3 Discovering Useful Structures",
-        "5.4 Reading for Writing"
+        {
+          "name": "5.1 Listening and Speaking",
+          "knowledge_points": [
+            "听力理解诗歌竞赛相关对话",
+            "诗歌主题表达与情感激发策略",
+            "诗歌文本细读分析框架",
+            "诗歌朗读的节奏、韵律与情感表达",
+            "鼓励与赞美类功能表达的识别与运用"
+          ]
+        },
+        {
+          "name": "5.2 Reading and Thinking",
+          "knowledge_points": [
+            "英语诗歌基本体裁识别与特征理解",
+            "英语诗歌韵律与语音特征实践",
+            "诗歌语义解读策略：意象、隐喻与情感氛围推断"
+          ]
+        },
+        {
+          "name": "5.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "5.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     }
   ]

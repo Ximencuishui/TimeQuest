@@ -114,6 +114,15 @@ pub struct CompleteSessionResult {
     /// Session created for leftover units when `move_remainder` is true.
     #[serde(default)]
     pub remainder_session_id: Option<i64>,
+    /// This completion pushed the main task's current round from below `total_units` to at or above it.
+    #[serde(default)]
+    pub is_task_fully_completed: bool,
+    /// `user_stats.current_streak` after this call. Unchanged when the streak was not updated.
+    #[serde(default)]
+    pub current_streak: i64,
+    /// 7, 14, or 30 only when this completion moved the streak onto that value.
+    #[serde(default)]
+    pub streak_milestone: Option<i64>,
 }
 
 /// Optional slot for leftover units after a partial complete.

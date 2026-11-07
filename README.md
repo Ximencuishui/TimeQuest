@@ -14,7 +14,7 @@
 
 <p align="center">
   高考倒计时 · 自习推进器<br />
-  当前版本 <strong>3.0.0</strong>
+  当前版本 <strong>3.4.0</strong>
 </p>
 
 ## 效果预览
@@ -61,15 +61,16 @@
 - 🍅 **沉浸式专注**：桌面级番茄钟、白噪音、防休眠。
 - 📈 **成绩追踪**：录入历次考试，可视化与目标分数的差距。
 - 🗺️ **游戏化反馈**：XP 连击、微观点阵、冲刺航线。
+- 🔍 **考点精细穿透**：按教材节一键勾选标准考点，也可手动补上自定义考点。
 - 📌 **桌面悬浮窗**：常驻桌面的高考倒计时与当前任务。
 
 ## 快速开始
 
 ### 下载安装
 
-Windows 安装包在 [v3.0.0 Release](https://github.com/Ximencuishui/TimeQuest/releases/tag/v3.0.0)：
+Windows 安装包在 [v3.4.0 Release](https://github.com/Ximencuishui/TimeQuest/releases/tag/v3.4.0)：
 
-**[下载 TimeQuest 3.0.0（MSI）](https://github.com/Ximencuishui/TimeQuest/releases/download/v3.0.0/TimeQuest_3.0.0_x64_en-US.msi)**
+**[下载 TimeQuest 3.4.0（MSI）](https://github.com/Ximencuishui/TimeQuest/releases/download/v3.4.0/TimeQuest_3.4.0_x64_en-US.msi)**
 
 系统需能使用 WebView2（Windows 11 已内置）。数据写在本机 `timequest.db`，不注册账号。
 

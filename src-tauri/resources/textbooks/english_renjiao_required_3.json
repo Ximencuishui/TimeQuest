@@ -6,46 +6,169 @@
     {
       "name": "Unit 1 Festivals and Celebrations",
       "sections": [
-        "1.1 Listening and Speaking",
-        "1.2 Reading and Thinking",
-        "1.3 Discovering Useful Structures",
-        "1.4 Reading for Writing"
+        {
+          "name": "1.1 Listening and Speaking",
+          "knowledge_points": [
+            "节日主题语境下的交际关系识别",
+            "节日活动词汇的语义分类与语境应用"
+          ]
+        },
+        {
+          "name": "1.2 Reading and Thinking",
+          "knowledge_points": [
+            "段落主旨句识别策略",
+            "节日习俗的历时性变迁",
+            "节日商业化的双重影响分析",
+            "节日庆祝的共同精神内核"
+          ]
+        },
+        {
+          "name": "1.3 Discovering Useful Structures",
+          "knowledge_points": [
+            "现在分词作定语和表语"
+          ]
+        },
+        {
+          "name": "1.4 Reading for Writing",
+          "knowledge_points": [
+            "节日经历记叙文的结构化写作"
+          ]
+        }
       ]
     },
     {
       "name": "Unit 2 Morals and Virtues",
       "sections": [
-        "2.1 Listening and Speaking",
-        "2.2 Reading and Thinking",
-        "2.3 Discovering Useful Structures",
-        "2.4 Reading for Writing"
+        {
+          "name": "2.1 Listening and Speaking",
+          "knowledge_points": [
+            "升调（rising intonation）在口语中的三大功能辨识",
+            "道德困境的概念理解与实例分析"
+          ]
+        },
+        {
+          "name": "2.2 Reading and Thinking",
+          "knowledge_points": [
+            "基于语境的动词搭配与语义辨析",
+            "林巧稚生平事迹与道德选择分析"
+          ]
+        },
+        {
+          "name": "2.3 Discovering Useful Structures",
+          "knowledge_points": [
+            "现在分词作状语"
+          ]
+        },
+        {
+          "name": "2.4 Reading for Writing",
+          "knowledge_points": [
+            "寓言故事阅读与评论写作"
+          ]
+        }
       ]
     },
     {
       "name": "Unit 3 Diverse Cultures",
       "sections": [
-        "3.1 Listening and Speaking",
-        "3.2 Reading and Thinking",
-        "3.3 Discovering Useful Structures",
-        "3.4 Reading for Writing"
+        {
+          "name": "3.1 Listening and Speaking",
+          "knowledge_points": [
+            "听力笔记策略：关键词提取与缩写规范",
+            "美国食物起源的跨文化影响",
+            "英语口语中自然停顿（pausing）的感知与模仿"
+          ]
+        },
+        {
+          "name": "3.2 Reading and Thinking",
+          "knowledge_points": [
+            "19世纪中后期旧金山华人移民历史及其文化贡献",
+            "基于旅行日记的多元文化城市信息提取与组织",
+            "描述性语言中文化态度与价值立场的识别"
+          ]
+        },
+        {
+          "name": "3.3 Discovering Useful Structures",
+          "knowledge_points": [
+            "英语省略结构（Ellipsis）的识别与还原"
+          ]
+        },
+        {
+          "name": "3.4 Reading for Writing",
+          "knowledge_points": [
+            "描述具有鲜明文化身份的地点的说明文写作结构",
+            "描述文化地点的九类核心信息要素及其语义功能",
+            "用于地点文化描述的功能性语言支架"
+          ]
+        }
       ]
     },
     {
       "name": "Unit 4 Space Exploration",
       "sections": [
-        "4.1 Listening and Speaking",
-        "4.2 Reading and Thinking",
-        "4.3 Discovering Useful Structures",
-        "4.4 Reading for Writing"
+        {
+          "name": "4.1 Listening and Speaking",
+          "knowledge_points": [
+            "航天员选拔标准的听说理解与信息提取",
+            "英语诗歌重音节奏的感知与朗读实践"
+          ]
+        },
+        {
+          "name": "4.2 Reading and Thinking",
+          "knowledge_points": [
+            "太空探索发展历程的说明文阅读理解",
+            "航天重大事件的时间轴建构与跨文化比较",
+            "航天高危环节的英语学术表达与风险认知"
+          ]
+        },
+        {
+          "name": "4.3 Discovering Useful Structures",
+          "knowledge_points": [
+            "不定式作后置定语（序数词/first/last 等后）",
+            "不定式作目的状语"
+          ]
+        },
+        {
+          "name": "4.4 Reading for Writing",
+          "knowledge_points": [
+            "基于范文的议论文写作迁移",
+            "议论文结构分析与识别",
+            "议论文语言特征识别与提取"
+          ]
+        }
       ]
     },
     {
       "name": "Unit 5 The Value of Money",
       "sections": [
-        "5.1 Listening and Speaking",
-        "5.2 Reading and Thinking",
-        "5.3 Discovering Useful Structures",
-        "5.4 Reading for Writing"
+        {
+          "name": "5.1 Listening and Speaking",
+          "knowledge_points": [
+            "英语口语中语调与重音对语义和态度的表征功能",
+            "英语听力中基于语境与语调的推断能力"
+          ]
+        },
+        {
+          "name": "5.2 Reading and Thinking",
+          "knowledge_points": [
+            "基于真实语境的英语省略句与不完整句理解",
+            "戏剧文本中人物关系与动机的语篇分析",
+            "文学语境中人物态度与情感的隐含意义推断"
+          ]
+        },
+        {
+          "name": "5.3 Discovering Useful Structures",
+          "knowledge_points": [
+            "情态动词表推测、义务、建议与意图的功能辨析"
+          ]
+        },
+        {
+          "name": "5.4 Reading for Writing",
+          "knowledge_points": [
+            "基于范本的戏剧场景仿写策略",
+            "戏剧场景的基本构成要素",
+            "通过语言特征分析人物态度转变"
+          ]
+        }
       ]
     }
   ]

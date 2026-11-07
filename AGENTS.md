@@ -217,6 +217,28 @@
 | onboarding_loads_hunan_demo_data | 「加载湖南高二演示数据」先存档案，再 `generate_mock_data`，最后写入完成标志 | `src/components/__tests__/onboarding.test.tsx` |
 | onboarding_hides_when_already_completed | `onboarding_completed=1` 时不渲染引导 | `src/components/__tests__/onboarding.test.tsx` |
 | settings_clear_mock_highlights_and_confirms_before_delete | 有演示数据时「清除所有演示数据」为橙色；取消不调用；确认后调用 `clear_mock_data` 并熄灭高亮 | `src/pages/Settings/__tests__/settings_mock_data.test.tsx` |
+| crossed_round_total_only_on_the_crossing_step | 9→10、8→12 为真；未到、已过、持平、`total <= 0` 为假 | `src-tauri/src/gamification.rs` |
+| streak_milestone_only_when_value_changes_onto_7_14_30 | 6→7、13→14、29→30 返回该数字；同值、7→8、0→1 返回 None | `src-tauri/src/gamification.rs` |
+| complete_flags_task_fully_completed_only_when_current_round_crosses_total | 主线 6/10 不标志；0 单位不标志也不推进连击；再完成 4 课标志通关；超额后再完成不重复 | `src-tauri/tests/sessions_test.rs` |
+| complete_does_not_flag_side_task_or_other_round | 副本达到 total 不标志；当前轮是 2 时完成第 1 轮不标志 | `src-tauri/tests/sessions_test.rs` |
+| complete_flags_streak_milestone_only_when_streak_newly_hits_7_14_or_30 | 6 的次日完成得到 7 并标志；同日再完成不重复；0 单位停在 6；14 与 30 同样只在跨到时标志；7 的次日变成 8 不标志 | `src-tauri/tests/sessions_test.rs` |
+| idempotent_complete_does_not_repeat_celebration_flags | 通关后再完成同一场：XP 0、通关标志与连击里程碑都不再出现，current_streak 仍是 1 | `src-tauri/tests/sessions_test.rs` |
+| celebrations_default_on_until_setting_is_explicitly_off | `null` / 缺省 / 空白 / `"1"` 开启；`"0"` 与 `"false"` 关闭 | `src/lib/__tests__/celebration.test.ts` |
+| resolve_celebration_picks_task_streak_or_neither | 通关返回 task_complete；7/14/30 返回 streak；两者同时只留通关；currentStreak 为 7 但 milestone 为空不庆祝 | `src/lib/__tests__/celebration.test.ts` |
+| celebration_copy_uses_the_book_title_and_the_seven_day_line | 通关文案带书名；7 天文案为「击败了全国 90% 的考生」 | `src/lib/__tests__/celebration.test.ts` |
+| celebrate_task_complete_fires_confetti_when_setting_unset | 设置未写入时完成通关：浮层文案、烟花 3 次、和弦 1 次，浮层 `pointer-events-none` | `src/hooks/__tests__/use_celebration.test.tsx` |
+| celebrate_streak_milestone_fires_once | 连击 7：一条浮层文案，烟花 1 次 | `src/hooks/__tests__/use_celebration.test.tsx` |
+| celebrations_disabled_skips_confetti_sound_and_overlay | `enable_celebrations=0` 时完成仍成功，不放烟花、不建 AudioContext、不出现浮层 | `src/hooks/__tests__/use_celebration.test.tsx` |
+| celebration_overlay_fades_after_two_seconds_and_ignores_pointer | 2 秒后 `data-state=fading`，再 400ms 卸掉；全程不接收点击 | `src/hooks/__tests__/use_celebration.test.tsx` |
+| settings_celebrations_toggle_writes_enable_celebrations | 未设置时开关为开；关掉写入 `enable_celebrations=0` | `src/pages/Settings/__tests__/settings_celebrations.test.tsx` |
+| settings_celebrations_off_value_starts_unchecked_and_writes_one | 已存 `0` 时开关为关；打开写入 `1` | `src/pages/Settings/__tests__/settings_celebrations.test.tsx` |
+| knowledge_drawer_selects_catalog_section_and_submits_custom_name | 添加节时列出教材目录；已有节置灰并标「已有」；点选「1.1 集合的概念」后添加考点，`sectionName` 原样传给 `add_custom_knowledge_point`；输入已有节名提示「该节已存在，请直接在内添加考点」；自定义「补充专题」去掉首尾空格后也能提交 | `src/pages/Tasks/__tests__/knowledge_point_drawer.test.tsx` |
+| knowledge_drawer_lists_sections_when_textbook_is_renjiao_a | 任务课本是「人教A版」、标题是「数学必修一」时，添加节列出必修第一册的「1.1 集合的概念」，并向 `get_textbook_outline` 请求人教版而不是湘教版 | `src/pages/Tasks/__tests__/knowledge_point_drawer.test.tsx` |
+| knowledge_drawer_picks_standard_point_and_disables_taken_tag | 「添加考点」列出该节预设考点；已有的「集合的含义」置灰打勾且点击不 invoke；点「元素与集合的关系」调用 `add_custom_knowledge_point` 后该标签禁用；下方保留自定义输入框 | `src/pages/Tasks/__tests__/knowledge_point_drawer.test.tsx` |
+| matches_a_generated_textbook_label_and_a_volume_only_label | `人教版 必修第一册` 与单独的册别都能对上目录；科目不对则没有匹配 | `src/lib/__tests__/sectionCatalog.test.ts` |
+| match_textbook_maps_renjiao_a_and_task_title_to_required_volume | 演示任务 `人教A版` + 标题「数学必修一」对上人教版必修第一册，不选湘教版；必修二、选择性必修一各对各的册；只有版本或册次撞车时不猜 | `src/lib/__tests__/sectionCatalog.test.ts` |
+| resolve_section_choice_keeps_catalog_titles_and_trims_custom_names | 目录节名去空白后保持原串；已有节是 exists；自定义节名 trim 后作为 custom | `src/lib/__tests__/sectionCatalog.test.ts` |
+| outline_points_by_section_trims_names_and_drops_blanks | 节名与考点去空白；重复和空考点丢掉；没有预设考点的节对应空数组 | `src/lib/__tests__/sectionCatalog.test.ts` |
 
 ## 已知实现约束
 
@@ -489,6 +511,29 @@
 - **设置页改年级**：新年级推算出的高考日和当前主考日不同时先确认。确认后保存档案并 `upsertExam`，倒计时读同一份 `useUiStore.exams`，当次刷新。取消则不写档案，年级选择回到已保存的值。年级没变，或推算日已经等于主考日，直接保存档案。
 - **设置**：数据管理里的「清除所有演示数据」在 `has_mock_data` 为真时用橙色高亮，确认后才调用 `clear_mock_data`。
 - 由 `generate_mock_data_marks_every_inserted_row` / `clear_mock_data_removes_only_mock_rows` / `clear_mock_data_resets_stats_when_no_real_rows` / `import_missing_is_mock_defaults_to_zero` / `onboarding_real_start_saves_profile_and_skips_mock` / `onboarding_loads_hunan_demo_data` / `onboarding_hides_when_already_completed` / `settings_clear_mock_highlights_and_confirms_before_delete` 锁定。
+
+### 里程碑庆祝
+
+- **开关**：`app_settings.enable_celebrations`。未写入、空串、`"1"` 都开启。只有 `"0"` 或 `"false"` 关闭。设置页「启用里程碑特效」写入 `"1"` / `"0"`。查询还没返回时按开启处理。
+- **通关**：仅主线，且这场 `round` 等于 `tasks.current_round`，`actual_units > 0`，当前轮 `sum(actual_units)` 从小于 `total_units` 跨到大于等于。`total_units` 为 NULL 或 ≤ 0 不庆祝。副本、旧轮、已经达标之后的再完成、0 单位、幂等再完成都不庆祝。
+- **连击**：完成后的 `current_streak` 刚变成 7、14 或 30 才庆祝。同日第二场数字不变，不重复。0 单位不改连击，也不庆祝。从 7 进到 8 不庆祝。
+- **同时命中**：一场里既通关又踩中连击时，只播通关（大满贯烟花 + 通关文案），不叠第二层浮层。
+- **表现**：`canvas-confetti`，颜色是橙色。通关三次不同角度，连击一次。音效用 Web Audio 合成和弦，不引入 howler，也不放 mp3。浮层 `pointer-events-none`，2 秒后淡出，再 400ms 卸掉。系统「减少动态」时不放烟花，音效和浮层仍在（应用开关关掉则三者都没有）。
+- **返回字段**：`complete_session` 增加 `isTaskFullyCompleted`、`currentStreak`、`streakMilestone`。改期结果这三项是 false / 0 / null，前端不在改期路径上庆祝。
+
+### 添加节
+
+- **目录**：侧边栏「+ 添加节」按任务的 `subject` + `textbook` 找教材，册次不够时再看任务标题。生成任务存的是 `"版本 册别"`，手建任务可能只存册别。演示数据的 `人教A版` 对上内置 `人教版`，标题「数学必修一」对上「必修第一册」。对上之后用 `get_textbook_outline` 的节名，顺序跟目录，重复和空白丢掉。册次对上多本、版本也对不上时不猜。
+- **已有**：这一节已经有考点，或还只是草稿，下拉里置灰并标「已有」。输入完整节名后提示「该节已存在，请直接在内添加考点」。
+- **选择**：点选或提交时，命中目录的用目录原串，不改写。输入只是目录节名的一部分时，提交选中高亮的目录节，不会把残缺字符串存成新节。
+- **自定义**：目录里没有的名字要显式点「使用「…」」。提交前去掉首尾空格。
+- **保存**：`add_custom_knowledge_point` 只 trim，原样写入 `section_name`。返回的行立刻并进 `task-knowledge-points` 缓存，侧边栏不用等下一次全量刷新才出现。
+
+### 添加考点
+
+- **来源**：点某一节的「+ 添加考点」时，用同一份 `get_textbook_outline` 里该节的 `knowledge_points`。节名 trim 后对上；空串和重复丢掉。对不上教材、或这一节没有预设考点时，只留输入框。
+- **点选**：预设考点排成标签。点一下就 `add_custom_knowledge_point`，名字原样写入。已经在这一节里的标签置灰、前面打勾、`disabled`，再点不会提交。浮层不关掉，方便连续勾。
+- **自定义**：标签下面留输入框，占位「没找到？手动添加自定义考点...」。回车或「添加」提交，成功后收起。
 
 ## 待处理技术债
 

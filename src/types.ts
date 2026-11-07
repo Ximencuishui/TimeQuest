@@ -191,11 +191,31 @@ export type CompleteSessionResult = {
   newAchievements: string[];
   createdSessionId: number | null;
   remainderSessionId: number | null;
+  /** 这次完成让主线当前轮从低于 total_units 跨到达到或超过。 */
+  isTaskFullyCompleted?: boolean;
+  /** 完成后的 current_streak。0 单位或幂等完成时是库里的原值。 */
+  currentStreak?: number;
+  /** 7 / 14 / 30，且这次完成刚把连击推进到这个数字。同日再完成是 null。 */
+  streakMilestone?: number | null;
+};
+
+export type TaskKnowledgePoint = {
+  id: number;
+  task_id: number;
+  section_name: string;
+  name: string;
+  is_mastered: number;
+  position: number;
+};
+
+export type TextbookSection = {
+  name: string;
+  knowledge_points?: string[];
 };
 
 export type TextbookChapter = {
   name: string;
-  sections: string[];
+  sections: TextbookSection[];
 };
 
 export type TextbookOutline = {

@@ -1,3 +1,6 @@
+# Downloaded k12-knowledge-points source. The merge script reads it; the app ships the attached names only.
+.cache/
+
 # Logs
 logs
 *.log

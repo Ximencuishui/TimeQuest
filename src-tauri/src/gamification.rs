@@ -157,3 +157,48 @@ pub fn try_unlock(conn: &Connection, achievement_id: &str) -> Result<bool, Strin
 }
 
 pub const RESCHEDULE_RECOVERY_BONUS: i64 = 5;
+
+/// True only on the step that moves a round from below `total` to at or above it.
+/// `total <= 0` never counts: an empty book is not a clear.
+pub fn crossed_round_total(before: i64, after: i64, total: i64) -> bool {
+    total > 0 && before < total && after >= total
+}
+
+/// 7 / 14 / 30, and only when this completion changed the streak onto that value.
+/// A same-day follow-up keeps the number and returns `None`.
+pub fn newly_reached_streak_milestone(previous: i64, next: i64) -> Option<i64> {
+    if next == previous {
+        return None;
+    }
+    match next {
+        7 | 14 | 30 => Some(next),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod celebration_tests {
+    use super::{crossed_round_total, newly_reached_streak_milestone};
+
+    #[test]
+    fn crossed_round_total_only_on_the_crossing_step() {
+        assert!(!crossed_round_total(0, 9, 10));
+        assert!(crossed_round_total(9, 10, 10));
+        assert!(crossed_round_total(8, 12, 10));
+        assert!(!crossed_round_total(10, 12, 10));
+        assert!(!crossed_round_total(10, 10, 10));
+        assert!(!crossed_round_total(0, 5, 0));
+        assert!(!crossed_round_total(0, 5, -1));
+    }
+
+    #[test]
+    fn streak_milestone_only_when_value_changes_onto_7_14_30() {
+        assert_eq!(newly_reached_streak_milestone(6, 7), Some(7));
+        assert_eq!(newly_reached_streak_milestone(7, 7), None);
+        assert_eq!(newly_reached_streak_milestone(13, 14), Some(14));
+        assert_eq!(newly_reached_streak_milestone(29, 30), Some(30));
+        assert_eq!(newly_reached_streak_milestone(7, 8), None);
+        assert_eq!(newly_reached_streak_milestone(0, 1), None);
+        assert_eq!(newly_reached_streak_milestone(30, 30), None);
+    }
+}

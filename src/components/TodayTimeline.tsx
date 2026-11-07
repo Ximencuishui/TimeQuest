@@ -16,6 +16,7 @@ type Props = {
   onComplete?: (session: TaskSession) => void;
   onReschedule?: (session: TaskSession) => void;
   onFocus?: (session: TaskSession) => void;
+  onOpenKnowledge?: (session: TaskSession) => void;
   /** When set, scroll this session into view instead of the clock target. */
   scrollToSessionId?: number | null;
 };
@@ -33,6 +34,7 @@ export function TodayTimeline({
   onComplete,
   onReschedule,
   onFocus,
+  onOpenKnowledge,
   scrollToSessionId = null,
 }: Props) {
   const sorted = useMemo(
@@ -144,6 +146,11 @@ export function TodayTimeline({
                   onReschedule ? () => onReschedule(session) : undefined
                 }
                 onFocus={onFocus ? () => onFocus(session) : undefined}
+                onOpenKnowledge={
+                  onOpenKnowledge && session.task_type === "main"
+                    ? () => onOpenKnowledge(session)
+                    : undefined
+                }
               />
             </div>
           </li>

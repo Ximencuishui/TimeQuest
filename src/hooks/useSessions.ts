@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/tauri";
+import { resolveCelebration } from "../lib/celebration";
 import { broadcastSessionUpdated } from "../lib/widgetWindow";
 import type { CompleteSessionInput, RescheduleInput } from "../types";
 import { useUiStore } from "../store/ui";
+import { useCelebration } from "./useCelebration";
 
 export function useSessionsByDate(date: string) {
   return useQuery({
@@ -30,6 +32,7 @@ export function useSessionsByTask(taskId: number | null) {
 export function useSessionMutations() {
   const qc = useQueryClient();
   const showAchievement = useUiStore((s) => s.showAchievement);
+  const { celebrate } = useCelebration();
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["sessions"] });
@@ -38,6 +41,7 @@ export function useSessionMutations() {
     qc.invalidateQueries({ queryKey: ["tasks"] });
     qc.invalidateQueries({ queryKey: ["task"] });
     qc.invalidateQueries({ queryKey: ["task-progress"] });
+    qc.invalidateQueries({ queryKey: ["task-knowledge-points"] });
     qc.invalidateQueries({ queryKey: ["user-stats"] });
     qc.invalidateQueries({ queryKey: ["achievements"] });
     qc.invalidateQueries({ queryKey: ["stats"] });
@@ -53,6 +57,8 @@ export function useSessionMutations() {
     mutationFn: (input: CompleteSessionInput) => api.completeSession(input),
     onSuccess: (res) => {
       invalidate();
+      const milestone = resolveCelebration(res);
+      if (milestone) celebrate(milestone.type, milestone);
       if (res.newAchievements?.length) {
         const id = res.newAchievements[0];
         const labels: Record<string, { title: string; description: string }> = {

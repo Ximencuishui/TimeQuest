@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { KnowledgePointDrawer, type KnowledgeTask } from "../components/KnowledgePointDrawer";
 import { TaskGridView } from "../components/TaskGridView";
 import { TaskListView } from "../components/TaskListView";
 import { Modal } from "../components/Modal";
@@ -18,6 +19,7 @@ export function Tasks() {
   const setTaskView = useUiStore((s) => s.setTaskView);
   const { create } = useTaskMutations();
   const [open, setOpen] = useState(false);
+  const [knowledgeTask, setKnowledgeTask] = useState<KnowledgeTask | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -94,10 +96,12 @@ export function Tasks() {
       {isLoading ? (
         <p className="text-ink-muted">加载中…</p>
       ) : taskView === "list" ? (
-        <TaskListView tasks={tasks} />
+        <TaskListView tasks={tasks} onOpenKnowledge={setKnowledgeTask} />
       ) : (
-        <TaskGridView tasks={tasks} />
+        <TaskGridView tasks={tasks} onOpenKnowledge={setKnowledgeTask} />
       )}
+
+      <KnowledgePointDrawer task={knowledgeTask} onClose={() => setKnowledgeTask(null)} />
 
       <Modal
         open={open}

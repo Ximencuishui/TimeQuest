@@ -1736,3 +1736,185 @@ async fn open_file_db() -> (PathBuf, SqlitePool, Connection) {
     conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
     (path, pool, conn)
 }
+
+fn noon() -> chrono::DateTime<Local> {
+    Local
+        .with_ymd_and_hms(2026, 11, 4, 12, 0, 0)
+        .single()
+        .expect("noon")
+}
+
+async fn prime_streak(pool: &SqlitePool, current: i64, last_done: &str) {
+    sqlx::query(
+        "UPDATE user_stats SET current_streak = ?1, longest_streak = ?1, last_done_date = ?2 WHERE id = 1",
+    )
+    .bind(current)
+    .bind(last_done)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+async fn shift_session(pool: &SqlitePool, session_id: i64, start: &str, end: &str) {
+    sqlx::query("UPDATE task_sessions SET start_time = ?1, end_time = ?2 WHERE id = ?3")
+        .bind(start)
+        .bind(end)
+        .bind(session_id)
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn complete_flags_task_fully_completed_only_when_current_round_crosses_total() {
+    let pool = common::setup().await;
+    let (task_id, session_a) = insert_task_session(&pool, 6, 1).await;
+    sqlx::query("UPDATE tasks SET total_units = 10, title = '数学必修一' WHERE id = ?1")
+        .bind(task_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let now = noon();
+
+    let first = complete_session_impl(&pool, session_a, 6, Some(4), None, false, now, None)
+        .await
+        .unwrap();
+    assert!(!first.is_task_fully_completed, "6/10 has not cleared the book");
+    assert_eq!(first.current_streak, 1);
+    assert_eq!(first.streak_milestone, None);
+
+    let session_zero = insert_session_on_date(&pool, task_id, "2026-11-04", 1).await;
+    shift_session(&pool, session_zero, "11:00", "12:00").await;
+    let zero = complete_session_impl(&pool, session_zero, 0, Some(3), None, false, now, None)
+        .await
+        .unwrap();
+    assert!(!zero.is_task_fully_completed);
+    assert_eq!(zero.current_streak, 1, "zero units must not move the streak");
+    assert_eq!(zero.streak_milestone, None);
+
+    let session_b = insert_session_on_date(&pool, task_id, "2026-11-04", 4).await;
+    shift_session(&pool, session_b, "13:00", "14:00").await;
+    let crossed = complete_session_impl(&pool, session_b, 4, Some(5), None, false, now, None)
+        .await
+        .unwrap();
+    assert!(crossed.is_task_fully_completed);
+    assert_eq!(crossed.session.task_title.as_deref(), Some("数学必修一"));
+    assert_eq!(crossed.streak_milestone, None, "same day must not raise the streak");
+
+    let session_c = insert_session_on_date(&pool, task_id, "2026-11-04", 2).await;
+    shift_session(&pool, session_c, "15:00", "16:00").await;
+    let extra = complete_session_impl(&pool, session_c, 2, Some(4), None, false, now, None)
+        .await
+        .unwrap();
+    assert!(
+        !extra.is_task_fully_completed,
+        "already past total must not celebrate again"
+    );
+}
+
+#[tokio::test]
+async fn complete_does_not_flag_side_task_or_other_round() {
+    let pool = common::setup().await;
+    let (side_id, side_session) = insert_task_session(&pool, 5, 1).await;
+    sqlx::query("UPDATE tasks SET type = 'side', total_units = 5 WHERE id = ?1")
+        .bind(side_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let side = complete_session_impl(&pool, side_session, 5, Some(4), None, false, noon(), None)
+        .await
+        .unwrap();
+    assert!(!side.is_task_fully_completed);
+
+    let pool = common::setup().await;
+    let (task_id, old_session) = insert_task_session(&pool, 5, 1).await;
+    sqlx::query("UPDATE tasks SET current_round = 2, total_units = 5 WHERE id = ?1")
+        .bind(task_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let old = complete_session_impl(&pool, old_session, 5, Some(4), None, false, noon(), None)
+        .await
+        .unwrap();
+    assert!(
+        !old.is_task_fully_completed,
+        "units on round 1 do not fill current round 2"
+    );
+}
+
+#[tokio::test]
+async fn complete_flags_streak_milestone_only_when_streak_newly_hits_7_14_or_30() {
+    let now = noon();
+
+    let pool = common::setup().await;
+    prime_streak(&pool, 6, "2026-11-03").await;
+    let (task_id, session) = insert_task_and_session(&pool).await;
+    let hit = complete_session_impl(&pool, session, 1, Some(4), None, false, now, None)
+        .await
+        .unwrap();
+    assert_eq!(hit.current_streak, 7);
+    assert_eq!(hit.streak_milestone, Some(7));
+    assert!(!hit.is_task_fully_completed, "seed total_units is 40");
+
+    let again_id = insert_session_on_date(&pool, task_id, "2026-11-04", 1).await;
+    shift_session(&pool, again_id, "11:00", "12:00").await;
+    let again = complete_session_impl(&pool, again_id, 1, Some(4), None, false, now, None)
+        .await
+        .unwrap();
+    assert_eq!(again.current_streak, 7);
+    assert_eq!(again.streak_milestone, None);
+
+    let pool = common::setup().await;
+    prime_streak(&pool, 6, "2026-11-03").await;
+    let (_task_id, zero_session) = insert_task_and_session(&pool).await;
+    let zero = complete_session_impl(&pool, zero_session, 0, Some(3), None, false, now, None)
+        .await
+        .unwrap();
+    assert_eq!(zero.current_streak, 6);
+    assert_eq!(zero.streak_milestone, None);
+
+    for (before, milestone) in [(13_i64, 14_i64), (29_i64, 30_i64)] {
+        let pool = common::setup().await;
+        prime_streak(&pool, before, "2026-11-03").await;
+        let (_task_id, id) = insert_task_and_session(&pool).await;
+        let result = complete_session_impl(&pool, id, 1, Some(4), None, false, now, None)
+            .await
+            .unwrap();
+        assert_eq!(result.current_streak, milestone);
+        assert_eq!(result.streak_milestone, Some(milestone));
+    }
+
+    let pool = common::setup().await;
+    prime_streak(&pool, 7, "2026-11-03").await;
+    let (_task_id, id) = insert_task_and_session(&pool).await;
+    let eight = complete_session_impl(&pool, id, 1, Some(4), None, false, now, None)
+        .await
+        .unwrap();
+    assert_eq!(eight.current_streak, 8);
+    assert_eq!(eight.streak_milestone, None);
+}
+
+#[tokio::test]
+async fn idempotent_complete_does_not_repeat_celebration_flags() {
+    let pool = common::setup().await;
+    let (task_id, session_id) = insert_task_session(&pool, 4, 1).await;
+    sqlx::query("UPDATE tasks SET total_units = 4 WHERE id = ?1")
+        .bind(task_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let now = noon();
+    let first = complete_session_impl(&pool, session_id, 4, Some(5), None, false, now, None)
+        .await
+        .unwrap();
+    assert!(first.is_task_fully_completed);
+    assert_eq!(first.current_streak, 1);
+
+    let second = complete_session_impl(&pool, session_id, 4, Some(5), None, false, now, None)
+        .await
+        .unwrap();
+    assert_eq!(second.xp_awarded, 0);
+    assert!(!second.is_task_fully_completed);
+    assert_eq!(second.streak_milestone, None);
+    assert_eq!(second.current_streak, 1);
+}

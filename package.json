@@ -1,7 +1,7 @@
 {
   "name": "timequest",
   "private": true,
-  "version": "3.1.0",
+  "version": "3.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,6 +21,7 @@
     "@tauri-apps/plugin-notification": "2",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-sql": "^2.6.0",
+    "canvas-confetti": "^1.9.4",
     "date-fns": "^4.4.0",
     "questro": "^0.5.0",
     "react": "^19.1.0",
@@ -35,6 +36,7 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.8",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^26.6.6",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",

@@ -1,6 +1,9 @@
 use crate::db::{with_db, DbState};
 use crate::error::{AppError, SessionError};
-use crate::gamification::{calc_session_xp, RESCHEDULE_RECOVERY_BONUS};
+use crate::gamification::{
+    calc_session_xp, crossed_round_total, newly_reached_streak_milestone,
+    RESCHEDULE_RECOVERY_BONUS,
+};
 use crate::models::{
     CompleteSessionInput, CompleteSessionResult, CreateSessionPayload, RemainderSchedule,
     RescheduleInput, TaskSession,
@@ -206,6 +209,10 @@ pub async fn complete_session_impl(
         .map_err(|e| SessionError::Message(e.to_string()))?;
 
     if session.status == "done" {
+        let current_streak: i64 =
+            sqlx::query_scalar("SELECT current_streak FROM user_stats WHERE id = 1")
+                .fetch_one(&mut *tx)
+                .await?;
         tx.commit().await?;
         return Ok(CompleteResult {
             session,
@@ -213,6 +220,9 @@ pub async fn complete_session_impl(
             new_achievements: vec![],
             created_session_id: None,
             remainder_session_id: None,
+            is_task_fully_completed: false,
+            current_streak,
+            streak_milestone: None,
         });
     }
     if session.status != "planned" {
@@ -227,11 +237,12 @@ pub async fn complete_session_impl(
     let subject = session.subject.clone();
     let rating = self_rating.unwrap_or(3);
 
-    let total_units: Option<i64> =
-        sqlx::query_scalar("SELECT total_units FROM tasks WHERE id = ?1")
-            .bind(session.task_id)
-            .fetch_one(&mut *tx)
-            .await?;
+    let (total_units, current_round): (Option<i64>, i64) = sqlx::query_as(
+        "SELECT total_units, COALESCE(current_round, 1) FROM tasks WHERE id = ?1",
+    )
+    .bind(session.task_id)
+    .fetch_one(&mut *tx)
+    .await?;
 
     let came_from: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions WHERE rescheduled_to = ?1")
@@ -260,6 +271,23 @@ pub async fn complete_session_impl(
     .bind(session.id)
     .execute(&mut *tx)
     .await?;
+
+    if actual_units > 0 {
+        if let Some(section_name) = session
+            .self_note
+            .as_deref()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+        {
+            sqlx::query(
+                "UPDATE task_knowledge_points SET is_mastered = 1 WHERE task_id = ?1 AND section_name = ?2",
+            )
+            .bind(session.task_id)
+            .bind(section_name)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
 
     if test_hooks::should_fail_actual_log_insert() {
         // Leave `tx` to Drop → rollback of the session UPDATE above.
@@ -347,7 +375,11 @@ pub async fn complete_session_impl(
         remainder_session_id = Some(new_id);
     }
 
-    // Achievements (inline to stay on same tx)
+    // Achievements (inline to stay on same tx). Celebration flags share this read
+    // so a book clear and a streak milestone are decided on the same snapshot.
+    let mut is_task_fully_completed = false;
+    let reported_streak;
+    let mut streak_milestone = None;
     let unlocked = {
         let mut unlocked = Vec::new();
         if task_type == "main" {
@@ -360,6 +392,13 @@ pub async fn complete_session_impl(
                 .bind(session.round)
                 .fetch_one(&mut *tx)
                 .await?;
+                // 进度环口径：只看当前轮。本场 round 对不上当前轮时，这次完成没有推进 current_round_units。
+                if actual_units > 0
+                    && session.round == current_round
+                    && crossed_round_total(done - actual_units, done, total)
+                {
+                    is_task_fully_completed = true;
+                }
                 if done >= total {
                     let exists: Option<String> = sqlx::query_scalar(
                         "SELECT achievement_id FROM user_achievements WHERE achievement_id = 'first_round'",
@@ -439,6 +478,10 @@ pub async fn complete_session_impl(
                 unlocked.push("streak_5".into());
             }
         }
+        reported_streak = streak_now;
+        if actual_units > 0 {
+            streak_milestone = newly_reached_streak_milestone(streak, streak_now);
+        }
         unlocked
     };
 
@@ -455,6 +498,9 @@ pub async fn complete_session_impl(
         new_achievements: unlocked,
         created_session_id,
         remainder_session_id,
+        is_task_fully_completed,
+        current_streak: reported_streak,
+        streak_milestone,
     })
 }
 
@@ -526,6 +572,9 @@ pub async fn reschedule_session_impl(
                 new_achievements: vec![],
                 created_session_id: created,
                 remainder_session_id: None,
+                is_task_fully_completed: false,
+                current_streak: 0,
+                streak_milestone: None,
             });
         }
         return Err(AppError::msg(format!(
@@ -564,6 +613,9 @@ pub async fn reschedule_session_impl(
         new_achievements: vec![],
         created_session_id: Some(new_id),
         remainder_session_id: None,
+        is_task_fully_completed: false,
+        current_streak: 0,
+        streak_milestone: None,
     })
 }
 

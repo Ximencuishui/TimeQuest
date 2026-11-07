@@ -15,6 +15,10 @@ import { dailyMotivation } from "../lib/motivation";
 import { format } from "date-fns";
 import { ProfileSetting } from "../components/ProfileSetting";
 import { useHasMockData } from "../hooks/useMockData";
+import {
+  CELEBRATIONS_SETTING_KEY,
+  isCelebrationsEnabled,
+} from "../lib/celebration";
 
 const MOTIVATION_KEY = "motivation_text";
 
@@ -77,6 +81,32 @@ function MotivationSetting() {
           )}
         </p>
       </form>
+    </section>
+  );
+}
+
+function CelebrationsSetting() {
+  const { data, isFetched } = useAppSetting(CELEBRATIONS_SETTING_KEY);
+  const setSetting = useSetSetting(CELEBRATIONS_SETTING_KEY);
+  const enabled = isCelebrationsEnabled(isFetched ? data : null);
+
+  return (
+    <section className="space-y-3 rounded-2xl border border-white/5 bg-surface-2/80 p-4">
+      <h2 className="font-display text-lg">里程碑特效</h2>
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={!isFetched}
+          onChange={(event) => {
+            setSetting.mutate(event.target.checked ? "1" : "0");
+          }}
+        />
+        启用里程碑特效
+      </label>
+      <p className="text-xs text-ink-muted">
+        主线通关，或连击达到 7、14、30 天时，播放烟花和音效。默认开启。
+      </p>
     </section>
   );
 }
@@ -349,6 +379,8 @@ export function Settings() {
           课前 5 分钟和开课时弹出系统提醒。默认开启。
         </p>
       </section>
+
+      <CelebrationsSetting />
 
       <section className="rounded-2xl border border-white/5 bg-surface-2/80 p-4">
         <h2 className="font-display text-lg">数据管理</h2>

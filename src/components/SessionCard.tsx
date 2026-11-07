@@ -15,6 +15,8 @@ type Props = {
   onFocus?: () => void;
   /** Whole-card click. Dashboard uses this to open the session on Today. */
   onClick?: () => void;
+  /** Opens the knowledge-point drawer for a main-line task. */
+  onOpenKnowledge?: () => void;
   compact?: boolean;
   /** Wall-clock phase on the Today timeline; omit elsewhere. */
   timePhase?: SessionTimePhase;
@@ -26,6 +28,7 @@ export function SessionCard({
   onReschedule,
   onFocus,
   onClick,
+  onOpenKnowledge,
   compact,
   timePhase,
 }: Props) {
@@ -95,6 +98,18 @@ export function SessionCard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          {onOpenKnowledge ? (
+            <button
+              type="button"
+              className="rounded-md px-2 py-1 text-xs text-accent-soft hover:bg-white/5"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenKnowledge();
+              }}
+            >
+              考点
+            </button>
+          ) : null}
           {canAct && onFocus ? (
             <button
               type="button"

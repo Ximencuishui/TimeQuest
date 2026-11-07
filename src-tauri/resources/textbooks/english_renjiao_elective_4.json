@@ -6,46 +6,149 @@
     {
       "name": "Unit 1 Science Fiction",
       "sections": [
-        "1.1 Listening and Speaking",
-        "1.2 Reading and Thinking",
-        "1.3 Discovering Useful Structures",
-        "1.4 Reading for Writing"
+        {
+          "name": "1.1 Listening and Speaking",
+          "knowledge_points": [
+            "基于科幻语境的机器人与AI利弊的结构化口语表达",
+            "英语口语中话题转换话语标记语的识别与运用",
+            "阿西莫夫机器人三定律的理解与批判性讨论"
+          ]
+        },
+        {
+          "name": "1.2 Reading and Thinking",
+          "knowledge_points": [
+            "基于文本证据的开放性结局推演与批判性回应",
+            "比较与对比类连接词的功能性运用",
+            "科幻小说中人机关系的主题探究"
+          ]
+        },
+        {
+          "name": "1.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "1.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 2 Iconic Attractions",
       "sections": [
-        "2.1 Listening and Speaking",
-        "2.2 Reading and Thinking",
-        "2.3 Discovering Useful Structures",
-        "2.4 Reading for Writing"
+        {
+          "name": "2.1 Listening and Speaking",
+          "knowledge_points": [
+            "基于文化符号进行国家形象描述的语言表达",
+            "英语口语中用于总结观点的过渡短语",
+            "英语听力中提取说话人职业与观点匹配信息"
+          ]
+        },
+        {
+          "name": "2.2 Reading and Thinking",
+          "knowledge_points": [
+            "澳大利亚 iconic attractions 的文化表征",
+            "英语博客语篇结构与功能特征",
+            "跨文化笔记策略：关键词缩写与符号化记录"
+          ]
+        },
+        {
+          "name": "2.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "2.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 3 Sea Exploration",
       "sections": [
-        "3.1 Listening and Speaking",
-        "3.2 Reading and Thinking",
-        "3.3 Discovering Useful Structures",
-        "3.4 Reading for Writing"
+        {
+          "name": "3.1 Listening and Speaking",
+          "knowledge_points": [
+            "听力理解中识别时间顺序标记词",
+            "基于真实科研情境的鲸类事实性信息提取",
+            "运用时间顺序表达法进行口头叙事"
+          ]
+        },
+        {
+          "name": "3.2 Reading and Thinking",
+          "knowledge_points": [
+            "21世纪海上丝绸之路与北极科考的当代实践",
+            "基于文本的段落主旨提炼策略",
+            "议论文、记叙文、说明文与描写文的文体特征辨析",
+            "郑和下西洋的历史事实与文化意义"
+          ]
+        },
+        {
+          "name": "3.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "3.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 4 Sharing",
       "sections": [
-        "4.1 Listening and Speaking",
-        "4.2 Reading and Thinking",
-        "4.3 Discovering Useful Structures",
-        "4.4 Reading for Writing"
+        {
+          "name": "4.1 Listening and Speaking",
+          "knowledge_points": [
+            "举例说明功能语用",
+            "志愿者场景中的对比重音辨识",
+            "志愿者项目建议表达"
+          ]
+        },
+        {
+          "name": "4.2 Reading and Thinking",
+          "knowledge_points": [
+            "基于真实语境的学术性阅读策略应用：调节阅读速度与信息定位",
+            "志愿服务主题下的文化负载词与具身化词汇网络构建",
+            "志愿者服务跨文化体验的阅读理解与反思"
+          ]
+        },
+        {
+          "name": "4.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "4.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 5 Launching Your Career",
       "sections": [
-        "5.1 Listening and Speaking",
-        "5.2 Reading and Thinking",
-        "5.3 Discovering Useful Structures",
-        "5.4 Reading for Writing"
+        {
+          "name": "5.1 Listening and Speaking",
+          "knowledge_points": [
+            "个人专业选择动机的口语表达框架",
+            "大学专业名称的听辨与表达",
+            "暑期工作申请文本的语篇类型与要素分析",
+            "跨国升学要求的听力信息提取与表格转译",
+            "间接引语标记语的识别与功能理解"
+          ]
+        },
+        {
+          "name": "5.2 Reading and Thinking",
+          "knowledge_points": [
+            "图表信息提取与职业人格维度匹配",
+            "职业兴趣测评工具的理解与应用",
+            "职业身份认同与生涯规划意识的建立"
+          ]
+        },
+        {
+          "name": "5.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "5.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     }
   ]

@@ -6,37 +6,134 @@
     {
       "name": "Welcome Unit",
       "sections": [
-        "W.1 Listening and Speaking",
-        "W.2 Reading and Thinking",
-        "W.3 Discovering Useful Structures",
-        "W.4 Reading for Writing"
+        {
+          "name": "W.1 Listening and Speaking",
+          "knowledge_points": []
+        },
+        {
+          "name": "W.2 Reading and Thinking",
+          "knowledge_points": [
+            "‘make a good impression’等高频习语的理解与语境化产出",
+            "基于时间线索的记叙文信息提取与重构",
+            "实验类课堂活动中的功能性语言表达",
+            "描述个人经历的情感词汇运用"
+          ]
+        },
+        {
+          "name": "W.3 Discovering Useful Structures",
+          "knowledge_points": [
+            "英语基本句型结构分析"
+          ]
+        },
+        {
+          "name": "W.4 Reading for Writing",
+          "knowledge_points": [
+            "学生个人简介的结构化写作"
+          ]
+        }
       ]
     },
     {
       "name": "Unit 1 Teenage Life",
       "sections": [
-        "1.1 Listening and Speaking",
-        "1.2 Reading and Thinking",
-        "1.3 Discovering Useful Structures",
-        "1.4 Reading for Writing"
+        {
+          "name": "1.1 Listening and Speaking",
+          "knowledge_points": [
+            "基于语境预测听力内容的策略",
+            "校园课外活动主题的功能性会话表达",
+            "英语元音字母组合发音规则（ee/ea/ear/oa/ow/ou/ore）"
+          ]
+        },
+        {
+          "name": "1.2 Reading and Thinking",
+          "knowledge_points": [
+            "学术性记叙文中目标动词与情态表达的功能性理解",
+            "跨文化青少年学校生活对比中的信息提取与观点表达",
+            "高中新生适应性挑战的文本主旨提取与段落大意归纳"
+          ]
+        },
+        {
+          "name": "1.3 Discovering Useful Structures",
+          "knowledge_points": [
+            "名词短语、形容词短语和副词短语的识别与功能判定"
+          ]
+        },
+        {
+          "name": "1.4 Reading for Writing",
+          "knowledge_points": [
+            "书信体建议信的结构与语篇组织",
+            "建议信中的共情表达与情感确认语言",
+            "建议信中的功能性建议表达"
+          ]
+        }
       ]
     },
     {
       "name": "Unit 2 Travelling Around",
       "sections": [
-        "2.1 Listening and Speaking",
-        "2.2 Reading and Thinking",
-        "2.3 Discovering Useful Structures",
-        "2.4 Reading for Writing"
+        {
+          "name": "2.1 Listening and Speaking",
+          "knowledge_points": [
+            "听力策略：抓取关键词理解主旨",
+            "旅行准备相关词汇与表达"
+          ]
+        },
+        {
+          "name": "2.2 Reading and Thinking",
+          "knowledge_points": [
+            "旅游宣传语境下的高频动词与搭配运用",
+            "旅游行程类说明文的信息结构提取",
+            "秘鲁地理与历史文化核心事实识记",
+            "说明文与旅游宣传册的文体特征辨析"
+          ]
+        },
+        {
+          "name": "2.3 Discovering Useful Structures",
+          "knowledge_points": [
+            "现在进行时表将来"
+          ]
+        },
+        {
+          "name": "2.4 Reading for Writing",
+          "knowledge_points": [
+            "旅行计划类电子邮件中的情感表达词汇与句式转换",
+            "旅行计划类电子邮件中的现在进行时表将来",
+            "旅行计划类电子邮件的语篇结构与内容组织"
+          ]
+        }
       ]
     },
     {
       "name": "Unit 3 Sports and Fitness",
       "sections": [
-        "3.1 Listening and Speaking",
-        "3.2 Reading and Thinking",
-        "3.3 Discovering Useful Structures",
-        "3.4 Reading for Writing"
+        {
+          "name": "3.1 Listening and Speaking",
+          "knowledge_points": [
+            "反意疑问句的语调辨识与语用功能",
+            "邀请参加体育赛事的交际用语"
+          ]
+        },
+        {
+          "name": "3.2 Reading and Thinking",
+          "knowledge_points": [
+            "人物传记类语篇的主旨提炼与细节定位",
+            "体育领域核心品质的语义网络构建",
+            "跨文化体育偶像的价值观对比分析"
+          ]
+        },
+        {
+          "name": "3.3 Discovering Useful Structures",
+          "knowledge_points": [
+            "反意疑问句的结构与功能"
+          ]
+        },
+        {
+          "name": "3.4 Reading for Writing",
+          "knowledge_points": [
+            "健康主题记叙文的结构化写作",
+            "健康主题语篇中的对比与相似性语言表达"
+          ]
+        }
       ]
     }
   ]

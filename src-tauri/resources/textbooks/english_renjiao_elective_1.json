@@ -6,46 +6,149 @@
     {
       "name": "Unit 1 People of Achievement",
       "sections": [
-        "1.1 Listening and Speaking",
-        "1.2 Reading and Thinking",
-        "1.3 Discovering Useful Structures",
-        "1.4 Reading for Writing"
+        {
+          "name": "1.1 Listening and Speaking",
+          "knowledge_points": [
+            "伟人成就匹配与人物背景知识激活",
+            "听力中人物钦佩对象识别与理由捕捉",
+            "基于主题语境的思辨性口语表达策略"
+          ]
+        },
+        {
+          "name": "1.2 Reading and Thinking",
+          "knowledge_points": [
+            "人物成就类说明文的文体特征与阅读策略",
+            "基于语境推断学术形容词与副词的语义强度及态度功能",
+            "科学发现过程的逻辑链还原与流程图转译能力"
+          ]
+        },
+        {
+          "name": "1.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "1.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 2 Looking into the Future",
       "sections": [
-        "2.1 Listening and Speaking",
-        "2.2 Reading and Thinking",
-        "2.3 Discovering Useful Structures",
-        "2.4 Reading for Writing"
+        {
+          "name": "2.1 Listening and Speaking",
+          "knowledge_points": [
+            "使用 will 和 will be doing 表达未来预测"
+          ]
+        },
+        {
+          "name": "2.2 Reading and Thinking",
+          "knowledge_points": [
+            "智能住宅的功能与优势",
+            "科技类说明文中的因果逻辑链构建",
+            "说明文目的与读者定位的语篇识别策略"
+          ]
+        },
+        {
+          "name": "2.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "2.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 3 Fascinating Parks",
       "sections": [
-        "3.1 Listening and Speaking",
-        "3.2 Reading and Thinking",
-        "3.3 Discovering Useful Structures",
-        "3.4 Reading for Writing"
+        {
+          "name": "3.1 Listening and Speaking",
+          "knowledge_points": [
+            "主题公园类型与文化价值的功能性说明文阅读",
+            "公园场景中方位与路径指令的理解与表达"
+          ]
+        },
+        {
+          "name": "3.2 Reading and Thinking",
+          "knowledge_points": [
+            "Sarek国家公园的地理与生态特征",
+            "国家公园设立目的与保护政策的双重性",
+            "基于感官细节的说明文阅读策略",
+            "萨米人与Sarek国家公园的文化共生关系",
+            "说明文副标题的功能与结构提示作用"
+          ]
+        },
+        {
+          "name": "3.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "3.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 4 Body Language",
       "sections": [
-        "4.1 Listening and Speaking",
-        "4.2 Reading and Thinking",
-        "4.3 Discovering Useful Structures",
-        "4.4 Reading for Writing"
+        {
+          "name": "4.1 Listening and Speaking",
+          "knowledge_points": [
+            "体态语驱动的无声交流实践",
+            "基于语境线索进行间接意义推断",
+            "英语口语中的意群停顿规则",
+            "通过体态语推断说话者情绪与心理状态"
+          ]
+        },
+        {
+          "name": "4.2 Reading and Thinking",
+          "knowledge_points": [
+            "体态语多义性与情境适配原则",
+            "基于文本线索的体态语意义推断",
+            "跨文化体态语的功能与文化差异"
+          ]
+        },
+        {
+          "name": "4.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "4.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     },
     {
       "name": "Unit 5 Working the Land",
       "sections": [
-        "5.1 Listening and Speaking",
-        "5.2 Reading and Thinking",
-        "5.3 Discovering Useful Structures",
-        "5.4 Reading for Writing"
+        {
+          "name": "5.1 Listening and Speaking",
+          "knowledge_points": [
+            "FAO组织及其在消除世界饥饿中的作用",
+            "世界粮食日（WFD）的起源与功能认知",
+            "世界饥饿成因与应对策略的结构化表达",
+            "化学农业与有机农业的核心特征对比",
+            "支持性证据的语言标记识别与匹配",
+            "表达个人观点的学术性功能句式"
+          ]
+        },
+        {
+          "name": "5.2 Reading and Thinking",
+          "knowledge_points": [
+            "农业科技类学术词汇的构词法推断",
+            "袁隆平生平与杂交水稻研发历程",
+            "说明文段落主旨匹配策略"
+          ]
+        },
+        {
+          "name": "5.3 Discovering Useful Structures",
+          "knowledge_points": []
+        },
+        {
+          "name": "5.4 Reading for Writing",
+          "knowledge_points": []
+        }
       ]
     }
   ]

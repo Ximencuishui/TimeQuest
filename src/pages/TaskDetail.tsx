@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import { TaskProgressRing } from "../components/ProgressRing";
 import { SessionCard } from "../components/SessionCard";
-import { useTask, useTaskMutations, useTaskProgress } from "../hooks/useTasks";
+import { KnowledgePointList } from "../components/KnowledgePointDrawer";
+import { useTask, useTaskKnowledgePoints, useTaskMutations, useTaskProgress } from "../hooks/useTasks";
 import { useSessionsByTask } from "../hooks/useSessions";
 
 export function TaskDetail() {
@@ -12,6 +13,8 @@ export function TaskDetail() {
   const { data: task, isLoading } = useTask(idOrNull);
   const { data: progress } = useTaskProgress(idOrNull);
   const { data: sessions = [] } = useSessionsByTask(idOrNull);
+  const { data: knowledgePoints } = useTaskKnowledgePoints(idOrNull);
+  const points = Array.isArray(knowledgePoints) ? knowledgePoints : [];
   const { archive, advanceRound } = useTaskMutations();
 
   const byRound = useMemo(() => {
@@ -86,6 +89,13 @@ export function TaskDetail() {
           </div>
         </div>
       </div>
+
+      {points.length > 0 ? (
+        <section className="mt-8">
+          <h2 className="mb-3 font-display text-lg">考点</h2>
+          <KnowledgePointList points={points} />
+        </section>
+      ) : null}
 
       <section className="mt-8">
         <h2 className="mb-3 font-display text-lg">排期历史</h2>

@@ -18,6 +18,7 @@ import type {
   RescheduleInput,
   TagTypeRow,
   Task,
+  TaskKnowledgePoint,
   TaskSession,
   TextbookCatalogItem,
   TextbookOutline,
@@ -49,6 +50,18 @@ export const api = {
   listTextbookCatalog: () => invoke<TextbookCatalogItem[]>("list_textbook_catalog"),
   importTextbookJson: (json: string) =>
     invoke<ImportTextbookResult>("import_textbook_json", { json }),
+  getTaskKnowledgePoints: (taskId: number) =>
+    invoke<TaskKnowledgePoint[]>("get_task_knowledge_points", { taskId }),
+  toggleKnowledgePoint: (id: number) =>
+    invoke<TaskKnowledgePoint>("toggle_knowledge_point", { id }),
+  addCustomKnowledgePoint: (taskId: number, sectionName: string, name: string) =>
+    invoke<TaskKnowledgePoint>("add_custom_knowledge_point", {
+      taskId,
+      sectionName,
+      name,
+    }),
+  deleteKnowledgePoint: (id: number) =>
+    invoke<void>("delete_knowledge_point", { id }),
   generateTasksFromOutline: (input: GenerateTasksFromOutlineInput) =>
     invoke<GenerateTasksResult>("generate_tasks_from_outline", {
       subject: input.subject,
