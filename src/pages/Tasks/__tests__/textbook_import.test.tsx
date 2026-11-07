@@ -14,8 +14,11 @@ const book = TEXTBOOK_CATALOG[0]!;
 const catalog = [
   { subject: "生物", version: "人教版", volume: "必修1 分子与细胞" },
   { subject: "英语", version: "人教版", volume: "必修第一册" },
+  { subject: "数学", version: "人教版", volume: "选择性必修第三册" },
+  { subject: "数学", version: "湘教版", volume: "必修第一册" },
   book,
   { subject: "数学", version: "人教版", volume: "必修第二册" },
+  { subject: "数学", version: "人教版", volume: "选择性必修第一册" },
   { subject: "物理", version: "人教版", volume: "必修第一册" },
   { subject: "化学", version: "人教版", volume: "必修第一册" },
   { subject: "语文", version: "统编版", volume: "必修上册" },
@@ -56,14 +59,44 @@ function renderTasks() {
 
 async function openBookStep(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "从教材导入" }));
-  expect(await screen.findByRole("button", { name: "物理 人教版 必修第一册" })).toBeInTheDocument();
+  expect(await screen.findByRole("tab", { name: "数学", selected: true })).toBeInTheDocument();
+  expect(screen.getAllByRole("tab").map((node) => node.textContent)).toEqual([
+    "数学",
+    "语文",
+    "英语",
+    "物理",
+    "化学",
+    "生物",
+  ]);
+  expect(
+    screen.getAllByRole("button", { name: /^数学 / }).map((node) => node.getAttribute("aria-label")),
+  ).toEqual([
+    "数学 人教版 必修第一册",
+    "数学 人教版 必修第二册",
+    "数学 人教版 选择性必修第一册",
+    "数学 人教版 选择性必修第三册",
+    "数学 湘教版 必修第一册",
+  ]);
+  expect(screen.getAllByText("必修")).toHaveLength(3);
+  expect(screen.getAllByText("选择性必修")).toHaveLength(2);
+  expect(screen.queryByRole("button", { name: "物理 人教版 必修第一册" })).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("tab", { name: "物理" }));
+  expect(screen.getByRole("tab", { name: "物理" })).toHaveAttribute("aria-selected", "true");
+  expect(screen.getByRole("button", { name: "物理 人教版 必修第一册" })).toBeInTheDocument();
+  expect(screen.getByText("必修")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "数学 人教版 必修第一册" })).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("tab", { name: "化学" }));
   expect(screen.getByRole("button", { name: "化学 人教版 必修第一册" })).toBeInTheDocument();
+  await user.click(screen.getByRole("tab", { name: "语文" }));
   expect(screen.getByRole("button", { name: "语文 统编版 必修上册" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "数学 人教版 必修第二册" })).toBeInTheDocument();
+  await user.click(screen.getByRole("tab", { name: "英语" }));
   expect(screen.getByRole("button", { name: "英语 人教版 必修第一册" })).toBeInTheDocument();
+  await user.click(screen.getByRole("tab", { name: "生物" }));
   expect(screen.getByRole("button", { name: "生物 人教版 必修1 分子与细胞" })).toBeInTheDocument();
-  const headings = screen.getAllByRole("heading", { level: 3 }).map((node) => node.textContent);
-  expect(headings).toEqual(["数学", "语文", "英语", "物理", "化学", "生物"]);
+
+  await user.click(screen.getByRole("tab", { name: "数学" }));
   expect(screen.getByRole("button", { name: "下一步" })).toBeDisabled();
 }
 

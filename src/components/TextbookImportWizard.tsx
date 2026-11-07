@@ -7,6 +7,7 @@ import {
   sectionKey,
   sectionPlan,
   subjectAccent,
+  volumeTrack,
   type AvailableTextbook,
 } from "../lib/textbooks";
 import type { TextbookOutline } from "../types";
@@ -245,18 +246,42 @@ function BookPicker({
   selectedKey: string | null;
   onSelect: (key: string) => void;
 }) {
+  const groups = groupTextbooksBySubject(books);
+  const [subject, setSubject] = useState<string | null>(null);
   if (loading) return <p className="text-sm text-ink-muted">加载教材…</p>;
   if (books.length === 0) return <p className="text-sm text-ink-muted">没有内置教材</p>;
-  const groups = groupTextbooksBySubject(books);
+  const activeSubject = groups.some((group) => group.subject === subject)
+    ? subject
+    : (groups[0]?.subject ?? null);
+  const current = groups.find((group) => group.subject === activeSubject);
   return (
-    <div className="max-h-[28rem] space-y-4 overflow-auto pr-1">
-      {groups.map((group) => (
-        <section key={group.subject}>
-          <h3 className="mb-2 text-sm font-medium text-ink">{group.subject}</h3>
+    <div>
+      <div role="tablist" aria-label="科目" className="mb-3 flex flex-wrap gap-1">
+        {groups.map((group) => {
+          const selected = group.subject === activeSubject;
+          return (
+            <button
+              key={group.subject}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              className={`rounded-lg px-3 py-1.5 text-sm ${
+                selected ? "bg-accent text-white" : "text-ink-muted hover:bg-white/5 hover:text-ink"
+              }`}
+              onClick={() => setSubject(group.subject)}
+            >
+              {group.subject}
+            </button>
+          );
+        })}
+      </div>
+      {current ? (
+        <div role="tabpanel" aria-label={current.subject} className="max-h-[24rem] overflow-auto pr-1">
           <div className="grid grid-cols-2 gap-2">
-            {group.books.map((book) => {
+            {current.books.map((book) => {
               const key = bookKey(book);
               const selected = key === selectedKey;
+              const track = volumeTrack(book.volume);
               return (
                 <button
                   key={key}
@@ -275,8 +300,19 @@ function BookPicker({
                   >
                     {book.subject.slice(0, 1)}
                   </span>
-                  <span>
-                    <span className="block text-sm text-ink">{book.subject}</span>
+                  <span className="min-w-0">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-sm text-ink">{book.subject}</span>
+                      {track ? (
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[10px] leading-4 ${
+                            track === "选择性必修" ? "bg-accent/15 text-accent" : "bg-white/10 text-ink-muted"
+                          }`}
+                        >
+                          {track}
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="block text-xs text-accent">{book.version}</span>
                     <span className="block text-xs text-ink-muted">{book.volume}</span>
                   </span>
@@ -284,8 +320,8 @@ function BookPicker({
               );
             })}
           </div>
-        </section>
-      ))}
+        </div>
+      ) : null}
     </div>
   );
 }

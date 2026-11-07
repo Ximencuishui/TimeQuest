@@ -42,7 +42,49 @@ const SUBJECT_ACCENT: Record<string, string> = {
 /** Wizard groups follow this order. Subjects outside the list stay at the end. */
 export const SUBJECT_GROUP_ORDER = ["数学", "语文", "英语", "物理", "化学", "生物"] as const;
 
-export function groupTextbooksBySubject<T extends { subject: string }>(
+const CN_ORDINAL: Record<string, number> = {
+  一: 1,
+  二: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9,
+};
+
+/** 册别标签。卷名含「选择性必修」时归入选修，只含「必修」时归入必修。 */
+export function volumeTrack(volume: string): "选择性必修" | "必修" | null {
+  if (volume.includes("选择性必修")) return "选择性必修";
+  if (volume.includes("必修")) return "必修";
+  return null;
+}
+
+function volumeIndex(volume: string): number {
+  const cn = /第([一二三四五六七八九])/.exec(volume);
+  if (cn?.[1]) return CN_ORDINAL[cn[1]] ?? 99;
+  const digit = /(\d+)/.exec(volume);
+  if (digit?.[1]) return Number(digit[1]);
+  if (volume.includes("上册")) return 1;
+  if (volume.includes("中册")) return 2;
+  if (volume.includes("下册")) return 3;
+  return 99;
+}
+
+function compareCatalogBooks<T extends { version: string; volume: string }>(left: T, right: T): number {
+  const version = left.version.localeCompare(right.version, "zh");
+  if (version !== 0) return version;
+  const track =
+    (volumeTrack(left.volume) === "选择性必修" ? 1 : 0) -
+    (volumeTrack(right.volume) === "选择性必修" ? 1 : 0);
+  if (track !== 0) return track;
+  const index = volumeIndex(left.volume) - volumeIndex(right.volume);
+  if (index !== 0) return index;
+  return left.volume.localeCompare(right.volume, "zh");
+}
+
+export function groupTextbooksBySubject<T extends { subject: string; version: string; volume: string }>(
   books: readonly T[],
 ): { subject: string; books: T[] }[] {
   const buckets = new Map<string, T[]>();
@@ -55,10 +97,12 @@ export function groupTextbooksBySubject<T extends { subject: string }>(
   for (const subject of SUBJECT_GROUP_ORDER) {
     const list = buckets.get(subject);
     if (!list) continue;
-    groups.push({ subject, books: list });
+    groups.push({ subject, books: [...list].sort(compareCatalogBooks) });
     buckets.delete(subject);
   }
-  for (const [subject, list] of buckets) groups.push({ subject, books: list });
+  for (const [subject, list] of buckets) {
+    groups.push({ subject, books: [...list].sort(compareCatalogBooks) });
+  }
   return groups;
 }
 

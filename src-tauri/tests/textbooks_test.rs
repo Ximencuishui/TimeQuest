@@ -461,20 +461,35 @@ async fn imported_outline_overrides_builtin_and_appears_in_catalog() {
     let catalog = list_textbook_catalog_impl(&pool).await.unwrap();
     let math = catalog
         .iter()
-        .find(|item| item.subject == "数学" && item.volume == "必修第一册")
+        .find(|item| {
+            item.subject == "数学" && item.version == "人教版" && item.volume == "必修第一册"
+        })
         .unwrap();
     assert_eq!(math.source, "imported");
     assert_eq!(
         catalog
             .iter()
-            .filter(|item| item.subject == "数学" && item.volume == "必修第一册")
+            .filter(|item| {
+                item.subject == "数学" && item.version == "人教版" && item.volume == "必修第一册"
+            })
             .count(),
         1
     );
     assert_eq!(
         catalog
             .iter()
-            .find(|item| item.subject == "数学" && item.volume == "必修第二册")
+            .find(|item| {
+                item.subject == "数学" && item.version == "湘教版" && item.volume == "必修第一册"
+            })
+            .map(|item| item.source.as_str()),
+        Some("builtin")
+    );
+    assert_eq!(
+        catalog
+            .iter()
+            .find(|item| {
+                item.subject == "数学" && item.version == "人教版" && item.volume == "必修第二册"
+            })
             .map(|item| item.source.as_str()),
         Some("builtin")
     );
@@ -487,17 +502,38 @@ fn list_available_textbooks_reads_builtin_metadata() {
         ("数学", "人教版", "必修第一册"),
         ("数学", "人教版", "必修第二册"),
         ("数学", "人教版", "选择性必修第一册"),
+        ("数学", "人教版", "选择性必修第二册"),
+        ("数学", "人教版", "选择性必修第三册"),
+        ("数学", "湘教版", "必修第一册"),
+        ("数学", "湘教版", "必修第二册"),
         ("语文", "统编版", "必修上册"),
         ("语文", "统编版", "必修下册"),
         ("语文", "统编版", "选择性必修上册"),
+        ("语文", "统编版", "选择性必修中册"),
+        ("语文", "统编版", "选择性必修下册"),
         ("英语", "人教版", "必修第一册"),
         ("英语", "人教版", "必修第二册"),
+        ("英语", "人教版", "必修第三册"),
+        ("英语", "人教版", "选择性必修第一册"),
+        ("英语", "人教版", "选择性必修第二册"),
+        ("英语", "人教版", "选择性必修第三册"),
+        ("英语", "人教版", "选择性必修第四册"),
         ("物理", "人教版", "必修第一册"),
         ("物理", "人教版", "必修第二册"),
+        ("物理", "人教版", "必修第三册"),
+        ("物理", "人教版", "选择性必修第一册"),
+        ("物理", "人教版", "选择性必修第二册"),
+        ("物理", "人教版", "选择性必修第三册"),
         ("化学", "人教版", "必修第一册"),
         ("化学", "人教版", "必修第二册"),
+        ("化学", "人教版", "选择性必修第一册 化学反应原理"),
+        ("化学", "人教版", "选择性必修第二册 物质结构与性质"),
+        ("化学", "人教版", "选择性必修第三册 有机化学基础"),
         ("生物", "人教版", "必修1 分子与细胞"),
         ("生物", "人教版", "必修2 遗传与进化"),
+        ("生物", "人教版", "选择性必修1 稳态与调节"),
+        ("生物", "人教版", "选择性必修2 生物与环境"),
+        ("生物", "人教版", "选择性必修3 生物技术与工程"),
     ];
     assert_eq!(books.len(), expected.len());
     for (subject, version, volume) in expected {

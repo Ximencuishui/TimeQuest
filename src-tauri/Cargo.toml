@@ -1,6 +1,6 @@
 [package]
 name = "timequest"
-version = "3.0.0"
+version = "3.1.0"
 description = "TimeQuest — 高考倒计时 · 自习推进器"
 authors = ["hao"]
 edition = "2021"
