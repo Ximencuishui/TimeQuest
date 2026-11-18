@@ -1,0 +1,44 @@
+{
+  "id": "china-textbook",
+  "name": "中小学教材库",
+  "summary": "按学段、科目、版本浏览教材清单，按需下载单本 PDF，下完自动解析目录生成任务。",
+  "author": "TapXWorld / ChinaTextbook",
+  "version": "1.0.0",
+  "icon": "📚",
+  "capabilities": [
+    "教材库：1920 本中小学教材，按学段 / 科目 / 版本筛选",
+    "按需下载：只下你需要的那一本，不整库拉取",
+    "目录解析：下载后自动提取章与小节，直接生成学习任务"
+  ],
+  "options": [
+    {
+      "key": "download_source",
+      "label": "下载通道",
+      "kind": "select",
+      "default": "blob",
+      "choices": ["blob", "raw"],
+      "choice_labels": {
+        "blob": "标准通道（推荐）",
+        "raw": "备用通道（标准通道失败时再试）"
+      },
+      "help": "教材 PDF 存在 GitHub 上。默认用「标准通道」就行；如果下载总是失败，再换成「备用通道」试试。",
+      "advanced": true
+    },
+    {
+      "key": "github_token",
+      "label": "GitHub 访问令牌（选填）",
+      "kind": "text",
+      "default": "",
+      "help": "平时不用填。只有下载时提示「今天的下载次数用完了」，才需要去 GitHub 申请一个访问令牌（Personal Access Token）粘进来。",
+      "advanced": true,
+      "secret": true
+    }
+  ],
+  "resources": [
+    {
+      "path": "catalog.json",
+      "kind": "textbook_catalog",
+      "description": "教材清单快照：路径、学段、科目、版本、年级、文件大小"
+    }
+  ]
+}

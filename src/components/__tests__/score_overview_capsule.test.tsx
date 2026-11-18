@@ -88,4 +88,21 @@ describe("Score overview capsule", () => {
     expect(screen.queryByText("+13 分")).not.toBeInTheDocument();
     expect(screen.queryByText("-30 分")).not.toBeInTheDocument();
   });
+
+  it("scales a partial paper so the gap to the target stays comparable", () => {
+    renderCapsule([sitting(2, "2026-11-01", [110, 130, 115, 70, 75, null])], 600);
+
+    expect(screen.getByText("最近成绩：")).toBeInTheDocument();
+    expect(screen.getByText("575")).toBeInTheDocument();
+    expect(screen.getByText("折算 · 缺考生物")).toBeInTheDocument();
+    expect(screen.getByText("-25 分")).toBeInTheDocument();
+  });
+
+  it("does not scale a paper that only has one score", () => {
+    renderCapsule([sitting(2, "2026-11-01", [110, null, null, null, null, null])], 600);
+
+    expect(screen.getByText("最近单科：")).toBeInTheDocument();
+    expect(screen.getByText("语文 110")).toBeInTheDocument();
+    expect(screen.queryByText(/折算/)).not.toBeInTheDocument();
+  });
 });

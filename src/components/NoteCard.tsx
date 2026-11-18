@@ -2,6 +2,7 @@ import { memo } from "react";
 import { NOTE_COLOR_CLASSES } from "../lib/colors";
 import { NOTE_COLORS, type NoteColor } from "../lib/constants";
 import type { Note } from "../types";
+import { DateField } from "./DateField";
 
 export type NoteCardProps = {
   note: Note;
@@ -13,6 +14,8 @@ export type NoteCardProps = {
   onSave: (id: number, content: string) => void;
   onTogglePin: (id: number, pinned: boolean) => void;
   onDelete: (id: number) => void;
+  /** 绑定 / 解绑日期；空串表示不绑定。 */
+  onSetDate: (id: number, noteDate: string) => void;
 };
 
 /** list_notes 每次给出新对象；置顶还会改排序，按位置的结构共享对不上同一张便签。 */
@@ -21,7 +24,8 @@ function sameNoteView(a: Note, b: Note): boolean {
     a.id === b.id &&
     a.content === b.content &&
     a.color === b.color &&
-    a.pinned === b.pinned
+    a.pinned === b.pinned &&
+    a.note_date === b.note_date
   );
 }
 
@@ -35,7 +39,8 @@ function areEqual(prev: NoteCardProps, next: NoteCardProps): boolean {
     prev.onCancelEdit === next.onCancelEdit &&
     prev.onSave === next.onSave &&
     prev.onTogglePin === next.onTogglePin &&
-    prev.onDelete === next.onDelete
+    prev.onDelete === next.onDelete &&
+    prev.onSetDate === next.onSetDate
   );
 }
 
@@ -49,6 +54,7 @@ function NoteCard({
   onSave,
   onTogglePin,
   onDelete,
+  onSetDate,
 }: NoteCardProps) {
   const c = (
     NOTE_COLORS.includes(note.color as NoteColor) ? note.color : "yellow"
@@ -117,6 +123,15 @@ function NoteCard({
             </button>
           </>
         )}
+      </div>
+      <div className="mt-2 w-44">
+        <DateField
+          label="便签日期"
+          value={note.note_date ?? ""}
+          onChange={(value) => onSetDate(note.id, value)}
+          allowEmpty
+          emptyLabel="未绑定日期"
+        />
       </div>
     </article>
   );

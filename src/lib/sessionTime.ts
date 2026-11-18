@@ -19,6 +19,27 @@ export function minutesOfDay(now: Date): number {
 }
 
 /**
+ * 防呆：排期时段必须是合法的 HH:MM，且结束不能早于开始。
+ *
+ * 零长时段（开始 == 结束）仍然允许——完成路径按 `.max(1)` 记 1 分钟，
+ * 与既有规格一致；只有真正反过来的（20:00 → 10:00）才算笔误。
+ * 返回错误文案；null 表示通过。
+ */
+export function timeRangeError(
+  startTime: string,
+  endTime: string,
+): string | null {
+  const start = timeToMinutes(startTime);
+  if (start === null) return "开始时间格式不对，请用 HH:MM（例如 19:00）";
+  const end = timeToMinutes(endTime);
+  if (end === null) return "结束时间格式不对，请用 HH:MM（例如 20:00）";
+  if (end < start) {
+    return `结束时间（${endTime}）不能早于开始时间（${startTime}）`;
+  }
+  return null;
+}
+
+/**
  * Compare wall-clock minutes with session start/end (same calendar day).
  * - past: now > end
  * - active: start <= now <= end

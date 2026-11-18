@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { KnowledgePointDrawer, type KnowledgeTask } from "../components/KnowledgePointDrawer";
 import { DashboardAccumulationWall } from "../components/AccumulationWall";
 import { CountdownPanel } from "../components/CountdownPanel";
+import { MockCountdown } from "../components/MockCountdown";
 import { DashboardScoreOverview } from "../components/ScoreOverviewCapsule";
 import { DesktopWidgetToggle } from "../components/DesktopWidgetToggle";
 import { DailyMotivation } from "../components/DailyMotivation";
@@ -32,6 +33,7 @@ export function Dashboard() {
       </header>
       <DashboardScoreOverview />
       <CountdownPanel />
+      <MockCountdown />
       <DashboardSprintRoadmap />
       <StatusBar />
       <section>

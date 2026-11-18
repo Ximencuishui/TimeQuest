@@ -69,3 +69,10 @@ export function todayStr(d: Date = new Date()): string {
 export function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
+
+/** `2026-11-24` → `11月24日`；解析不了就原样返回。 */
+export function formatMonthDay(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return iso;
+  return `${Number(match[2])}月${Number(match[3])}日`;
+}

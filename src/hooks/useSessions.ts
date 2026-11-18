@@ -89,5 +89,10 @@ export function useSessionMutations() {
     onSuccess: invalidate,
   });
 
-  return { create, complete, reschedule };
+  const remove = useMutation({
+    mutationFn: (sessionId: number) => api.deleteSession(sessionId),
+    onSuccess: invalidate,
+  });
+
+  return { create, complete, reschedule, remove };
 }

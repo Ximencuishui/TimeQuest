@@ -1,6 +1,6 @@
 [package]
 name = "timequest"
-version = "3.4.0"
+version = "3.6.0"
 description = "TimeQuest — 高考倒计时 · 自习推进器"
 authors = ["hao"]
 edition = "2021"
@@ -11,6 +11,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+# 构建脚本要读插件清单里的 `resources` 声明
+serde_json = "1"
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
@@ -27,8 +29,12 @@ thiserror = "2"
 uuid = { version = "1", features = ["v4"] }
 # Needed by session command impls (not only tests)
 sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite", "macros", "migrate"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs", "io-util", "time"] }
 time = "0.3"
+# 教材 PDF 目录解析：目录页没有书签，只能从内容流里取文字坐标
+lopdf = "0.47"
+# 教材源插件按需下载 PDF：rustls 不依赖系统 OpenSSL，打包和跨平台都省事
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "stream", "charset", "http2", "system-proxy"] }
 
 [dev-dependencies]
 sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite", "macros", "migrate"] }

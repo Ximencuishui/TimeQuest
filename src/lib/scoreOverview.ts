@@ -1,5 +1,6 @@
 import type { ExamRecord } from "../types";
 import { EXAM_SCORE_FIELDS } from "./examRecord";
+import { examScoreBreakdown } from "./scoreScaling";
 import { examTotal, formatScoreGap } from "./scoreTrend";
 
 export type ScoreOverview =
@@ -15,9 +16,17 @@ export type ScoreOverview =
       score: number;
     }
   | {
-      kind: "partial";
-      count: number;
+      kind: "scaled";
+      /** 折算后的总分（可与总分目标比）。 */
+      score: number;
+      /** 实考总分。 */
       sum: number;
+      /** 已考科目数。 */
+      count: number;
+      /** 缺考的科目名。 */
+      missing: string[];
+      gap: string | null;
+      tone: "above" | "below" | null;
     };
 
 function filledSubjects(record: ExamRecord): { label: string; score: number }[] {
@@ -45,7 +54,7 @@ function finiteTarget(target: number | null | undefined): number | null {
 /**
  * Latest sitting. A full six-subject paper can be compared with the current
  * total target. One subject stays a single-subject line. A partial paper is
- * not compared with the gaokao total.
+ * scaled to the six-subject scale so it stays comparable with the target.
  */
 export function buildScoreOverview(
   records: ExamRecord[],
@@ -68,6 +77,16 @@ export function buildScoreOverview(
   if (filled.length === 1) {
     return { kind: "single", subject: filled[0].label, score: filled[0].score };
   }
-  const sum = filled.reduce((acc, item) => acc + item.score, 0);
-  return { kind: "partial", count: filled.length, sum };
+  const breakdown = examScoreBreakdown(record);
+  const score = breakdown.scaledTotal ?? breakdown.sum;
+  const target = finiteTarget(totalTarget);
+  return {
+    kind: "scaled",
+    score,
+    sum: breakdown.sum,
+    count: filled.length,
+    missing: breakdown.missing.map((m) => m.label),
+    gap: target == null ? null : formatScoreGap(score, target),
+    tone: target == null ? null : score >= target ? "above" : "below",
+  };
 }

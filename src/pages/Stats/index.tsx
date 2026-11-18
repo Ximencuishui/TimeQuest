@@ -7,6 +7,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { Modal } from "../../components/Modal";
+import { GlossaryHint } from "../../components/GlossaryHint";
 import { useCreateLog } from "../../hooks/useLogs";
 import {
   useAvgRatings,
@@ -177,6 +178,7 @@ export function Stats() {
       <div className="grid gap-4 sm:grid-cols-3">
         <StatTile
           label="计划达成率"
+          glossaryId="completion_rate"
           value={
             rate ? `${Math.round((rate.rate || 0) * 100)}%` : "—"
           }
@@ -215,7 +217,10 @@ export function Stats() {
       </section>
 
       <section className="rounded-2xl border border-white/5 bg-surface-2/80 p-4">
-        <h2 className="mb-3 font-display text-lg">计划 vs 实际（分钟）</h2>
+        <div className="mb-3 flex items-center gap-1.5">
+          <h2 className="font-display text-lg">计划 vs 实际（分钟）</h2>
+          <GlossaryHint id="plan_vs_actual" />
+        </div>
         {planBars.length === 0 ? (
           <ChartEmptyState />
         ) : (
@@ -376,14 +381,20 @@ function StatTile({
   label,
   value,
   hint,
+  glossaryId,
 }: {
   label: string;
   value: string;
   hint?: string;
+  /** 术语词条 id，显示在标题旁边的「?」。 */
+  glossaryId?: string;
 }) {
   return (
     <div className="rounded-xl border border-white/5 bg-surface-2/80 p-4">
-      <div className="text-xs text-ink-muted">{label}</div>
+      <div className="flex items-center gap-1.5 text-xs text-ink-muted">
+        <span>{label}</span>
+        {glossaryId ? <GlossaryHint id={glossaryId} /> : null}
+      </div>
       <div className="mt-1 font-display text-2xl text-accent-soft">{value}</div>
       {hint ? <div className="mt-1 text-xs text-ink-muted">{hint}</div> : null}
     </div>

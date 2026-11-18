@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
+import { DateField } from "./DateField";
 import { Modal } from "./Modal";
+import { TimeRangeField } from "./TimeRangeField";
 import type { TaskSession } from "../types";
 import { todayStr } from "../lib/date";
+import { timeRangeError } from "../lib/sessionTime";
 
 type Props = {
   session: TaskSession | null;
@@ -25,6 +28,9 @@ export function RescheduleDialog({ session, onClose, onSubmit, busy }: Props) {
 
   if (!session) return null;
 
+  // 防呆：改期同样不允许结束早于开始。
+  const rangeError = timeRangeError(startTime, endTime);
+
   return (
     <Modal
       open
@@ -41,7 +47,7 @@ export function RescheduleDialog({ session, onClose, onSubmit, busy }: Props) {
           </button>
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || rangeError != null}
             className="rounded-lg border border-white/20 bg-surface-3 px-4 py-2 text-ink hover:bg-white/10 disabled:opacity-50"
             onClick={() => onSubmit({ date, startTime, endTime })}
           >
@@ -54,35 +60,25 @@ export function RescheduleDialog({ session, onClose, onSubmit, busy }: Props) {
         重新安排也是计划的一部分。原排期会保留为「已改期」，不影响历史追溯。
       </p>
       <div className="space-y-3 text-sm">
-        <label className="block">
+        <div className="block">
           <span className="text-ink-muted">新日期</span>
-          <input
-            type="date"
-            className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className="text-ink-muted">开始</span>
-            <input
-              type="time"
-              className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-            />
-          </label>
-          <label className="block">
-            <span className="text-ink-muted">结束</span>
-            <input
-              type="time"
-              className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-            />
-          </label>
+          <div className="mt-1">
+            <DateField label="新日期" value={date} onChange={setDate} />
+          </div>
         </div>
+        <TimeRangeField
+          start={startTime}
+          end={endTime}
+          onChange={(nextStart, nextEnd) => {
+            setStartTime(nextStart);
+            setEndTime(nextEnd);
+          }}
+        />
+        {rangeError ? (
+          <p className="text-sm text-amber-200" role="alert">
+            {rangeError}
+          </p>
+        ) : null}
       </div>
     </Modal>
   );

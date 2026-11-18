@@ -15,7 +15,10 @@ import { TodayRoute } from "./pages/Today";
 import { Stats } from "./pages/Stats";
 import { Scores } from "./pages/Scores";
 import { Notes } from "./pages/Notes";
+import { Mistakes } from "./pages/Mistakes";
 import { Settings } from "./pages/Settings";
+import { Toolbox } from "./pages/Toolbox";
+import { PluginDetail } from "./pages/PluginDetail";
 import { WidgetPage } from "./pages/WidgetPage";
 import { api } from "./api/tauri";
 import { readWindowLabel, WIDGET_LABEL } from "./lib/widgetWindow";
@@ -90,6 +93,9 @@ export default function App() {
             <Route path="stats" element={<Stats />} />
             <Route path="scores" element={<Scores />} />
             <Route path="notes" element={<Notes />} />
+            <Route path="mistakes" element={<Mistakes />} />
+            <Route path="toolbox" element={<Toolbox />} />
+            <Route path="toolbox/plugins/:pluginId" element={<PluginDetail />} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

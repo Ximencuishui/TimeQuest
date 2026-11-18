@@ -1,4 +1,5 @@
 import { ComboMeter } from "questro/combo";
+import { GlossaryHint } from "./GlossaryHint";
 import { levelFromTotalXp, streakMultiplier } from "../lib/gamification";
 import { useUserStats } from "../hooks/useStats";
 
@@ -18,14 +19,20 @@ export function StatusBar() {
   return (
     <div className="flex flex-wrap items-center gap-4 rounded-xl border border-white/5 bg-surface-2/80 px-4 py-3">
       <div>
-        <div className="text-xs text-ink-muted">等级</div>
+        <div className="flex items-center gap-1.5 text-xs text-ink-muted">
+          <span>等级</span>
+          <GlossaryHint id="level" />
+        </div>
         <div className="font-display text-lg text-accent-soft">
           Lv.{stats.current_level}
         </div>
       </div>
       <div className="min-w-[120px] flex-1">
         <div className="mb-1 flex justify-between text-xs text-ink-muted">
-          <span>XP {stats.total_xp}</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span>XP {stats.total_xp}</span>
+            <GlossaryHint id="xp" />
+          </span>
           <span>
             {levelInfo.xpIntoLevel}/{levelInfo.xpForNext}
           </span>
@@ -47,6 +54,7 @@ export function StatusBar() {
         <span className="text-ink">{stats.current_streak}</span>
         <span className="text-ink-muted"> 天 · 最长 </span>
         <span className="text-ink">{stats.longest_streak}</span>
+        <GlossaryHint id="streak" className="ml-1" />
       </div>
       <ComboMeter
         combo={stats.current_streak}

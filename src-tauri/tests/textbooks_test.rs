@@ -24,6 +24,13 @@ fn today() -> String {
     chrono::Local::now().format("%Y-%m-%d").to_string()
 }
 
+/// 今天往后推 `days` 天的 `YYYY-MM-DD`。
+fn day_after(days: i64) -> String {
+    (chrono::Local::now().date_naive() + chrono::Duration::days(days))
+        .format("%Y-%m-%d")
+        .to_string()
+}
+
 #[test]
 fn get_textbook_outline_returns_pep_math_compulsory_1() {
     let outline =
@@ -102,6 +109,7 @@ async fn generate_tasks_from_outline_counts_sessions_and_records_mastered_as_don
             total_units: 15,
             planned_count: 13,
             done_count: 2,
+            last_planned_date: Some(day_after(4)),
         }
     );
 
@@ -147,6 +155,9 @@ async fn generate_tasks_from_outline_counts_sessions_and_records_mastered_as_don
         .await
         .unwrap();
 
+    // 防呆：待学的节跨天铺排，一天最多三场（08:00 / 14:00 / 19:00），
+    // 已掌握的节记在今天的晚间回顾格。
+    let tomorrow = day_after(1);
     let expected = [
         (
             "done",
@@ -164,8 +175,8 @@ async fn generate_tasks_from_outline_counts_sessions_and_records_mastered_as_don
             1,
             0,
             today.as_str(),
-            "19:00",
-            "20:00",
+            "08:00",
+            "09:00",
             1,
             0,
             "1.2 集合间的基本关系",
@@ -175,8 +186,8 @@ async fn generate_tasks_from_outline_counts_sessions_and_records_mastered_as_don
             1,
             0,
             today.as_str(),
-            "19:00",
-            "20:00",
+            "14:00",
+            "15:00",
             1,
             0,
             "1.3 集合的基本运算",
@@ -207,9 +218,9 @@ async fn generate_tasks_from_outline_counts_sessions_and_records_mastered_as_don
             "planned",
             1,
             0,
-            today.as_str(),
-            "19:00",
-            "20:00",
+            tomorrow.as_str(),
+            "08:00",
+            "09:00",
             1,
             0,
             "2.3 二次函数与一元二次方程、不等式",
@@ -237,6 +248,29 @@ async fn generate_tasks_from_outline_counts_sessions_and_records_mastered_as_don
         assert_eq!(row.2, 0);
         assert!(!row.8.is_empty());
     }
+
+    // 同一天不得有两场待学排期落在同一时段（这正是以前 16 场挤在 19:00 的老毛病）。
+    let mut seen: Vec<(String, String)> = Vec::new();
+    for row in sessions.iter().filter(|row| row.0 == "planned") {
+        let key = (row.3.clone(), row.4.clone());
+        assert!(
+            !seen.contains(&key),
+            "planned sessions must not share a date+slot: {key:?}"
+        );
+        seen.push(key);
+    }
+    // 一天最多三场。
+    let mut per_day: Vec<(String, i64)> = Vec::new();
+    for row in sessions.iter().filter(|row| row.0 == "planned") {
+        match per_day.iter_mut().find(|(date, _)| date == &row.3) {
+            Some((_, count)) => *count += 1,
+            None => per_day.push((row.3.clone(), 1)),
+        }
+    }
+    assert!(
+        per_day.iter().all(|(_, count)| *count <= 3),
+        "at most three sessions per day: {per_day:?}"
+    );
 
     let round_units: i64 = sqlx::query_scalar(
         r#"SELECT COALESCE(SUM(actual_units), 0) FROM task_sessions

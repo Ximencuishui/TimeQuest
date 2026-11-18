@@ -3,6 +3,8 @@ import { Modal } from "./Modal";
 import type { CompleteSessionResult, TaskSession } from "../types";
 import { METHODS } from "../lib/constants";
 import { todayStr } from "../lib/date";
+import { timeRangeError } from "../lib/sessionTime";
+import { actualUnitsLabel, unitNameOf, unitsLabel } from "../lib/units";
 
 type SubmitData = {
   actualUnits: number;
@@ -123,6 +125,8 @@ export function CompleteDialog({ session, onClose, onSubmit, busy }: Props) {
   if (!session) return null;
   const unitsCheck = validateActualUnits(actualUnitsRaw);
   const actualUnits = unitsCheck.value;
+  const unit = unitNameOf(session);
+  const sectionTitle = session.self_note?.trim() || null;
   const remaining =
     unitsCheck.valid && actualUnits != null
       ? Math.max(0, session.planned_units - actualUnits)
@@ -135,6 +139,10 @@ export function CompleteDialog({ session, onClose, onSubmit, busy }: Props) {
     actualUnits < session.planned_units;
   const showZeroHint =
     unitsCheck.valid && actualUnits === 0 && session.planned_units > 0;
+  // 防呆：剩余改到下次的时间段也不能反向。
+  const deferError = deferRemaining
+    ? timeRangeError(deferStart, deferEnd)
+    : null;
 
   return (
     <Modal
@@ -152,7 +160,7 @@ export function CompleteDialog({ session, onClose, onSubmit, busy }: Props) {
           </button>
           <button
             type="button"
-            disabled={busy || overageHint != null || !unitsCheck.valid}
+            disabled={busy || overageHint != null || !unitsCheck.valid || deferError != null}
             className="rounded-lg bg-accent px-4 py-2 font-medium text-white hover:bg-accent-soft disabled:opacity-50"
             onClick={() => {
               const check = validateActualUnits(actualUnitsRaw);
@@ -194,10 +202,13 @@ export function CompleteDialog({ session, onClose, onSubmit, busy }: Props) {
     >
       <div className="space-y-4 text-sm">
         <p className="text-ink-muted">
-          {session.task_title} · 计划 {session.planned_units} 课
+          {session.task_title} · 计划 {unitsLabel(session.planned_units, unit)}
         </p>
+        {sectionTitle ? (
+          <p className="text-ink-muted">本场：{sectionTitle}</p>
+        ) : null}
         <label className="block">
-          <span className="text-ink-muted">实际课数</span>
+          <span className="text-ink-muted">{actualUnitsLabel(unit)}</span>
           <input
             type="text"
             inputMode="numeric"
@@ -271,10 +282,11 @@ export function CompleteDialog({ session, onClose, onSubmit, busy }: Props) {
                 checked={deferRemaining}
                 onChange={(e) => setDeferRemaining(e.target.checked)}
               />
-              <span>剩余 {remaining} 课改到下次</span>
+              <span>剩余 {unitsLabel(remaining, unit)}改到下次</span>
             </label>
             {deferRemaining ? (
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              <>
+                <div className="mt-3 grid grid-cols-3 gap-2">
                 <input
                   type="date"
                   className="rounded-lg border border-white/10 bg-surface px-2 py-1.5"
@@ -293,7 +305,13 @@ export function CompleteDialog({ session, onClose, onSubmit, busy }: Props) {
                   value={deferEnd}
                   onChange={(e) => setDeferEnd(e.target.value)}
                 />
-              </div>
+                </div>
+                {deferError ? (
+                  <p className="mt-2 text-amber-200" role="alert">
+                    {deferError}
+                  </p>
+                ) : null}
+              </>
             ) : null}
           </div>
         ) : null}

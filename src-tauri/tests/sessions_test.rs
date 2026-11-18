@@ -6,9 +6,9 @@ use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
 use std::path::PathBuf;
 use timequest_lib::{
-    advance_round_impl, complete_session_impl, create_session_impl, list_sessions_in_range_impl,
-    reschedule_session_impl, task_progress_impl, test_hooks, update_streak_values,
-    RemainderSchedule, SessionError, RESCHEDULE_RECOVERY_BONUS,
+    advance_round_impl, complete_session_impl, create_session_impl, delete_session_impl,
+    list_sessions_in_range_impl, reschedule_session_impl, task_progress_impl, test_hooks,
+    update_streak_values, RemainderSchedule, SessionError, RESCHEDULE_RECOVERY_BONUS,
 };
 
 /// Insert a main-line task + planned session; returns `(task_id, session_id)`.
@@ -1917,4 +1917,301 @@ async fn idempotent_complete_does_not_repeat_celebration_flags() {
     assert!(!second.is_task_fully_completed);
     assert_eq!(second.streak_milestone, None);
     assert_eq!(second.current_streak, 1);
+}
+
+// ---------------------------------------------------------------------------
+// 防呆：时段校验（创建 / 改期 / 剩余改到下次）与排期删除
+// ---------------------------------------------------------------------------
+
+/// 结束早于开始是笔误（20:00 → 10:00），创建必须被拒且不落库。
+#[tokio::test]
+async fn create_session_rejects_end_before_start() {
+    let pool = common::setup().await;
+    let (task_id, _session_id) = insert_task_and_session(&pool).await;
+
+    let err = create_session_impl(
+        &pool,
+        task_id,
+        "2026-11-05".into(),
+        "20:00".into(),
+        "10:00".into(),
+        None,
+        Some(2),
+    )
+    .await
+    .expect_err("end before start must be rejected");
+
+    assert!(
+        matches!(
+            err,
+            SessionError::InvalidTimeRange {
+                ref start_time,
+                ref end_time,
+            } if start_time == "20:00" && end_time == "10:00"
+        ),
+        "expected InvalidTimeRange, got {err:?}"
+    );
+
+    let rows: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM task_sessions WHERE task_id = ?1 AND date = '2026-11-05'",
+    )
+    .bind(task_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(rows, 0, "rejected session must not be written");
+}
+
+/// 零长时段（开始 == 结束）保持合法：完成路径按 `.max(1)` 记 1 分钟。
+#[tokio::test]
+async fn create_session_allows_zero_length_range() {
+    let pool = common::setup().await;
+    let (task_id, _session_id) = insert_task_and_session(&pool).await;
+
+    let created = create_session_impl(
+        &pool,
+        task_id,
+        "2026-11-05".into(),
+        "19:00".into(),
+        "19:00".into(),
+        None,
+        Some(2),
+    )
+    .await
+    .expect("zero-length range stays legal");
+
+    assert_eq!(created.start_time, "19:00");
+    assert_eq!(created.end_time, "19:00");
+}
+
+/// 时间写成「上午9点」这类非 HH:MM 文本时，创建必须被拒。
+#[tokio::test]
+async fn create_session_rejects_unparsable_time() {
+    let pool = common::setup().await;
+    let (task_id, _session_id) = insert_task_and_session(&pool).await;
+
+    let err = create_session_impl(
+        &pool,
+        task_id,
+        "2026-11-05".into(),
+        "9点".into(),
+        "10:00".into(),
+        None,
+        Some(2),
+    )
+    .await
+    .expect_err("unparsable time must be rejected");
+
+    assert!(
+        matches!(err, SessionError::InvalidTimeFormat { ref value } if value == "9点"),
+        "expected InvalidTimeFormat, got {err:?}"
+    );
+}
+
+/// 改期同样不允许反向时段：失败时原排期保持 planned，不新建目标场次。
+#[tokio::test]
+async fn reschedule_rejects_end_before_start() {
+    let pool = common::setup().await;
+    let (_task_id, session_id) = insert_task_and_session(&pool).await;
+
+    let before: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+    let err = reschedule_session_impl(
+        &pool,
+        session_id,
+        "2026-11-06".into(),
+        "20:00".into(),
+        "08:00".into(),
+        noon(),
+    )
+    .await
+    .expect_err("reschedule with inverted range must fail");
+    assert!(
+        err.to_string().contains("结束时间不能早于开始时间"),
+        "unexpected error text: {err}"
+    );
+
+    let status: String = sqlx::query_scalar("SELECT status FROM task_sessions WHERE id = ?1")
+        .bind(session_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(status, "planned", "source session must stay planned");
+
+    let after: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(after, before, "no new session may be created");
+}
+
+/// 「剩余改到下次」的时间段反向时，整个完成事务回滚：原场不变、无流水、无 XP。
+#[tokio::test]
+async fn complete_with_inverted_defer_range_is_rejected() {
+    let pool = common::setup().await;
+    let (_task_id, session_id) = insert_task_and_session_with_units(&pool, 5).await;
+
+    let err = complete_session_impl(
+        &pool,
+        session_id,
+        2,
+        Some(4),
+        None,
+        true,
+        noon(),
+        Some(RemainderSchedule {
+            date: "2026-11-05".into(),
+            start_time: "20:00".into(),
+            end_time: "10:00".into(),
+        }),
+    )
+    .await
+    .expect_err("inverted defer range must be rejected");
+
+    assert!(
+        matches!(err, SessionError::InvalidTimeRange { .. }),
+        "expected InvalidTimeRange, got {err:?}"
+    );
+
+    let status: String = sqlx::query_scalar("SELECT status FROM task_sessions WHERE id = ?1")
+        .bind(session_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(status, "planned");
+
+    let logs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM actual_logs")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(logs, 0, "no learning record may be written");
+}
+
+/// 删除待完成的排期：行消失，其余排期不受影响。
+#[tokio::test]
+async fn delete_session_removes_planned_session() {
+    let pool = common::setup().await;
+    let (task_id, session_id) = insert_task_and_session(&pool).await;
+    let other = insert_session_on_date(&pool, task_id, "2026-11-05", 1).await;
+
+    delete_session_impl(&pool, session_id)
+        .await
+        .expect("planned session must be deletable");
+
+    let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions WHERE id = ?1")
+        .bind(session_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(rows, 0, "deleted session must be gone");
+
+    let kept: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions WHERE id = ?1")
+        .bind(other)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(kept, 1, "other sessions must stay");
+}
+
+/// 已完成的排期是学习历史，不允许删除。
+#[tokio::test]
+async fn delete_session_refuses_done_session() {
+    let pool = common::setup().await;
+    let (_task_id, session_id) = insert_task_and_session_with_units(&pool, 3).await;
+    complete_session_impl(&pool, session_id, 3, Some(4), None, false, noon(), None)
+        .await
+        .unwrap();
+
+    let err = delete_session_impl(&pool, session_id)
+        .await
+        .expect_err("done session must not be deletable");
+    assert!(
+        matches!(err, SessionError::SessionNotDeletable { ref status } if status == "done"),
+        "expected SessionNotDeletable, got {err:?}"
+    );
+
+    let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions WHERE id = ?1")
+        .bind(session_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(rows, 1, "done session must stay");
+}
+
+/// 已经有学习流水的排期不能删：避免丢掉已经发生的事实。
+#[tokio::test]
+async fn delete_session_refuses_session_with_logs() {
+    let pool = common::setup().await;
+    let (_task_id, session_id) = insert_task_and_session_with_units(&pool, 3).await;
+    sqlx::query(
+        r#"INSERT INTO actual_logs (session_id, date, start_at, end_at, duration_min, tag_type, method, subject)
+           VALUES (?1, '2026-11-04', '09:00', '10:00', 60, 'study', '刷题', '数学')"#,
+    )
+    .bind(session_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let err = delete_session_impl(&pool, session_id)
+        .await
+        .expect_err("session with logs must not be deletable");
+    assert!(
+        matches!(err, SessionError::SessionHasLogs { session_id: id } if id == session_id),
+        "expected SessionHasLogs, got {err:?}"
+    );
+
+    let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task_sessions WHERE id = ?1")
+        .bind(session_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(rows, 1, "session with logs must stay");
+}
+
+/// 删除改期目标场后，源场保留 rescheduled 状态但不再指向已删除的行。
+#[tokio::test]
+async fn delete_session_clears_source_rescheduled_pointer() {
+    let pool = common::setup().await;
+    let (_task_id, session_id) = insert_task_and_session(&pool).await;
+
+    let result = reschedule_session_impl(
+        &pool,
+        session_id,
+        "2026-11-06".into(),
+        "09:00".into(),
+        "10:00".into(),
+        noon(),
+    )
+    .await
+    .unwrap();
+    let target_id = result.created_session_id.expect("reschedule creates a target session");
+
+    delete_session_impl(&pool, target_id)
+        .await
+        .expect("reschedule target must be deletable");
+
+    let (status, pointer): (String, Option<i64>) =
+        sqlx::query_as("SELECT status, rescheduled_to FROM task_sessions WHERE id = ?1")
+            .bind(session_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(status, "rescheduled", "source keeps its history status");
+    assert_eq!(pointer, None, "dangling rescheduled_to must be cleared");
+}
+
+/// 删除不存在的排期返回「不存在」，不是静默成功。
+#[tokio::test]
+async fn delete_session_reports_missing_session() {
+    let pool = common::setup().await;
+    let err = delete_session_impl(&pool, 999_999)
+        .await
+        .expect_err("unknown session must not report success");
+    assert!(
+        matches!(err, SessionError::SessionNotFound { session_id: 999_999 }),
+        "expected SessionNotFound, got {err:?}"
+    );
 }

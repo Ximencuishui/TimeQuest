@@ -1,4 +1,5 @@
-use crate::commands::notes::normalize_color;
+use crate::commands::mistakes::{normalize_reason, normalize_subject};
+use crate::commands::notes::{normalize_color, normalize_note_date};
 use crate::commands::profile::{upsert_user_profile_row, user_profile_from_export};
 use crate::db::{db_path, with_db, DbState};
 use crate::models::UserProfile;
@@ -173,7 +174,7 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
 
     let notes: Vec<Value> = {
         let mut stmt = conn
-            .prepare("SELECT id, content, color, pinned, created_at, updated_at FROM notes")
+            .prepare("SELECT id, content, color, pinned, note_date, created_at, updated_at FROM notes")
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |r| {
@@ -182,8 +183,32 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
                     "content": r.get::<_, String>(1)?,
                     "color": r.get::<_, String>(2)?,
                     "pinned": r.get::<_, i64>(3)?,
-                    "created_at": r.get::<_, String>(4)?,
-                    "updated_at": r.get::<_, String>(5)?,
+                    "note_date": r.get::<_, Option<String>>(4)?,
+                    "created_at": r.get::<_, String>(5)?,
+                    "updated_at": r.get::<_, String>(6)?,
+                }))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    };
+
+    let mistakes: Vec<Value> = {
+        let mut stmt = conn
+            .prepare("SELECT id, subject, title, reason, correct_note, is_mastered, created_at, updated_at FROM mistakes")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(json!({
+                    "id": r.get::<_, i64>(0)?,
+                    "subject": r.get::<_, String>(1)?,
+                    "title": r.get::<_, String>(2)?,
+                    "reason": r.get::<_, String>(3)?,
+                    "correct_note": r.get::<_, String>(4)?,
+                    "is_mastered": r.get::<_, i64>(5)?,
+                    "created_at": r.get::<_, String>(6)?,
+                    "updated_at": r.get::<_, String>(7)?,
                 }))
             })
             .map_err(|e| e.to_string())?
@@ -380,6 +405,7 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         "task_sessions": sessions,
         "actual_logs": logs,
         "notes": notes,
+        "mistakes": mistakes,
         "user_stats": stats,
         "user_achievements": achievements,
         "user_profile": user_profile,
@@ -407,6 +433,7 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
             DELETE FROM actual_logs;
             DELETE FROM task_sessions;
             DELETE FROM notes;
+            DELETE FROM mistakes;
             DELETE FROM task_knowledge_points;
             DELETE FROM tasks;
             DELETE FROM app_settings;
@@ -510,15 +537,36 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
     if let Some(arr) = data.get("notes").and_then(|v| v.as_array()) {
         for n in arr {
             tx.execute(
-                r#"INSERT INTO notes (id, content, color, pinned, created_at, updated_at)
-                       VALUES (?1,?2,?3,?4,COALESCE(?5, datetime('now','localtime')), COALESCE(?6, datetime('now','localtime')))"#,
+                r#"INSERT INTO notes (id, content, color, pinned, note_date, created_at, updated_at)
+                       VALUES (?1,?2,?3,?4,?5,COALESCE(?6, datetime('now','localtime')), COALESCE(?7, datetime('now','localtime')))"#,
                 params![
                     n.get("id").and_then(|v| v.as_i64()),
                     n.get("content").and_then(|v| v.as_str()).unwrap_or(""),
                     normalize_color(n.get("color").and_then(|v| v.as_str()).unwrap_or("yellow")),
                     n.get("pinned").and_then(|v| v.as_i64()).unwrap_or(0),
+                    normalize_note_date(n.get("note_date").and_then(|v| v.as_str())),
                     n.get("created_at").and_then(|v| v.as_str()),
                     n.get("updated_at").and_then(|v| v.as_str()),
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
+    if let Some(arr) = data.get("mistakes").and_then(|v| v.as_array()) {
+        for m in arr {
+            tx.execute(
+                r#"INSERT INTO mistakes (id, subject, title, reason, correct_note, is_mastered, created_at, updated_at)
+                       VALUES (?1,?2,?3,?4,?5,?6,COALESCE(?7, datetime('now','localtime')), COALESCE(?8, datetime('now','localtime')))"#,
+                params![
+                    m.get("id").and_then(|v| v.as_i64()),
+                    normalize_subject(m.get("subject").and_then(|v| v.as_str()).unwrap_or("")),
+                    m.get("title").and_then(|v| v.as_str()).unwrap_or(""),
+                    normalize_reason(m.get("reason").and_then(|v| v.as_str()).unwrap_or("其他")),
+                    m.get("correct_note").and_then(|v| v.as_str()).unwrap_or(""),
+                    m.get("is_mastered").and_then(|v| v.as_i64()).unwrap_or(0),
+                    m.get("created_at").and_then(|v| v.as_str()),
+                    m.get("updated_at").and_then(|v| v.as_str()),
                 ],
             )
             .map_err(|e| e.to_string())?;

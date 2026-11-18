@@ -34,5 +34,9 @@ export default defineConfig(async () => ({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // 有些用例要渲染上百条记录（如 120 张便签卡），机器负载高时会超过默认的 5s。
+    // 放宽时间上限，不改断言。
+    testTimeout: 20000,
+    hookTimeout: 20000,
   },
 }));

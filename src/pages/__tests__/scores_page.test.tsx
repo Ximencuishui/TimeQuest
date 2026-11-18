@@ -124,6 +124,11 @@ describe("Scores entry", () => {
     expect(await screen.findByRole("heading", { name: EXAM_NAME })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "录入新成绩" })).not.toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
+    // 生物没考：实考 500 / 530，按比例折算为 575 / 610。
+    expect(screen.getByTestId("scaled-total-note")).toHaveTextContent(
+      "实考 500 / 530 · 折算 575 / 610",
+    );
+    expect(screen.getByText(/缺考 生物 · 按已考科目比例折算/)).toBeInTheDocument();
   });
 
   it("score_inputs_keep_digits_and_warn_past_the_soft_max", async () => {

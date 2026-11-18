@@ -2,12 +2,16 @@ import { useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { startOfMonth } from "date-fns";
 import { CalendarView } from "../components/CalendarView";
+import { DateField } from "../components/DateField";
+import { DayNotes } from "../components/DayNotes";
 import { KnowledgePointDrawer, type KnowledgeTask } from "../components/KnowledgePointDrawer";
 import { CompleteDialog } from "../components/CompleteDialog";
 import { RescheduleDialog } from "../components/RescheduleDialog";
 import { Modal } from "../components/Modal";
+import { TimeRangeField } from "../components/TimeRangeField";
 import { TodayTimeline } from "../components/TodayTimeline";
 import { useCurrentTime } from "../hooks/useCurrentTime";
+import { useNotes } from "../hooks/useNotes";
 import { useTasks } from "../hooks/useTasks";
 import {
   useSessionMutations,
@@ -17,6 +21,10 @@ import {
 import { gridRange, parseLocalDate, shiftMonth } from "../lib/calendar";
 import { sessionsOverlap } from "../lib/colors";
 import { todayStr } from "../lib/date";
+import { notesOnDate } from "../lib/notes";
+import { timeRangeError } from "../lib/sessionTime";
+import { unitNameOf } from "../lib/units";
+import { api } from "../api/tauri";
 import { useFocusStore } from "../store/focus";
 import type { TaskSession } from "../types";
 
@@ -47,9 +55,15 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
     view === "calendar",
   );
   const { data: tasks = [] } = useTasks(false);
-  const { create, complete, reschedule } = useSessionMutations();
+  const { data: allNotes } = useNotes();
+  const { create, complete, reschedule, remove } = useSessionMutations();
   const startFocus = useFocusStore((s) => s.start);
   const isViewingToday = date === todayStr(now);
+
+  const dayNotes = useMemo(
+    () => notesOnDate(allNotes ?? [], date),
+    [allNotes, date],
+  );
 
   const [completeTarget, setCompleteTarget] = useState<TaskSession | null>(null);
   const [knowledgeTask, setKnowledgeTask] = useState<KnowledgeTask | null>(null);
@@ -59,11 +73,15 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({
     taskId: 0,
+    date: todayStr(),
     startTime: "09:00",
     endTime: "10:00",
     plannedUnits: 2,
     round: 1,
   });
+  const [conflictPrompt, setConflictPrompt] = useState<TaskSession[] | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TaskSession | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const conflicts = useMemo(() => {
     const planned = sessions.filter((s) => s.status === "planned");
@@ -91,22 +109,72 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
     [sessions],
   );
 
-  const openCreate = () => {
+  const openCreate = (day?: string) => {
     const first = tasks[0];
     setForm({
       taskId: first?.id ?? 0,
+      date: day ?? date,
       startTime: "09:00",
       endTime: "10:00",
       plannedUnits: 2,
       round: first?.current_round ?? 1,
     });
+    setActionError(null);
     setCreateOpen(true);
   };
 
   const openCreateOn = (day: string) => {
     setDate(day);
-    openCreate();
+    openCreate(day);
   };
+
+  const createTimeError = timeRangeError(form.startTime, form.endTime);
+
+  async function doCreate() {
+    await create.mutateAsync({
+      taskId: form.taskId,
+      date: form.date,
+      startTime: form.startTime,
+      endTime: form.endTime,
+      round: form.round,
+      plannedUnits: selectedTask?.type === "side" ? 0 : form.plannedUnits,
+    });
+    setCreateOpen(false);
+    setConflictPrompt(null);
+    setDate(form.date);
+  }
+
+  /** 防呆：保存前先查冲突，冲突时先问一句，而不是存完再挂横幅。 */
+  async function submitCreate() {
+    if (createTimeError) return;
+    setActionError(null);
+    try {
+      const overlaps = await api.findOverlaps(
+        form.date,
+        form.startTime,
+        form.endTime,
+      );
+      if (overlaps.length > 0) {
+        setConflictPrompt(overlaps);
+        return;
+      }
+      await doCreate();
+    } catch (cause) {
+      setActionError(String(cause));
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setActionError(null);
+    try {
+      await remove.mutateAsync(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch (cause) {
+      setActionError(String(cause));
+      setDeleteTarget(null);
+    }
+  }
 
   const showCalendar = () => {
     const parsed = parseLocalDate(date);
@@ -116,6 +184,9 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
   };
 
   const selectedTask = tasks.find((t) => t.id === form.taskId);
+  const selectedUnit = unitNameOf(
+    selectedTask ? { task_unit_name: selectedTask.unit_name } : null,
+  );
 
   const today = todayStr(now);
 
@@ -150,16 +221,11 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
         </h1>
         {view === "day" ? (
           <div className="flex items-center gap-2">
-            <input
-              type="date"
-              className="rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
+            <DateField label="日期" value={date} onChange={setDate} />
             <button
               type="button"
               className="rounded-lg bg-accent px-3 py-2 text-sm text-white hover:bg-accent-soft"
-              onClick={openCreate}
+              onClick={() => openCreate()}
             >
               新建排期
             </button>
@@ -214,7 +280,7 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
               <button
                 type="button"
                 className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm text-white"
-                onClick={openCreate}
+                onClick={() => openCreate()}
               >
                 创建第一个排期
               </button>
@@ -227,6 +293,7 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
               scrollToSessionId={focusSessionId}
               onComplete={setCompleteTarget}
               onReschedule={setRescheduleTarget}
+              onDelete={setDeleteTarget}
               onFocus={startFocus}
               onOpenKnowledge={(session) =>
                 setKnowledgeTask({
@@ -236,6 +303,8 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
               }
             />
           )}
+
+          <DayNotes notes={dayNotes} />
         </>
       )}
 
@@ -257,19 +326,10 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
             <button
               type="button"
               className="rounded-lg bg-accent px-4 py-2 text-white disabled:opacity-50"
-              disabled={!form.taskId || create.isPending}
-              onClick={async () => {
-                await create.mutateAsync({
-                  taskId: form.taskId,
-                  date,
-                  startTime: form.startTime,
-                  endTime: form.endTime,
-                  round: form.round,
-                  plannedUnits:
-                    selectedTask?.type === "side" ? 0 : form.plannedUnits,
-                });
-                setCreateOpen(false);
-              }}
+              disabled={
+                !form.taskId || create.isPending || createTimeError != null
+              }
+              onClick={() => void submitCreate()}
             >
               创建
             </button>
@@ -280,6 +340,16 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
           <p className="text-sm text-ink-muted">请先创建任务。</p>
         ) : (
           <div className="space-y-3 text-sm">
+            <div className="block">
+              <span className="text-ink-muted">日期</span>
+              <div className="mt-1">
+                <DateField
+                  label="日期"
+                  value={form.date}
+                  onChange={(value) => setForm({ ...form, date: value })}
+                />
+              </div>
+            </div>
             <label className="block">
               <span className="text-ink-muted">任务</span>
               <select
@@ -302,28 +372,18 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
                 ))}
               </select>
             </label>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="block">
-                <span className="text-ink-muted">开始</span>
-                <input
-                  type="time"
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2"
-                  value={form.startTime}
-                  onChange={(e) =>
-                    setForm({ ...form, startTime: e.target.value })
-                  }
-                />
-              </label>
-              <label className="block">
-                <span className="text-ink-muted">结束</span>
-                <input
-                  type="time"
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2"
-                  value={form.endTime}
-                  onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-                />
-              </label>
-            </div>
+            <TimeRangeField
+              start={form.startTime}
+              end={form.endTime}
+              onChange={(startTime, endTime) =>
+                setForm({ ...form, startTime, endTime })
+              }
+            />
+            {createTimeError ? (
+              <p className="text-sm text-amber-200" role="alert">
+                {createTimeError}
+              </p>
+            ) : null}
             {selectedTask?.type === "main" ? (
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
@@ -339,7 +399,7 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
                   />
                 </label>
                 <label className="block">
-                  <span className="text-ink-muted">计划课数</span>
+                  <span className="text-ink-muted">计划{selectedUnit}数</span>
                   <input
                     type="number"
                     min={0}
@@ -357,6 +417,81 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
             ) : null}
           </div>
         )}
+      </Modal>
+
+      <Modal
+        open={conflictPrompt != null}
+        title="时段重叠"
+        onClose={() => setConflictPrompt(null)}
+        footer={
+          <>
+            <button
+              type="button"
+              className="rounded-lg px-3 py-2 text-ink-muted hover:bg-white/5"
+              onClick={() => setConflictPrompt(null)}
+            >
+              改时间
+            </button>
+            <button
+              type="button"
+              className="rounded-lg bg-accent px-4 py-2 text-white"
+              onClick={() => void doCreate()}
+            >
+              仍然保存
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-ink-muted">
+          这个时间段和下面 {conflictPrompt?.length ?? 0} 条排期重叠。要保存吗？
+        </p>
+        <ul className="mt-3 space-y-1 text-sm">
+          {(conflictPrompt ?? []).map((item) => (
+            <li key={item.id} className="text-ink-muted">
+              {item.task_title ?? `任务 #${item.task_id}`} · {item.start_time} –{" "}
+              {item.end_time}
+            </li>
+          ))}
+        </ul>
+      </Modal>
+
+      <Modal
+        open={deleteTarget != null}
+        title="删除这条排期？"
+        onClose={() => setDeleteTarget(null)}
+        footer={
+          <>
+            <button
+              type="button"
+              className="rounded-lg px-3 py-2 text-ink-muted hover:bg-white/5"
+              onClick={() => setDeleteTarget(null)}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              className="rounded-lg bg-accent px-4 py-2 text-white disabled:opacity-50"
+              disabled={remove.isPending}
+              onClick={() => void confirmDelete()}
+            >
+              删除
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-ink-muted">
+          {deleteTarget
+            ? `${deleteTarget.task_title ?? "这条排期"} · ${deleteTarget.start_time} – ${deleteTarget.end_time}`
+            : ""}
+        </p>
+        <p className="mt-2 text-sm text-ink-muted">
+          删除后不再出现在今日计划里。已经完成、有学习记录的排期不能删。
+        </p>
+        {actionError ? (
+          <p className="mt-2 text-sm text-amber-200" role="alert">
+            {actionError}
+          </p>
+        ) : null}
       </Modal>
 
       <CompleteDialog

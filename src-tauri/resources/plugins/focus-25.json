@@ -1,0 +1,26 @@
+{
+  "id": "focus-25",
+  "name": "深度专注 25 分钟",
+  "summary": "给专注模式加一套 25/5 循环，学累了按节奏休息，不靠硬撑。",
+  "author": "TimeQuest 官方",
+  "version": "1.0.0",
+  "icon": "⏱",
+  "capabilities": [
+    "专注模式：25 分钟专注 + 5 分钟休息循环",
+    "休息结束时自动回到专注计时"
+  ],
+  "options": [
+    {
+      "key": "focus_minutes",
+      "label": "专注时长（分钟）",
+      "kind": "number",
+      "default": "25"
+    },
+    {
+      "key": "break_minutes",
+      "label": "休息时长（分钟）",
+      "kind": "number",
+      "default": "5"
+    }
+  ]
+}

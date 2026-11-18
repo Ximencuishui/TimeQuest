@@ -12,6 +12,14 @@ export const ACCENT = "#F97316"; // sprint orange
 export const KNOWLEDGE_POINT_DISCLAIMER =
   "注：内置考点目录仅供参考，请以学校老师要求和最新考纲为准。";
 
+/**
+ * 一天最多安排多少分钟的学习（12 小时）。
+ *
+ * 防呆上限：教材导入等批量排期可能把今天堆到几十场，
+ * 「今日剩余待学」不能显示成 16 小时这种吓人的数字。
+ */
+export const MAX_DAILY_STUDY_MINUTES = 720;
+
 export const NOTE_COLORS = [
   "yellow",
   "orange",

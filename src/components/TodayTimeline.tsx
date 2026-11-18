@@ -15,6 +15,7 @@ type Props = {
   timeAware?: boolean;
   onComplete?: (session: TaskSession) => void;
   onReschedule?: (session: TaskSession) => void;
+  onDelete?: (session: TaskSession) => void;
   onFocus?: (session: TaskSession) => void;
   onOpenKnowledge?: (session: TaskSession) => void;
   /** When set, scroll this session into view instead of the clock target. */
@@ -33,6 +34,7 @@ export function TodayTimeline({
   timeAware = true,
   onComplete,
   onReschedule,
+  onDelete,
   onFocus,
   onOpenKnowledge,
   scrollToSessionId = null,
@@ -145,6 +147,7 @@ export function TodayTimeline({
                 onReschedule={
                   onReschedule ? () => onReschedule(session) : undefined
                 }
+                onDelete={onDelete ? () => onDelete(session) : undefined}
                 onFocus={onFocus ? () => onFocus(session) : undefined}
                 onOpenKnowledge={
                   onOpenKnowledge && session.task_type === "main"

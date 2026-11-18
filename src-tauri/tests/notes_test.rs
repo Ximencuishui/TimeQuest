@@ -11,7 +11,10 @@ use sqlx::sqlite::SqlitePoolOptions;
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
-use timequest_lib::{create_note_impl, list_notes_impl, update_note_impl, UpdateNotePayload};
+use timequest_lib::{
+    create_note_impl, create_note_with_date_impl, list_notes_impl, normalize_note_date,
+    update_note_impl, UpdateNotePayload,
+};
 
 async fn open_rusqlite_migrated() -> (PathBuf, Connection) {
     let path = std::env::temp_dir().join(format!("timequest-notes-{}.db", uuid::Uuid::new_v4()));
@@ -88,6 +91,7 @@ async fn update_note_refreshes_updated_at_on_inplace_edit() {
             content: Some("改后".into()),
             color: None,
             pinned: None,
+            note_date: None,
         },
     )
     .expect("update_note");
@@ -145,6 +149,7 @@ async fn list_notes_orders_by_updated_at_desc() {
             content: Some("A-edited".into()),
             color: None,
             pinned: None,
+            note_date: None,
         },
     )
     .expect("update A");
@@ -191,6 +196,7 @@ async fn update_note_does_not_change_updated_at_when_no_field_changed() {
             content: Some("same".into()),
             color: Some("blue".into()),
             pinned: Some(false),
+            note_date: None,
         },
     )
     .expect("noop-looking update");
@@ -243,6 +249,7 @@ async fn update_note_normalizes_invalid_color_to_default() {
             content: None,
             color: Some("neon".into()),
             pinned: None,
+            note_date: None,
         },
     )
     .expect("update");
@@ -341,4 +348,94 @@ async fn list_notes_pinned_sort_before_updated_at() {
     assert!(y < x, "a. pinned Y before newer unpinned X");
 
     let _ = std::fs::remove_file(&path);
+}
+
+/// 便签绑定日期：创建时写入、库内一致。
+#[tokio::test]
+async fn create_note_with_date_stores_bound_date() {
+    let (path, conn) = open_rusqlite_migrated().await;
+    let note = create_note_with_date_impl(
+        &conn,
+        "背单词".into(),
+        "yellow".into(),
+        Some("2026-11-18".into()),
+    )
+    .expect("create with date");
+
+    assert_eq!(note.note_date.as_deref(), Some("2026-11-18"));
+    let stored: Option<String> = conn
+        .query_row(
+            "SELECT note_date FROM notes WHERE id=?1",
+            params![note.id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(stored.as_deref(), Some("2026-11-18"));
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 不传日期的创建保持 `note_date` 为空（旧数据兼容）。
+#[tokio::test]
+async fn create_note_without_date_leaves_note_date_null() {
+    let (path, conn) = open_rusqlite_migrated().await;
+    let note = create_note_impl(&conn, "无日期".into(), "yellow".into()).expect("create");
+    assert!(note.note_date.is_none());
+    let _ = std::fs::remove_file(&path);
+}
+
+/// update 可以绑定日期，也可以取消绑定（空串）。
+#[tokio::test]
+async fn update_note_binds_then_clears_date() {
+    let (path, conn) = open_rusqlite_migrated().await;
+    let id = insert_note(
+        &conn,
+        "改期提醒",
+        "yellow",
+        0,
+        "2026-04-01 10:00:00",
+        "2026-04-01 10:00:00",
+    );
+
+    let bound = update_note_impl(
+        &conn,
+        id,
+        UpdateNotePayload {
+            content: None,
+            color: None,
+            pinned: None,
+            note_date: Some("2026-04-02".into()),
+        },
+    )
+    .expect("bind date");
+    assert_eq!(bound.note_date.as_deref(), Some("2026-04-02"));
+
+    let cleared = update_note_impl(
+        &conn,
+        id,
+        UpdateNotePayload {
+            content: None,
+            color: None,
+            pinned: None,
+            note_date: Some(String::new()),
+        },
+    )
+    .expect("clear date");
+    assert!(cleared.note_date.is_none());
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 脏日期不当成绑定：写库前归一为「无日期」。
+#[test]
+fn normalize_note_date_rejects_malformed_values() {
+    assert_eq!(
+        normalize_note_date(Some("2026-11-18")),
+        Some("2026-11-18".to_string())
+    );
+    assert_eq!(normalize_note_date(Some("")), None);
+    assert_eq!(normalize_note_date(Some("   ")), None);
+    assert_eq!(normalize_note_date(Some("2026/11/18")), None);
+    assert_eq!(normalize_note_date(Some("今天")), None);
+    assert_eq!(normalize_note_date(None), None);
 }

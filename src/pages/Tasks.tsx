@@ -7,6 +7,7 @@ import { TextbookCombobox } from "../components/TextbookCombobox";
 import { TextbookImportWizard } from "../components/TextbookImportWizard";
 import { useTaskMutations, useTasks } from "../hooks/useTasks";
 import { SUBJECTS } from "../lib/constants";
+import { formatMonthDay } from "../lib/date";
 import { TASK_PALETTE } from "../lib/colors";
 import { useUiStore } from "../store/ui";
 import type { TaskType } from "../types";
@@ -22,6 +23,7 @@ export function Tasks() {
   const [knowledgeTask, setKnowledgeTask] = useState<KnowledgeTask | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [titleError, setTitleError] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: "",
     type: "main" as TaskType,
@@ -40,9 +42,15 @@ export function Tasks() {
   }, [toast]);
 
   const submit = async () => {
-    if (!form.title.trim()) return;
+    const title = form.title.trim();
+    // 防呆：空标题直接拦下并说清楚，而不是点了没反应。
+    if (!title) {
+      setTitleError("请给任务起个名字，例如「物理必修二 第一轮」");
+      return;
+    }
+    setTitleError(null);
     await create.mutateAsync({
-      title: form.title.trim(),
+      title,
       type: form.type,
       subject: form.type === "main" ? form.subject : null,
       textbook: form.type === "main" ? form.textbook || null : null,
@@ -118,7 +126,7 @@ export function Tasks() {
             </button>
             <button
               type="button"
-              className="rounded-lg bg-accent px-4 py-2 text-white"
+              className="rounded-lg bg-accent px-4 py-2 text-white disabled:opacity-50"
               onClick={submit}
               disabled={create.isPending}
             >
@@ -133,9 +141,18 @@ export function Tasks() {
             <input
               className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-ink outline-none hover:border-white/20 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
               value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              aria-invalid={titleError != null}
+              onChange={(e) => {
+                setForm({ ...form, title: e.target.value });
+                if (titleError) setTitleError(null);
+              }}
             />
           </label>
+          {titleError ? (
+            <p className="mt-1 text-sm text-amber-200" role="alert">
+              {titleError}
+            </p>
+          ) : null}
           <div className="flex gap-2">
             {(["main", "side"] as TaskType[]).map((t) => (
               <button
@@ -249,11 +266,15 @@ export function Tasks() {
       {importOpen ? (
         <TextbookImportWizard
           onClose={() => setImportOpen(false)}
-          onCreated={(plannedCount, autoSchedule) => {
+          onCreated={(plannedCount, autoSchedule, lastPlannedDate) => {
             setImportOpen(false);
             setToast(
               autoSchedule
-                ? `任务创建成功，已生成 ${plannedCount} 个排期。`
+                ? `任务创建成功，已生成 ${plannedCount} 个排期${
+                    lastPlannedDate
+                      ? `，铺到 ${formatMonthDay(lastPlannedDate)}`
+                      : ""
+                  }。`
                 : "任务创建成功。",
             );
           }}

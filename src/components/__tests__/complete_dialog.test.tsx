@@ -512,3 +512,78 @@ describe("CompleteDialog actual_units validation", () => {
     expect(mockedInvoke).not.toHaveBeenCalled();
   });
 });
+
+/** 教材导出的任务单位是「节」，并携带本场节名（self_note）。 */
+const textbookSession: TaskSession = {
+  ...session,
+  id: 44,
+  task_title: "物理必修二 第一轮",
+  task_unit_name: "节",
+  self_note: "第三章 机械能守恒",
+  planned_units: 4,
+};
+
+describe("CompleteDialog 防呆：单位口径与剩余改期时段", () => {
+  beforeEach(() => {
+    mockedInvoke.mockReset();
+    mockedInvoke.mockResolvedValue({
+      session,
+      xpAwarded: 0,
+      newAchievements: [],
+      createdSessionId: null,
+      remainderSessionId: null,
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("complete_dialog_uses_task_unit_name_and_shows_section_title", () => {
+    render(
+      <CompleteDialog
+        session={textbookSession}
+        onClose={() => undefined}
+        onSubmit={async () => undefined}
+      />,
+    );
+
+    // 单位跟着任务走：「节」而不是硬编码的「课」。
+    expect(screen.getByLabelText(/实际节数/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/实际课数/)).not.toBeInTheDocument();
+    expect(screen.getByText(/计划 4 节/)).toBeInTheDocument();
+    // 本场是教材里的哪一节，不再是一堆看不懂的时段。
+    expect(screen.getByText("本场：第三章 机械能守恒")).toBeInTheDocument();
+  });
+
+  it("complete_dialog_defer_rejects_inverted_time_range", () => {
+    render(
+      <CompleteDialog
+        session={session}
+        onClose={() => undefined}
+        onSubmit={async () => undefined}
+      />,
+    );
+
+    const units = screen.getByLabelText(/实际课数/);
+    fireEvent.change(units, { target: { value: "2" } });
+
+    const deferBox = screen.getByRole("checkbox", { name: /剩余.*改到下次/ });
+    fireEvent.click(deferBox);
+
+    const timeInputs = document.querySelectorAll('input[type="time"]');
+    expect(timeInputs.length).toBe(2);
+    fireEvent.change(timeInputs[0]!, { target: { value: "20:00" } });
+    fireEvent.change(timeInputs[1]!, { target: { value: "10:00" } });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("不能早于开始时间");
+    expect(screen.getByRole("button", { name: "确认完成" })).toBeDisabled();
+    expect(mockedInvoke).not.toHaveBeenCalled();
+
+    // 改回正常时段后错误消失，可以提交。
+    fireEvent.change(timeInputs[0]!, { target: { value: "19:00" } });
+    fireEvent.change(timeInputs[1]!, { target: { value: "20:00" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "确认完成" })).not.toBeDisabled();
+  });
+});

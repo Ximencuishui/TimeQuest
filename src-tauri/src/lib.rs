@@ -3,6 +3,10 @@ mod db;
 mod error;
 mod gamification;
 mod models;
+mod pdf_outline;
+mod pdf_text;
+mod plugins;
+mod textbook_source;
 mod textbooks;
 
 pub use commands::app_settings::{get_setting_impl, set_setting_impl};
@@ -11,14 +15,27 @@ pub use commands::exams::{
     create_exam_record_impl, delete_exam_record_impl, list_exam_records_impl,
 };
 pub use commands::logs::{compute_duration_min, create_log_impl};
+pub use commands::mistakes::{
+    create_mistake_impl, delete_mistake_impl, list_mistakes_impl, normalize_reason,
+    normalize_subject, update_mistake_impl, REASON_WHITELIST,
+};
 pub use commands::mock::{clear_mock_data_impl, generate_mock_data_impl, has_mock_data_impl};
 pub use commands::notes::{
-    create_note_impl, list_notes_impl, normalize_color, update_note_impl, COLOR_WHITELIST,
+    create_note_impl, create_note_with_date_impl, list_notes_impl, normalize_color,
+    normalize_note_date, update_note_impl, COLOR_WHITELIST,
+};
+pub use commands::planner::{
+    generate_week_plan_impl, GenerateWeekPlanInput, GenerateWeekPlanResult,
+};
+pub use commands::plugins::{
+    download_plugin_textbook, install_plugin, list_plugin_options, list_plugin_textbook_catalog,
+    list_plugins, read_plugin_resource, set_plugin_option, uninstall_plugin,
+    PLUGIN_OPTION_DOWNLOAD_SOURCE, PLUGIN_OPTION_GITHUB_TOKEN, TEXTBOOK_DOWNLOAD_PROGRESS_EVENT,
 };
 pub use commands::profile::{get_user_profile_impl, update_user_profile_impl};
 pub use commands::sessions::{
-    complete_session_impl, create_session_impl, list_sessions_in_range_impl,
-    reschedule_session_impl, test_hooks, CompleteResult,
+    complete_session_impl, create_session_impl, delete_session_impl,
+    list_sessions_in_range_impl, reschedule_session_impl, test_hooks, CompleteResult,
 };
 pub use commands::stats::{
     stats_completion_rate_impl, stats_daily_units_impl, stats_method_share_impl,
@@ -27,16 +44,36 @@ pub use commands::stats::{
 pub use commands::tasks::{advance_round_impl, task_progress_impl};
 pub use commands::textbook::{
     add_custom_knowledge_point_impl, delete_knowledge_point_impl, generate_tasks_from_outline_impl,
-    get_task_knowledge_points_impl, import_textbook_json_impl, list_textbook_catalog_impl,
-    resolve_textbook_outline, toggle_knowledge_point_impl, GenerateTasksFromOutlineInput,
-    GenerateTasksResult, ImportTextbookResult, TaskKnowledgePoint, TextbookCatalogItem,
+    get_task_knowledge_points_impl, import_textbook_json_impl, import_textbook_pdf,
+    list_textbook_catalog_impl, resolve_textbook_outline, toggle_knowledge_point_impl,
+    GenerateTasksFromOutlineInput, GenerateTasksResult, ImportTextbookResult, TaskKnowledgePoint,
+    TextbookCatalogItem,
 };
 pub use error::{AppError, SessionError, TextbookError};
 pub use gamification::{update_streak_values, RESCHEDULE_RECOVERY_BONUS};
 pub use models::{
     CompleteSessionResult, CompletionRate, CreateExamRecordPayload, CreateLogPayload,
-    DailyUnitsRow, ExamRecord, MethodShareRow, PlanVsActualRow, RemainderSchedule, SubjectTargets,
-    TagTypeRow, Task, TaskProgress, TaskSession, UpdateNotePayload, UserProfile,
+    DailyUnitsRow, ExamRecord, MethodShareRow, Mistake, PlanVsActualRow, RemainderSchedule,
+    SubjectTargets, TagTypeRow, Task, TaskProgress, TaskSession, UpdateMistakePayload,
+    UpdateNotePayload, UserProfile,
+};
+pub use pdf_outline::{
+    extract_outline, extract_outline_lines, inspect_pdf_pages, outline_to_textbook,
+    parse_outline_lines, OutlineChapter, OutlineSection,
+};
+pub use plugins::{
+    builtin_package, builtin_packages, builtin_plugin_resources, install_plugin_impl,
+    list_plugins_impl, plugin_option_key, plugin_options_impl, plugin_resource_text,
+    set_plugin_option_impl, uninstall_plugin_impl, PluginInfo, PluginOption, PluginOptionValue,
+    PluginPackage, PluginResource, INSTALLED_PLUGINS_KEY, PLUGIN_RESOURCES_DIR,
+    PLUGIN_RESOURCE_KIND_FILE, PLUGIN_RESOURCE_KIND_TEXTBOOK_CATALOG,
+};
+pub use textbook_source::{
+    download_textbook, encode_repo_path, parse_textbook_catalog, safe_file_name,
+    textbook_download_plan, textbook_download_requests, textbook_download_urls, textbooks_dir,
+    CatalogShard, CatalogStage, CatalogTextbook, DownloadCandidate, DownloadProgress,
+    DownloadRequest, DownloadRetryPolicy, DownloadShardPlan, DownloadSource, DownloadedTextbook,
+    GITHUB_BLOB_ACCEPT, TextbookCatalog,
 };
 pub use textbooks::parse_textbook_json;
 pub use textbooks::{
@@ -145,6 +182,7 @@ pub fn run() {
             commands::list_available_textbooks,
             commands::list_textbook_catalog,
             commands::import_textbook_json,
+            commands::import_textbook_pdf,
             commands::generate_tasks_from_outline,
             commands::get_task_knowledge_points,
             commands::toggle_knowledge_point,
@@ -154,6 +192,8 @@ pub fn run() {
             commands::list_sessions_in_range,
             commands::list_sessions_by_task,
             commands::create_session,
+            commands::delete_session,
+            commands::generate_week_plan,
             commands::find_overlaps,
             commands::complete_session,
             commands::reschedule_session,
@@ -163,6 +203,18 @@ pub fn run() {
             commands::create_note,
             commands::update_note,
             commands::delete_note,
+            commands::list_plugins,
+            commands::install_plugin,
+            commands::uninstall_plugin,
+            commands::list_plugin_options,
+            commands::set_plugin_option,
+            commands::read_plugin_resource,
+            commands::list_plugin_textbook_catalog,
+            commands::download_plugin_textbook,
+            commands::list_mistakes,
+            commands::create_mistake,
+            commands::update_mistake,
+            commands::delete_mistake,
             commands::get_user_stats,
             commands::list_user_achievements,
             commands::stats_plan_vs_actual,

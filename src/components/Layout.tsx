@@ -6,6 +6,7 @@ import { CelebrationHost } from "./CelebrationHost";
 import { FocusHost } from "./FocusHost";
 import { ProfileChip } from "./ProfileChip";
 
+/** 主导航。工具箱是独立一页，里面是工具图标网格。 */
 const NAV = [
   { to: "/", label: "看板", end: true },
   { to: "/tasks", label: "任务" },
@@ -13,11 +14,31 @@ const NAV = [
   { to: "/stats", label: "统计" },
   { to: "/scores", label: "成绩" },
   { to: "/notes", label: "便签" },
+  { to: "/toolbox", label: "工具箱" },
+];
+
+/** 底部导航平铺，工具箱在末位。 */
+const MOBILE_NAV = [
+  { to: "/", label: "看板", end: true },
+  { to: "/tasks", label: "任务" },
+  { to: "/today", label: "今日" },
+  { to: "/stats", label: "统计" },
+  { to: "/scores", label: "成绩" },
+  { to: "/notes", label: "便签" },
+  { to: "/toolbox", label: "工具箱" },
   { to: "/settings", label: "设置" },
 ];
 
+const linkClass = (isActive: boolean) =>
+  `rounded-lg px-3 py-2 text-sm transition ${
+    isActive
+      ? "bg-accent/15 text-accent-soft"
+      : "text-ink-muted hover:bg-white/5 hover:text-ink"
+  }`;
+
 export function Layout() {
   const { data: profile } = useUserProfile();
+
   return (
     <div className="flex h-full min-h-0 flex-col md:flex-row">
       <aside className="hidden w-52 shrink-0 flex-col border-r border-white/5 bg-surface-2/80 px-3 py-5 md:flex">
@@ -35,17 +56,17 @@ export function Layout() {
               key={item.to}
               to={item.to}
               end={item.end}
-              className={({ isActive }) =>
-                `rounded-lg px-3 py-2 text-sm transition ${
-                  isActive
-                    ? "bg-accent/15 text-accent-soft"
-                    : "text-ink-muted hover:bg-white/5 hover:text-ink"
-                }`
-              }
+              className={({ isActive }) => linkClass(isActive)}
             >
               {item.label}
             </NavLink>
           ))}
+          <NavLink
+            to="/settings"
+            className={({ isActive }) => linkClass(isActive)}
+          >
+            设置
+          </NavLink>
         </nav>
         {profile ? (
           <div className="mt-auto border-t border-white/5 pt-4">
@@ -64,7 +85,7 @@ export function Layout() {
           <Outlet />
         </main>
         <nav className="flex border-t border-white/5 bg-surface-2/95 md:hidden">
-          {NAV.map((item) => (
+          {MOBILE_NAV.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

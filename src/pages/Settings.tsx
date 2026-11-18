@@ -14,6 +14,8 @@ import { todayStr } from "../lib/date";
 import { dailyMotivation } from "../lib/motivation";
 import { format } from "date-fns";
 import { ProfileSetting } from "../components/ProfileSetting";
+import { DailyPlanSetting } from "../components/DailyPlanSetting";
+import { GlossaryList } from "../components/GlossaryList";
 import { useHasMockData } from "../hooks/useMockData";
 import {
   CELEBRATIONS_SETTING_KEY,
@@ -244,6 +246,9 @@ export function Settings() {
 
       <section className="rounded-2xl border border-white/5 bg-surface-2/80 p-4">
         <h2 className="font-display text-lg">考试目标</h2>
+        <p className="mt-1 text-xs text-ink-muted">
+          除高考外添加的目标（比如模考）会在首页显示倒计时，帮你盯住最近的一次考试。
+        </p>
         <ul className="mt-3 space-y-2">
           {exams.map((e) => (
             <li
@@ -344,6 +349,10 @@ export function Settings() {
       </section>
 
       <MotivationSetting />
+
+      <DailyPlanSetting />
+
+      <GlossaryList />
 
       <section className="rounded-2xl border border-white/5 bg-surface-2/80 p-4 space-y-3">
         <h2 className="font-display text-lg">窗口与托盘</h2>

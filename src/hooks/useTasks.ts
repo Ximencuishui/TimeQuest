@@ -2,7 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/tauri";
 import { matchTextbook, outlinePointsBySection, outlineSectionNames } from "../lib/sectionCatalog";
 import { broadcastSessionUpdated } from "../lib/widgetWindow";
-import type { GenerateTasksFromOutlineInput, Task, TaskKnowledgePoint } from "../types";
+import type {
+  GenerateTasksFromOutlineInput,
+  GenerateWeekPlanInput,
+  Task,
+  TaskKnowledgePoint,
+} from "../types";
 
 export function useTasks(includeArchived = false) {
   return useQuery({
@@ -117,7 +122,18 @@ export function useTaskMutations() {
     },
   });
 
-  return { create, update, archive, advanceRound, generateFromOutline };
+  const generateWeekPlan = useMutation({
+    mutationFn: (input: GenerateWeekPlanInput) => api.generateWeekPlan(input),
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["sessions"] });
+      qc.invalidateQueries({ queryKey: ["sessions-task"] });
+      qc.invalidateQueries({ queryKey: ["stats"] });
+      broadcastSessionUpdated();
+    },
+  });
+
+  return { create, update, archive, advanceRound, generateFromOutline, generateWeekPlan };
 }
 
 export function useToggleKnowledgePoint() {

@@ -14,8 +14,16 @@ export function useNoteMutations() {
 
   return {
     create: useMutation({
-      mutationFn: ({ content, color }: { content: string; color: string }) =>
-        api.createNote(content, color),
+      mutationFn: ({
+        content,
+        color,
+        noteDate,
+      }: {
+        content: string;
+        color: string;
+        /** 绑定的日期（YYYY-MM-DD）；不绑就传 null。 */
+        noteDate?: string | null;
+      }) => api.createNote(content, color, noteDate ?? null),
       onSuccess: invalidate,
     }),
     update: useMutation({
@@ -24,7 +32,13 @@ export function useNoteMutations() {
         payload,
       }: {
         id: number;
-        payload: { content?: string; color?: string; pinned?: boolean };
+        payload: {
+          content?: string;
+          color?: string;
+          pinned?: boolean;
+          /** 空串 = 取消绑定日期。 */
+          noteDate?: string;
+        };
       }) => api.updateNote(id, payload),
       onSuccess: invalidate,
     }),

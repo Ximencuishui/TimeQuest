@@ -15,6 +15,7 @@ import {
   type ExamScoreKey,
 } from "../lib/examRecord";
 import { DEFAULT_USER_PROFILE, profileLine } from "../lib/profile";
+import { examScoreBreakdown, scaledTotalNote } from "../lib/scoreScaling";
 import type { ExamRecord } from "../types";
 
 function ExamEntryDialog({
@@ -62,7 +63,7 @@ function ExamEntryDialog({
       >
         <p className="text-sm text-ink-muted">
           {line ? `按你的档案（${line}）录入这六科。` : "录入这六科。"}
-          没考的科目留空。
+          没考的科目留空——留空就是缺考，总分会按已考科目比例折算。
         </p>
         <label htmlFor="exam-name" className="block text-sm">
           考试名称
@@ -133,6 +134,8 @@ function RecordCard({
   onDelete: (record: ExamRecord) => void;
 }) {
   const { count, sum } = filledScoreSum(record);
+  const breakdown = examScoreBreakdown(record);
+  const note = scaledTotalNote(record);
   return (
     <article className="rounded-2xl border border-white/5 bg-surface-2/80 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -141,6 +144,19 @@ function RecordCard({
           <p className="mt-1 text-xs text-ink-muted">
             {record.exam_date} · 已填 {count} 科 · 合计 {sum}
           </p>
+          {note ? (
+            <p className="mt-1 text-xs text-ink-muted" data-testid="scaled-total-note">
+              {note}
+            </p>
+          ) : null}
+          {breakdown.missing.length > 0 ? (
+            <p className="mt-1 text-xs text-amber-300">
+              缺考 {breakdown.missing.map((m) => m.label).join("、")}
+              {breakdown.scaledTotal != null && breakdown.filled.length >= 2
+                ? " · 按已考科目比例折算，可与总分目标直接比"
+                : " · 只记了一科时不折算"}
+            </p>
+          ) : null}
         </div>
         <button
           type="button"

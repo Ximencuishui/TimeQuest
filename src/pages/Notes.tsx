@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { DateField } from "../components/DateField";
 import NoteCard from "../components/NoteCard";
 import { NOTE_COLOR_CLASSES } from "../lib/colors";
 import { NOTE_COLORS, type NoteColor } from "../lib/constants";
@@ -9,6 +10,7 @@ export function Notes() {
   const { create, update, remove } = useNoteMutations();
   const [draft, setDraft] = useState("");
   const [color, setColor] = useState<NoteColor>("yellow");
+  const [draftDate, setDraftDate] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
 
@@ -44,6 +46,14 @@ export function Notes() {
     [togglePin],
   );
 
+  /** 绑定 / 解绑日期：空串表示解绑。 */
+  const onSetDate = useCallback(
+    (id: number, noteDate: string) => {
+      togglePin({ id, payload: { noteDate } });
+    },
+    [togglePin],
+  );
+
   const onDelete = useCallback(
     (id: number) => {
       if (window.confirm("确认删除这张便签？")) {
@@ -66,26 +76,42 @@ export function Notes() {
           onChange={(e) => setDraft(e.target.value)}
         />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex gap-2">
-            {NOTE_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className={`h-7 w-7 rounded-full border-2 ${
-                  NOTE_COLOR_CLASSES[c].bg
-                } ${color === c ? "border-white" : "border-transparent"}`}
-                onClick={() => setColor(c)}
-                aria-label={c}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex gap-2">
+              {NOTE_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`h-7 w-7 rounded-full border-2 ${
+                    NOTE_COLOR_CLASSES[c].bg
+                  } ${color === c ? "border-white" : "border-transparent"}`}
+                  onClick={() => setColor(c)}
+                  aria-label={c}
+                />
+              ))}
+            </div>
+            <div className="w-44">
+              <DateField
+                label="新便签日期"
+                value={draftDate}
+                onChange={setDraftDate}
+                allowEmpty
+                emptyLabel="不绑定日期"
               />
-            ))}
+            </div>
           </div>
           <button
             type="button"
             className="rounded-lg bg-accent px-4 py-2 text-sm text-white disabled:opacity-50"
             disabled={!draft.trim() || create.isPending}
             onClick={async () => {
-              await create.mutateAsync({ content: draft.trim(), color });
+              await create.mutateAsync({
+                content: draft.trim(),
+                color,
+                noteDate: draftDate || null,
+              });
               setDraft("");
+              setDraftDate("");
             }}
           >
             添加便签
@@ -111,6 +137,7 @@ export function Notes() {
               onSave={onSave}
               onTogglePin={onTogglePin}
               onDelete={onDelete}
+              onSetDate={onSetDate}
             />
           ))}
         </div>

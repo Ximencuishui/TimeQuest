@@ -56,6 +56,7 @@ struct SessionJoinRow {
     task_type: String,
     color: Option<String>,
     subject: Option<String>,
+    task_unit_name: Option<String>,
 }
 
 impl SessionJoinRow {
@@ -79,6 +80,7 @@ impl SessionJoinRow {
             task_type: Some(self.task_type),
             task_color: self.color,
             subject: self.subject,
+            task_unit_name: self.task_unit_name,
         }
     }
 }
@@ -87,7 +89,7 @@ const SESSION_JOIN_SQL: &str = r#"
 SELECT s.id, s.task_id, s.date, s.start_time, s.end_time, s.round, s.status,
        s.planned_units, s.actual_units, s.self_rating, s.self_note, s.rescheduled_to,
        s.xp_awarded, s.created_at,
-       t.title, t.type AS task_type, t.color, t.subject
+       t.title, t.type AS task_type, t.color, t.subject, t.unit_name AS task_unit_name
 FROM task_sessions s
 JOIN tasks t ON t.id = s.task_id
 "#;
@@ -112,6 +114,7 @@ fn map_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskSession> {
         task_type: row.get(15).ok(),
         task_color: row.get(16).ok(),
         subject: row.get(17).ok(),
+        task_unit_name: row.get(18).ok(),
     })
 }
 
@@ -119,7 +122,7 @@ const SESSION_SELECT: &str = r#"
 SELECT s.id, s.task_id, s.date, s.start_time, s.end_time, s.round, s.status,
        s.planned_units, s.actual_units, s.self_rating, s.self_note, s.rescheduled_to,
        s.xp_awarded, s.created_at,
-       t.title, t.type, t.color, t.subject
+       t.title, t.type, t.color, t.subject, t.unit_name
 FROM task_sessions s
 JOIN tasks t ON t.id = s.task_id
 "#;
@@ -143,19 +146,45 @@ fn normalize_hhmm(raw: &str) -> String {
 }
 
 fn duration_minutes(start: &str, end: &str) -> i64 {
-    let parse = |s: &str| -> Option<i64> {
-        let parts: Vec<_> = s.split(':').collect();
-        if parts.len() < 2 {
-            return None;
-        }
-        let h: i64 = parts[0].parse().ok()?;
-        let m: i64 = parts[1].parse().ok()?;
-        Some(h * 60 + m)
-    };
-    match (parse(start), parse(end)) {
+    match (parse_hhmm_minutes(start), parse_hhmm_minutes(end)) {
         (Some(a), Some(b)) if b >= a => b - a,
         _ => 0,
     }
+}
+
+/// Minutes since midnight for an `HH:MM` string. `None` when unparseable.
+fn parse_hhmm_minutes(raw: &str) -> Option<i64> {
+    let parts: Vec<_> = raw.split(':').collect();
+    if parts.len() < 2 {
+        return None;
+    }
+    let h: i64 = parts[0].parse().ok()?;
+    let m: i64 = parts[1].parse().ok()?;
+    if !(0..=23).contains(&h) || !(0..=59).contains(&m) {
+        return None;
+    }
+    Some(h * 60 + m)
+}
+
+/// A session must have parseable bounds and `end_time` not before `start_time`.
+///
+/// Guards the "20:00 → 10:00" typo at the boundary, before anything is written.
+/// A zero-length range (start == end) stays legal: the completion path records
+/// `.max(1)` minutes, which the duration spec pins down.
+pub fn validate_time_range(start_time: &str, end_time: &str) -> Result<(), SessionError> {
+    let start = parse_hhmm_minutes(start_time).ok_or_else(|| SessionError::InvalidTimeFormat {
+        value: start_time.to_string(),
+    })?;
+    let end = parse_hhmm_minutes(end_time).ok_or_else(|| SessionError::InvalidTimeFormat {
+        value: end_time.to_string(),
+    })?;
+    if end < start {
+        return Err(SessionError::InvalidTimeRange {
+            start_time: start_time.to_string(),
+            end_time: end_time.to_string(),
+        });
+    }
+    Ok(())
 }
 
 async fn fetch_session_sqlx(pool: &SqlitePool, id: i64) -> Result<TaskSession, AppError> {
@@ -358,6 +387,8 @@ pub async fn complete_session_impl(
             start_time: "19:00".into(),
             end_time: "20:00".into(),
         });
+        // 防呆：剩余改期的时段同样不允许反向。
+        validate_time_range(&slot.start_time, &slot.end_time)?;
         let result = sqlx::query(
             r#"INSERT INTO task_sessions (task_id, date, start_time, end_time, round, planned_units)
                VALUES (?1, ?2, ?3, ?4, ?5, ?6)"#,
@@ -531,6 +562,8 @@ pub async fn create_session_impl(
     let planned = planned_units.unwrap_or(0);
     let start_time = normalize_hhmm(&start_time);
     let end_time = normalize_hhmm(&end_time);
+    // 防呆：结束早于开始是笔误，不写库。
+    validate_time_range(&start_time, &end_time)?;
 
     let result = sqlx::query(
         r#"INSERT INTO task_sessions (task_id, date, start_time, end_time, round, planned_units)
@@ -583,6 +616,11 @@ pub async fn reschedule_session_impl(
         )));
     }
 
+    // 防呆：改期同样不允许结束早于开始。
+    let start_time = normalize_hhmm(&start_time);
+    let end_time = normalize_hhmm(&end_time);
+    validate_time_range(&start_time, &end_time).map_err(|e| AppError::msg(e.to_string()))?;
+
     let insert = sqlx::query(
         r#"INSERT INTO task_sessions (task_id, date, start_time, end_time, round, planned_units)
            VALUES (?1, ?2, ?3, ?4, ?5, ?6)"#,
@@ -617,6 +655,50 @@ pub async fn reschedule_session_impl(
         current_streak: 0,
         streak_milestone: None,
     })
+}
+
+/// Delete a planned session (Tauri-free).
+///
+/// Only `planned` rows can go: finished sessions are study history. A session
+/// that already has `actual_logs` is refused so no learning record is lost.
+/// When the deleted row was the target of a reschedule, the source row keeps
+/// its `rescheduled` status but loses the dangling pointer.
+pub async fn delete_session_impl(db: &SqlitePool, session_id: i64) -> Result<(), SessionError> {
+    let mut tx = db.begin().await?;
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT status FROM task_sessions WHERE id = ?1")
+            .bind(session_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let Some((status,)) = row else {
+        tx.rollback().await.ok();
+        return Err(SessionError::SessionNotFound { session_id });
+    };
+    if status != "planned" {
+        tx.rollback().await.ok();
+        return Err(SessionError::SessionNotDeletable { status });
+    }
+
+    let logs: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM actual_logs WHERE session_id = ?1")
+            .bind(session_id)
+            .fetch_one(&mut *tx)
+            .await?;
+    if logs > 0 {
+        tx.rollback().await.ok();
+        return Err(SessionError::SessionHasLogs { session_id });
+    }
+
+    sqlx::query("UPDATE task_sessions SET rescheduled_to = NULL WHERE rescheduled_to = ?1")
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM task_sessions WHERE id = ?1")
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(())
 }
 
 /// Pad a parseable `Y-M-D` bound to `YYYY-MM-DD` (`"2026-11-1"` → `"2026-11-01"`).
@@ -728,6 +810,16 @@ pub async fn create_session(
     )
     .await
     .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn delete_session(
+    pool: State<'_, SqlitePool>,
+    session_id: i64,
+) -> Result<(), String> {
+    delete_session_impl(pool.inner(), session_id)
+        .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]

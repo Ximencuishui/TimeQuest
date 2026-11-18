@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useUiStore } from "../../store/ui";
 import { CountdownPanel } from "../CountdownPanel";
@@ -34,6 +35,13 @@ function MountGate({ show }: { show: boolean }) {
   return show ? <CountdownPanel /> : null;
 }
 
+/** CountdownPanel 会读「每日学习上限」设置，所以需要 QueryClientProvider。 */
+function makeClient() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
+  });
+}
+
 describe("CountdownPanel interval lifecycle", () => {
   beforeEach(() => {
     todaySessions.splice(0, todaySessions.length);
@@ -52,7 +60,11 @@ describe("CountdownPanel interval lifecycle", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     todaySessions.push({ status: "planned", start_time: "11:00", end_time: "13:00", task_title: "英语" });
 
-    const { rerender } = render(<MountGate show />);
+    const { rerender } = render(
+      <QueryClientProvider client={makeClient()}>
+        <MountGate show />
+      </QueryClientProvider>,
+    );
 
     const before = clockText();
     expect(before).toMatch(/\d{2}:\d{2}:\d{2}/);
@@ -63,7 +75,11 @@ describe("CountdownPanel interval lifecycle", () => {
     const afterTick = clockText();
     expect(afterTick).not.toBe(before);
 
-    rerender(<MountGate show={false} />);
+    rerender(
+      <QueryClientProvider client={makeClient()}>
+        <MountGate show={false} />
+      </QueryClientProvider>,
+    );
     expect(screen.queryByText(/\d{2}:\d{2}:\d{2}/)).not.toBeInTheDocument();
 
     await act(async () => {
@@ -80,7 +96,11 @@ describe("CountdownPanel interval lifecycle", () => {
     const setIntervalSpy = vi.spyOn(window, "setInterval");
     const clearIntervalSpy = vi.spyOn(window, "clearInterval");
 
-    const { unmount } = render(<CountdownPanel />);
+    const { unmount } = render(
+      <QueryClientProvider client={makeClient()}>
+        <CountdownPanel />
+      </QueryClientProvider>,
+    );
 
     // C 段：空依赖时 mount 只创建一次；若依赖含 target，仍至少一次。
     expect(setIntervalSpy).toHaveBeenCalled();
@@ -101,7 +121,11 @@ describe("CountdownPanel interval lifecycle", () => {
     const clearIntervalSpy = vi.spyOn(window, "clearInterval");
 
     seedPrimary("2027-06-07", "高考");
-    render(<CountdownPanel />);
+    render(
+      <QueryClientProvider client={makeClient()}>
+        <CountdownPanel />
+      </QueryClientProvider>,
+    );
 
     expect(screen.getByText("目标日 2027-06-07")).toBeInTheDocument();
     const daysBefore = document.querySelector(".text-accent-soft")?.textContent;
@@ -126,7 +150,11 @@ describe("CountdownPanel interval lifecycle", () => {
   it("countdown_panel_past_target_shows_arrived_not_negative", () => {
     vi.setSystemTime(new Date("2026-06-08T12:00:00"));
     seedPrimary("2026-06-07T09:00:00");
-    render(<CountdownPanel />);
+    render(
+      <QueryClientProvider client={makeClient()}>
+        <CountdownPanel />
+      </QueryClientProvider>,
+    );
 
     const text = document.body.textContent ?? "";
     expect(text).toContain("已到达");
@@ -142,7 +170,11 @@ describe("CountdownPanel interval lifecycle", () => {
     // 下一次 1 秒 tick 落在零点前 0.5 秒，直接变成「已到达」。
     seedPrimary("2026-06-11");
     vi.setSystemTime(new Date("2026-06-10T23:59:58.500"));
-    render(<CountdownPanel />);
+    render(
+      <QueryClientProvider client={makeClient()}>
+        <CountdownPanel />
+      </QueryClientProvider>,
+    );
 
     expect(screen.getByTestId("today-remaining")).toHaveTextContent("今日任务全部完成");
     expect(headlineText()).not.toBe("");
@@ -165,7 +197,11 @@ describe("CountdownPanel interval lifecycle", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
     seedPrimary("2027-06-07");
-    const { rerender } = render(<CountdownPanel />);
+    const { rerender } = render(
+      <QueryClientProvider client={makeClient()}>
+        <CountdownPanel />
+      </QueryClientProvider>,
+    );
 
     const days = Number(document.querySelector(".text-accent-soft")?.textContent);
     expect(days).toBeGreaterThan(0);
@@ -173,7 +209,11 @@ describe("CountdownPanel interval lifecycle", () => {
     await act(async () => {
       seedPrimary("2026-06-07");
     });
-    rerender(<CountdownPanel />);
+    rerender(
+      <QueryClientProvider client={makeClient()}>
+        <CountdownPanel />
+      </QueryClientProvider>,
+    );
 
     expect(screen.getByText("已到达")).toBeInTheDocument();
     expect(document.querySelector(".text-accent-soft")).not.toBeInTheDocument();
@@ -184,7 +224,11 @@ describe("CountdownPanel interval lifecycle", () => {
   it("countdown_panel_past_target_hides_day_field_if_design_requires", () => {
     vi.setSystemTime(new Date("2026-06-08T12:00:00"));
     seedPrimary("2026-06-07");
-    render(<CountdownPanel />);
+    render(
+      <QueryClientProvider client={makeClient()}>
+        <CountdownPanel />
+      </QueryClientProvider>,
+    );
 
     expect(screen.getByText("已到达")).toBeInTheDocument();
     expect(screen.getByTestId("today-remaining")).toHaveTextContent("今日任务全部完成");

@@ -120,7 +120,8 @@ describe("Settings exam date", () => {
     expect(input).toHaveValue(ORIGINAL_DATE);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.queryByText(/失败|错误/)).not.toBeInTheDocument();
+    // 这里只查操作失败提示；页面上的术语说明属于正常文案。
+    expect(screen.queryByText(/导出失败|导入失败|清除失败/)).not.toBeInTheDocument();
   });
 
   it("settings_past_exam_date_confirm_writes", () => {

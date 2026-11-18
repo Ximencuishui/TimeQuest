@@ -239,6 +239,217 @@
 | match_textbook_maps_renjiao_a_and_task_title_to_required_volume | 演示任务 `人教A版` + 标题「数学必修一」对上人教版必修第一册，不选湘教版；必修二、选择性必修一各对各的册；只有版本或册次撞车时不猜 | `src/lib/__tests__/sectionCatalog.test.ts` |
 | resolve_section_choice_keeps_catalog_titles_and_trims_custom_names | 目录节名去空白后保持原串；已有节是 exists；自定义节名 trim 后作为 custom | `src/lib/__tests__/sectionCatalog.test.ts` |
 | outline_points_by_section_trims_names_and_drops_blanks | 节名与考点去空白；重复和空考点丢掉；没有预设考点的节对应空数组 | `src/lib/__tests__/sectionCatalog.test.ts` |
+| create_session_rejects_end_before_start | 结束早于开始：入口拒绝，不写库 | `src-tauri/tests/sessions_test.rs` |
+| create_session_allows_zero_length_range | 起止相同仍允许（零长时段，完成时记 1 分钟） | `src-tauri/tests/sessions_test.rs` |
+| create_session_rejects_unparsable_time | 时间解析不了返回 `InvalidTimeFormat` | `src-tauri/tests/sessions_test.rs` |
+| reschedule_rejects_end_before_start | 改期同样校验时段 | `src-tauri/tests/sessions_test.rs` |
+| complete_with_inverted_defer_range_is_rejected | 完成弹窗「剩余改到下次」时段倒挂被拒 | `src-tauri/tests/sessions_test.rs` |
+| complete_dialog_defer_rejects_inverted_time_range | 前端在提交前就拦下倒挂时段 | `src/components/__tests__/complete_dialog.test.tsx` |
+| complete_dialog_uses_task_unit_name_and_shows_section_title | 弹窗用任务自己的单位（「节」/「课」） | `src/components/__tests__/complete_dialog.test.tsx` |
+| task_empty_title_shows_error_and_does_not_create | 新建任务标题为空：报错且不调 `create_task` | `src/pages/Tasks/__tests__/task_empty_title.test.tsx` |
+| delete_session_removes_planned_session | `planned` 场次可删 | `src-tauri/tests/sessions_test.rs` |
+| delete_session_refuses_done_session | `done` 场次不可删 | `src-tauri/tests/sessions_test.rs` |
+| delete_session_refuses_session_with_logs | 已有流水的场次不可删 | `src-tauri/tests/sessions_test.rs` |
+| delete_session_clears_source_rescheduled_pointer | 删除后被改期指向它的场次 `rescheduled_to` 置空 | `src-tauri/tests/sessions_test.rs` |
+| delete_session_reports_missing_session | 删不存在的场次返回 `SessionNotFound` | `src-tauri/tests/sessions_test.rs` |
+| today_delete_asks_confirmation_then_calls_delete_session | 今日页删除先确认再调 `delete_session` | `src/pages/Today/__tests__/today_delete_session.test.tsx` |
+| today_delete_cancel_keeps_the_session | 取消不删，场次仍在 | `src/pages/Today/__tests__/today_delete_session.test.tsx` |
+| today_create_confirms_overlap_before_saving | 与已有排期重叠时先弹确认再写 | `src/pages/Today/__tests__/today_create_guard.test.tsx` |
+| calculate_today_remaining_minutes_merges_duplicate_slots | 同一时段重复排期按并集合并，不重复计时长 | `src/lib/__tests__/studyCountdown.test.ts` |
+| calculate_today_remaining_minutes_merges_partial_overlap | 部分重叠也合并成一段 | `src/lib/__tests__/studyCountdown.test.ts` |
+| calculate_today_remaining_minutes_caps_at_daily_limit | 今日待学时长不超过每日上限 | `src/lib/__tests__/studyCountdown.test.ts` |
+| calculate_today_remaining_minutes_respects_custom_daily_limit | 上限读 `daily_limit_minutes` 设置 | `src/lib/__tests__/studyCountdown.test.ts` |
+| merge_planned_windows_returns_non_overlapping_windows | 合并后得到不重叠的时段窗口 | `src/lib/__tests__/studyCountdown.test.ts` |
+| summarize_today_plan_reports_merged_sessions_and_cap | 汇总同时报合并后的场次数与上限 | `src/lib/__tests__/studyCountdown.test.ts` |
+| resolve_remaining_study_reports_merged_sessions | 剩余待学按合并后的场次算 | `src/lib/__tests__/studyCountdown.test.ts` |
+| study_remaining_merges_overlapping_sessions_and_explains | 面板合并重叠场次并说明 | `src/components/__tests__/study_remaining.test.tsx` |
+| study_remaining_caps_daily_total_and_explains | 面板按上限截断并说明 | `src/components/__tests__/study_remaining.test.tsx` |
+| study_remaining_stays_plain_when_no_overlap | 没有重叠时不加解释文案 | `src/components/__tests__/study_remaining.test.tsx` |
+| parse_daily_slots_returns_defaults_when_unset | 没设置时用默认三段 | `src/lib/__tests__/studyPlan.test.ts` |
+| parse_daily_slots_falls_back_on_broken_payload | 存坏了退回默认三段 | `src/lib/__tests__/studyPlan.test.ts` |
+| parse_daily_slots_reads_pairs_and_drops_invalid | 读 `[["HH:MM","HH:MM"]]`，非法段丢掉 | `src/lib/__tests__/studyPlan.test.ts` |
+| parse_daily_slots_accepts_object_form | 也认 `{start,end}` 形式 | `src/lib/__tests__/studyPlan.test.ts` |
+| serialize_daily_slots_round_trips | 写入格式与读取格式互逆 | `src/lib/__tests__/studyPlan.test.ts` |
+| parse_daily_limit_clamps_and_defaults | 上限夹在 60–720 分钟之间 | `src/lib/__tests__/studyPlan.test.ts` |
+| daily_slot_minutes_sums_valid_slots | 一天可用分钟数只算合法段 | `src/lib/__tests__/studyPlan.test.ts` |
+| daily_plan_setting_loads_saved_slots_and_limit | 设置页读回已存时段与上限 | `src/components/__tests__/daily_plan_setting.test.tsx` |
+| daily_plan_setting_saves_preset_slots_and_limit | 预设一键填入并存盘 | `src/components/__tests__/daily_plan_setting.test.tsx` |
+| daily_plan_setting_drops_invalid_slot_on_save | 非法段保存时忽略并提示 | `src/components/__tests__/daily_plan_setting.test.tsx` |
+| daily_plan_setting_adds_and_removes_slots | 可增删时段 | `src/components/__tests__/daily_plan_setting.test.tsx` |
+| generate_week_plan_creates_sessions_across_days | 一键排计划跨天生成场次 | `src-tauri/tests/planner_test.rs` |
+| generate_week_plan_skips_occupied_slots | 已被占用的时段跳过 | `src-tauri/tests/planner_test.rs` |
+| generate_week_plan_respects_daily_limit | 每日累计不超上限 | `src-tauri/tests/planner_test.rs` |
+| generate_week_plan_uses_configured_slots | 用设置页配置的时段排 | `src-tauri/tests/planner_test.rs` |
+| generate_week_plan_rejects_archived_task | 归档任务不排 | `src-tauri/tests/planner_test.rs` |
+| generate_week_plan_rejects_unknown_task | 任务不存在返回错误 | `src-tauri/tests/planner_test.rs` |
+| generate_week_plan_rejects_broken_start_date | 日期格式不对直接报错 | `src-tauri/tests/planner_test.rs` |
+| generate_week_plan_is_idempotent_on_second_run | 第二次跑不重复排 | `src-tauri/tests/planner_test.rs` |
+| task_detail_week_plan_generates_schedule_and_reports | 详情页一键排计划并回报数量 | `src/pages/Tasks/__tests__/task_detail_week_plan.test.tsx` |
+| task_detail_week_plan_reports_skipped_slots | 回报被跳过的格数 | `src/pages/Tasks/__tests__/task_detail_week_plan.test.tsx` |
+| task_detail_week_plan_says_when_no_slot_is_free | 没有空档时给出说明 | `src/pages/Tasks/__tests__/task_detail_week_plan.test.tsx` |
+| parse_hhmm_reads_valid_and_rejects_invalid | 时间解析 | `src/lib/__tests__/timeField.test.ts` |
+| format_hhmm_pads_and_clamps | 时间补零并夹取 | `src/lib/__tests__/timeField.test.ts` |
+| add_minutes_to_hhmm_keeps_clock_valid | 加分钟不越界 | `src/lib/__tests__/timeField.test.ts` |
+| format_duration_label_reads_in_chinese | 时长中文文案 | `src/lib/__tests__/timeField.test.ts` |
+| presets_cover_morning_afternoon_and_evening | 时段快捷预设 | `src/lib/__tests__/timeField.test.ts` |
+| hour_and_minute_choices_are_in_school_day_range | 时/分选项落在作息范围内 | `src/lib/__tests__/timeField.test.ts` |
+| weekday_label_starts_on_monday | 星期从周一开始 | `src/lib/__tests__/dateField.test.ts` |
+| short_date_label_drops_year | 短日期不显示年份 | `src/lib/__tests__/dateField.test.ts` |
+| relative_day_label_covers_today_tomorrow_after_tomorrow | 相对日期文案 | `src/lib/__tests__/dateField.test.ts` |
+| days_between_counts_calendar_days | 按日历日算天数 | `src/lib/__tests__/dateField.test.ts` |
+| add_days_iso_crosses_month_boundary | 加天数跨月 | `src/lib/__tests__/dateField.test.ts` |
+| next_monday_never_returns_today | 下个周一不含今天 | `src/lib/__tests__/dateField.test.ts` |
+| month_key_and_label_read_in_chinese | 月份中文 | `src/lib/__tests__/dateField.test.ts` |
+| month_grid_fills_whole_weeks_from_monday | 月历整周补齐 | `src/lib/__tests__/dateField.test.ts` |
+| shift_month_moves_across_year | 翻月跨年 | `src/lib/__tests__/dateField.test.ts` |
+| date_field_shows_relative_label_and_opens_shortcuts | 日期框显示相对标签与快捷 | `src/components/__tests__/date_time_fields.test.tsx` |
+| date_field_shortcut_picks_tomorrow | 快捷选明天 | `src/components/__tests__/date_time_fields.test.tsx` |
+| date_field_grid_picks_a_day_and_marks_today | 日历网格选日、今天高亮 | `src/components/__tests__/date_time_fields.test.tsx` |
+| date_field_can_move_to_next_month | 能翻到下个月 | `src/components/__tests__/date_time_fields.test.tsx` |
+| time_field_picks_hour_then_minute | 时间框先选时再选分 | `src/components/__tests__/date_time_fields.test.tsx` |
+| time_field_exact_input_updates_value | 可直接键入时间 | `src/components/__tests__/date_time_fields.test.tsx` |
+| time_range_field_applies_preset_slot_in_one_click | 时段预设一键套用 | `src/components/__tests__/date_time_fields.test.tsx` |
+| time_range_field_extends_end_by_duration | 按时长顺延结束时间 | `src/components/__tests__/date_time_fields.test.tsx` |
+| glossary_entries_have_unique_ids_and_complete_text | 词条 id 唯一、字段齐全 | `src/lib/__tests__/glossary.test.ts` |
+| glossary_xp_formula_matches_gamification_constants | XP 公式与常量一致 | `src/lib/__tests__/glossary.test.ts` |
+| glossary_level_formula_matches_level_curve | 等级公式与曲线一致 | `src/lib/__tests__/glossary.test.ts` |
+| glossary_daily_limit_matches_settings_bounds | 每日上限口径与设置一致 | `src/lib/__tests__/glossary.test.ts` |
+| glossary_covers_the_numbers_students_ask_about | 覆盖学生常问的数字 | `src/lib/__tests__/glossary.test.ts` |
+| glossary_hint_opens_the_formula_on_click | 点词条弹出公式说明 | `src/components/__tests__/glossary_hint.test.tsx` |
+| glossary_hint_renders_nothing_for_unknown_id | 未知词条不渲染 | `src/components/__tests__/glossary_hint.test.tsx` |
+| glossary_hint_closes_on_confirm | 关闭后弹窗消失 | `src/components/__tests__/glossary_hint.test.tsx` |
+| glossary_list_shows_every_term_with_its_source | 术语列表带来源说明 | `src/components/__tests__/glossary_hint.test.tsx` |
+| mock_exam_picks_the_nearest_future_non_primary_exam | 取最近的非主考目标 | `src/lib/__tests__/mockExam.test.ts` |
+| mock_exam_ignores_the_primary_exam | 主考（高考）不算模考 | `src/lib/__tests__/mockExam.test.ts` |
+| mock_exam_ignores_past_exams | 过去的模考不倒计时 | `src/lib/__tests__/mockExam.test.ts` |
+| mock_exam_marks_today_as_is_today | 今天就是模考日 | `src/lib/__tests__/mockExam.test.ts` |
+| mock_exam_returns_null_without_any_exam | 没有模考返回 null | `src/lib/__tests__/mockExam.test.ts` |
+| mock_countdown_shows_days_until_next_mock_exam | 面板显示模考倒计时 | `src/components/__tests__/mock_countdown.test.tsx` |
+| mock_countdown_hides_when_there_is_no_mock_exam | 没有模考不显示 | `src/components/__tests__/mock_countdown.test.tsx` |
+| create_note_with_date_stores_bound_date | 建便签时写 `note_date` | `src-tauri/tests/notes_test.rs` |
+| create_note_without_date_leaves_note_date_null | 不绑定日期时留空 | `src-tauri/tests/notes_test.rs` |
+| update_note_binds_then_clears_date | 绑定后可解绑 | `src-tauri/tests/notes_test.rs` |
+| normalize_note_date_rejects_malformed_values | 非法日期被当成「没绑日期」 | `src-tauri/tests/notes_test.rs` |
+| note_card_binds_a_date_from_the_picker | 便签卡片从选择器绑日期 | `src/components/__tests__/note_date_binding.test.tsx` |
+| note_card_shows_the_bound_date_and_can_unbind | 卡片显示已绑日期并可解绑 | `src/components/__tests__/note_date_binding.test.tsx` |
+| notes_page_creates_a_note_with_the_chosen_date | 便签页新建时带日期 | `src/components/__tests__/note_date_binding.test.tsx` |
+| today_page_shows_only_notes_bound_to_that_day | 今日页只显示当天便签 | `src/components/__tests__/note_date_binding.test.tsx` |
+| keeps_only_notes_bound_to_that_day | 按日期过滤便签 | `src/lib/__tests__/notes.test.ts` |
+| ignores_notes_without_a_bound_date | 没绑日期的不算当天 | `src/lib/__tests__/notes.test.ts` |
+| returns_empty_for_empty_date_or_empty_list | 空日期或空列表返回空 | `src/lib/__tests__/notes.test.ts` |
+| mistake_reasons_match_the_backend_whitelist | 前端错因集合与后端白名单一致 | `src/lib/__tests__/mistakes.test.ts` |
+| normalize_reason_falls_back_to_other | 未知错因归「其他」 | `src/lib/__tests__/mistakes.test.ts` |
+| normalize_subject_trims_and_defaults_to_other | 科目去空白、空的归「其他」 | `src/lib/__tests__/mistakes.test.ts` |
+| summarize_mistakes_counts_pending_and_mastered | 统计条数字正确 | `src/lib/__tests__/mistakes.test.ts` |
+| filter_mistakes_splits_pending_and_mastered | 筛选切分未订正/已订正 | `src/lib/__tests__/mistakes.test.ts` |
+| reason_counts_lists_the_most_common_reason_first | 错因统计按次数降序 | `src/lib/__tests__/mistakes.test.ts` |
+| frontend_reason_list_matches_backend_whitelist | 跨端护栏：前端 `MISTAKE_REASONS` 必须等于 Rust `REASON_WHITELIST` | `src-tauri/tests/mistakes_test.rs` |
+| normalize_reason_maps_unknown_to_other | 后端错因归一 | `src-tauri/tests/mistakes_test.rs` |
+| normalize_subject_trims_and_falls_back_to_other | 后端科目归一 | `src-tauri/tests/mistakes_test.rs` |
+| create_mistake_stores_normalized_reason_and_subject | 建错题时写归一后的错因与科目 | `src-tauri/tests/mistakes_test.rs` |
+| list_mistakes_puts_unmastered_first | 未订正排前面 | `src-tauri/tests/mistakes_test.rs` |
+| update_mistake_only_touches_given_fields | 只更新传入字段 | `src-tauri/tests/mistakes_test.rs` |
+| delete_mistake_removes_the_row | 删除错题 | `src-tauri/tests/mistakes_test.rs` |
+| mistakes_survive_export_import_round_trip | 错题本进出备份 JSON | `src-tauri/tests/mistakes_test.rs` |
+| mistakes_page_records_subject_reason_and_correct_note | 错题页录入科目/错因/正确思路 | `src/pages/__tests__/mistakes_page.test.tsx` |
+| mistakes_page_refuses_to_save_without_a_title | 标题为空不保存 | `src/pages/__tests__/mistakes_page.test.tsx` |
+| mistakes_page_toggles_mastered_state | 标记/取消订正 | `src/pages/__tests__/mistakes_page.test.tsx` |
+| mistakes_page_filters_pending_and_mastered | 三个筛选按钮 | `src/pages/__tests__/mistakes_page.test.tsx` |
+| mistakes_page_shows_the_empty_state | 空态文案 | `src/pages/__tests__/mistakes_page.test.tsx` |
+| full_paper_needs_no_scaling | 六科齐不折算 | `src/lib/__tests__/scoreScaling.test.ts` |
+| missing_biology_scales_the_total_to_the_six_subject_scale | 缺考生物按比例折算 | `src/lib/__tests__/scoreScaling.test.ts` |
+| several_missing_subjects_scale_by_the_taken_share | 缺多科按已考占比折算 | `src/lib/__tests__/scoreScaling.test.ts` |
+| a_single_subject_is_not_scaled | 只记一科不折算 | `src/lib/__tests__/scoreScaling.test.ts` |
+| an_empty_paper_has_no_scaled_total | 空记录无折算分 | `src/lib/__tests__/scoreScaling.test.ts` |
+| subject_full_marks_match_the_default_targets | 各科满分与默认目标一致 | `src/lib/__tests__/scoreScaling.test.ts` |
+| scales a partial paper so the gap to the target stays comparable | 折算后与目标的差值可比 | `src/components/__tests__/score_overview_capsule.test.tsx` |
+| does not scale a paper that only has one score | 单科成绩不显示折算 | `src/components/__tests__/score_overview_capsule.test.tsx` |
+| catalog_lists_builtin_plugins_not_installed_yet | 内置插件仓库清单非空；新装的应用没有已安装插件 | `src-tauri/tests/plugins_test.rs` |
+| install_plugin_writes_package_and_marks_installed | 安装后包落到 `plugins/<id>/plugin.json`；settings 记一条；列表标 installed | `src-tauri/tests/plugins_test.rs` |
+| install_plugin_twice_keeps_one_record | 重复下载不重复登记，settings 只占一行 | `src-tauri/tests/plugins_test.rs` |
+| install_unknown_plugin_fails_without_touching_state | 仓库里没有的 id 报错；已安装列表与目录都不动 | `src-tauri/tests/plugins_test.rs` |
+| uninstall_plugin_removes_files_and_record | 卸载删掉本地目录并取消登记 | `src-tauri/tests/plugins_test.rs` |
+| uninstall_plugin_that_is_not_installed_is_ok | 卸载没装过的插件也算成功 | `src-tauri/tests/plugins_test.rs` |
+| plugin_options_fall_back_to_defaults_and_can_be_overridden | 选项默认取包里的 default；改后写进 `plugin.<id>.<key>` | `src-tauri/tests/plugins_test.rs` |
+| set_unknown_option_is_rejected | 插件没声明的选项写入被拒 | `src-tauri/tests/plugins_test.rs` |
+| broken_installed_list_does_not_break_the_toolbox | settings 里是坏 JSON 时按「没装」处理，工具箱照常打开 | `src-tauri/tests/plugins_test.rs` |
+| installed_state_survives_a_new_connection | 重开数据库后已安装状态还在 | `src-tauri/tests/plugins_test.rs` |
+| toolbox_shows_the_tools_as_an_icon_grid | 工具箱是图标网格：内置工具与插件各占一格，网格里不铺开设置项 | `src/pages/__tests__/toolbox_page.test.tsx` |
+| toolbox_opens_the_mistake_book_when_the_icon_is_clicked | 点错题本图标跳到 `/mistakes` | `src/pages/__tests__/toolbox_page.test.tsx` |
+| toolbox_opens_the_plugin_page_when_the_plugin_icon_is_clicked | 点插件图标跳到 `/toolbox/plugins/<id>` | `src/pages/__tests__/toolbox_page.test.tsx` |
+| toolbox_marks_plugins_that_are_not_installed | 未安装插件格子带「未安装」角标 | `src/pages/__tests__/toolbox_page.test.tsx` |
+| toolbox_hides_the_badge_for_installed_plugins | 已安装插件格子不带角标 | `src/pages/__tests__/toolbox_page.test.tsx` |
+| plugin_detail_shows_the_plugin_manifest | 详情页显示名称、作者、版本、体积与能力列表 | `src/pages/__tests__/plugin_detail.test.tsx` |
+| plugin_detail_downloads_and_installs_the_plugin | 点「下载并安装」调 `install_plugin`；出现「已安装」与「卸载」 | `src/pages/__tests__/plugin_detail.test.tsx` |
+| plugin_detail_shows_options_after_install | 装好才渲染选项；改值点保存调 `set_plugin_option` | `src/pages/__tests__/plugin_detail.test.tsx` |
+| plugin_detail_uninstalls_the_plugin | 点「卸载」调 `uninstall_plugin` | `src/pages/__tests__/plugin_detail.test.tsx` |
+| plugin_detail_shows_not_found_for_an_unknown_plugin | 仓库里没有的 id 显示「插件不存在」，不给下载按钮 | `src/pages/__tests__/plugin_detail.test.tsx` |
+| layout_places_the_toolbox_in_the_main_navigation | 主导航有「工具箱」直达 `/toolbox`；没有需要点开的折叠分组 | `src/components/__tests__/layout_toolbox_nav.test.tsx` |
+| layout_hides_the_mistake_book_from_the_main_navigation | 侧边栏没有「错题本」项；`/mistakes` 页面本身仍可达 | `src/components/__tests__/layout_toolbox_nav.test.tsx` |
+| layout_keeps_a_toolbox_entry_in_the_bottom_bar | 底部导航保留一个工具箱入口 | `src/components/__tests__/layout_toolbox_nav.test.tsx` |
+| parses_chapter_and_section_lines | 目录行拆成章与节；节号与标题分开存 | `src-tauri/tests/pdf_outline_test.rs` |
+| keeps_section_number_in_front_of_title | 「4.1 几何图形」保留编号与标题 | `src-tauri/tests/pdf_outline_test.rs` |
+| ignores_column_headings | 「实验与探究」「小结」等栏目不进任务 | `src-tauri/tests/pdf_outline_test.rs` |
+| joins_wrapped_title_lines | 折行的标题接回上一条 | `src-tauri/tests/pdf_outline_test.rs` |
+| keeps_chapter_number_with_arabic_digits | 「第 3 单元」保留为章标题 | `src-tauri/tests/pdf_outline_test.rs` |
+| extracts_overview_without_toc_guessing_numbers | 标题里的数字不当小节编号 | `src-tauri/tests/pdf_outline_test.rs` |
+| extract_outline_rejects_garbage_bytes | 非 PDF 字节报错并点名 PDF | `src-tauri/tests/pdf_outline_test.rs` |
+| extract_outline_reports_missing_toc_page | 找不到目录页时说清缺目录页 | `src-tauri/tests/pdf_outline_test.rs` |
+| extracts_chapters_and_sections_from_a_real_toc_layout | 真实目录版式 fixture：三章六节，跨页收齐 | `src-tauri/tests/pdf_outline_test.rs` |
+| toc_page_number_column_does_not_leak_into_titles | 目录页码列不进标题 | `src-tauri/tests/pdf_outline_test.rs` |
+| index_entry_is_not_appended_to_the_previous_section | 索引条目不接到上一条标题后 | `src-tauri/tests/pdf_outline_test.rs` |
+| column_headings_are_not_treated_as_sections | 栏目名不当成小节 | `src-tauri/tests/pdf_outline_test.rs` |
+| decodes_chinese_through_the_font_tounicode_table | Type0 字体按字体的 `/ToUnicode` 表还原中文 | `src-tauri/tests/pdf_cmap_test.rs` |
+| a_cmap_dictionary_header_does_not_stall_the_parser | CMap 头部 `<< ... >>` 的落单 `>` 不让 tokenizer 死循环 | `src-tauri/tests/pdf_cmap_test.rs` |
+| collects_sections_from_a_second_toc_page | 目录跨两页时两页都收齐 | `src-tauri/tests/pdf_cmap_test.rs` |
+| the_page_number_column_does_not_leak_into_titles | 中文目录里的页码不进标题 | `src-tauri/tests/pdf_cmap_test.rs` |
+| builtin_catalog_lists_textbooks_with_dimensions | 内置清单：锁定提交号、https 地址、条数对得上、每本都有学段与科目 | `src-tauri/tests/textbook_source_test.rs` |
+| builtin_catalog_keeps_sharded_books | 分片书标了分片数与文件大小 | `src-tauri/tests/textbook_source_test.rs` |
+| builtin_catalog_normalizes_stage | 学段归一化；五•四学制并回主学段 | `src-tauri/tests/textbook_source_test.rs` |
+| catalog_rejects_incomplete_payload | 缺提交号 / 下载地址 / 仓库名时报错点名 | `src-tauri/tests/textbook_source_test.rs` |
+| catalog_rejects_shard_count_mismatch | 分片记录数与分片数对不上时报错 | `src-tauri/tests/textbook_source_test.rs` |
+| download_url_for_whole_book_encodes_the_path | 整本书一个地址；中文路径百分号编码、斜杠保留 | `src-tauri/tests/textbook_source_test.rs` |
+| download_url_for_sharded_book_lists_parts_in_order | 分片书按序给 `.pdf_merge_folder/<书名>.pdf.N` | `src-tauri/tests/textbook_source_test.rs` |
+| download_url_rejects_empty_input | 地址、提交号、路径为空都拒绝 | `src-tauri/tests/textbook_source_test.rs` |
+| repo_path_encoding_keeps_slashes_and_safe_characters | 逐段编码：斜杠与安全字符保留 | `src-tauri/tests/textbook_source_test.rs` |
+| safe_file_name_drops_illegal_characters | 文件名去掉 Windows 非法字符并截到 120 字 | `src-tauri/tests/textbook_source_test.rs` |
+| pdf_outline_becomes_a_textbook_with_numbered_sections | 目录转教材：节名带编号、知识点留空给学生自己补 | `src-tauri/tests/textbook_source_test.rs` |
+| outline_without_any_section_is_rejected | 没有小节时拒绝写教材 | `src-tauri/tests/textbook_source_test.rs` |
+| textbooks_dir_is_scoped_by_plugin | 教材落到 `textbooks/<插件 id>/` | `src-tauri/tests/textbook_source_test.rs` |
+| textbooks_dir_rejects_bad_plugin_id | 插件 id 非法时拒绝拼路径 | `src-tauri/tests/textbook_source_test.rs` |
+| blob_requests_use_the_blob_api_and_keep_shard_order | blob 源：地址里只有 sha，按分片顺序 | `src-tauri/tests/textbook_source_test.rs` |
+| raw_requests_fall_back_to_the_raw_paths | raw 源：回落到 raw 路径与分片目录 | `src-tauri/tests/textbook_source_test.rs` |
+| download_source_parses_plugin_option_values | 下载源选项解析；认不出来的回落到 blob | `src-tauri/tests/textbook_source_test.rs` |
+| blob_requests_reject_a_shard_without_sha | 分片缺 sha 时报错 | `src-tauri/tests/textbook_source_test.rs` |
+| sharded_book_joins_parts_into_one_pdf | 两片按序接成一个 PDF；进度累计、落在第 2/2 片 | `src-tauri/tests/textbook_download_test.rs` |
+| whole_book_downloads_to_a_single_file | 整本书落成 .pdf，不留 .part | `src-tauri/tests/textbook_download_test.rs` |
+| failed_download_leaves_no_partial_file | 下载失败不留下 .part 或半截 PDF | `src-tauri/tests/textbook_download_test.rs` |
+| download_without_requests_is_rejected | 没有下载地址时拒绝下载 | `src-tauri/tests/textbook_download_test.rs` |
+| interrupted_download_resumes_from_where_it_stopped | 传到一半断线：用 `Range` 接着传，拿到完整文件；进度里 attempt 变大 | `src-tauri/tests/textbook_download_test.rs` |
+| server_ignoring_range_restarts_the_shard | 服务端无视 `Range` 整本重发：从头重下这一片，不拼出重复字节 | `src-tauri/tests/textbook_download_test.rs` |
+| size_mismatch_is_reported_and_nothing_is_left | 收到的字节数与清单对不上时报错并清场 | `src-tauri/tests/textbook_download_test.rs` |
+| plan_carries_both_sources | 下载计划带首选源与备用源，顺序跟插件选项一致 | `src-tauri/tests/textbook_download_test.rs` |
+| plugin_catalog_lists_declared_resources | 带资源的插件在列表里列出资源；路径不能回退目录 | `src-tauri/tests/plugins_test.rs` |
+| install_plugin_unpacks_resources_to_disk | 安装把资源解包到插件目录，内容与内置那份一致 | `src-tauri/tests/plugins_test.rs` |
+| plugin_resource_is_readable_before_install | 插件没装也能读内置那份资源 | `src-tauri/tests/plugins_test.rs` |
+| plugin_resource_path_traversal_is_rejected | `../`、绝对路径、空路径都拒绝 | `src-tauri/tests/plugins_test.rs` |
+| missing_plugin_resource_reports_the_path | 缺资源时报错点名路径 | `src-tauri/tests/plugins_test.rs` |
+| reinstall_plugin_removes_stale_resource_files | 重装清掉上一次的残留资源文件 | `src-tauri/tests/plugins_test.rs` |
+| plugin_detail_shows_the_textbook_library_for_a_textbook_source | 教材源插件装上后详情页出现「教材库」与教材条目 | `src/pages/__tests__/plugin_detail.test.tsx` |
+| plugin_detail_hides_the_textbook_library_for_other_plugins | 普通插件不出现教材库 | `src/pages/__tests__/plugin_detail.test.tsx` |
+| plugin_detail_saves_a_select_option_right_away | `select` 选项渲染成下拉，改完直接存 | `src/pages/__tests__/plugin_detail.test.tsx` |
+| textbook_plugin_options_carry_user_facing_text | 教材库选项都带中文说明、中文候选名，并标了高级与敏感 | `src-tauri/tests/plugins_test.rs` |
+| plugin_option_defaults_are_backward_compatible | 没写新字段的旧插件选项：help 空、不算高级、不敏感 | `src-tauri/tests/plugins_test.rs` |
+| plugin_detail_folds_advanced_options_away_by_default | 高级选项默认收在折叠区；全是高级项时不再摆一个空的「设置」标题 | `src/pages/__tests__/plugin_detail.test.tsx` |
+| plugin_detail_shows_friendly_choice_names_instead_of_raw_values | 下拉显示「标准通道（推荐）」，不是 blob / raw | `src/pages/__tests__/plugin_detail.test.tsx` |
+| plugin_detail_masks_the_token_field_and_explains_it | 令牌用密码框渲染，并带一句给普通用户看的说明 | `src/pages/__tests__/plugin_detail.test.tsx` |
+| plugin_detail_keeps_normal_options_flat_without_an_advanced_section | 普通选项平铺显示；没有高级选项时不多一个折叠区 | `src/pages/__tests__/plugin_detail.test.tsx` |
+| plugin_library_lists_catalog_books_with_stage_and_subject_filters | 教材库按学段与科目筛选 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
+| plugin_library_searches_the_catalog_by_title | 教材库按书名搜索 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
+| plugin_library_downloads_a_book_and_parses_its_outline | 下载后调 `import_textbook_pdf` 并显示「已导入 N 章」 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
+| plugin_library_reports_a_failed_download | 下载失败只报错误，不假装成功 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
+| plugin_library_shows_the_retry_attempt_when_the_download_resumes | 续传时进度条标出「重试第 N 次」 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
+| plugin_library_turns_the_parsed_outline_into_a_task | 解析结果直接进向导：勾选已掌握 → 生成任务与排期 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
 
 ## 已知实现约束
 
@@ -534,6 +745,141 @@
 - **来源**：点某一节的「+ 添加考点」时，用同一份 `get_textbook_outline` 里该节的 `knowledge_points`。节名 trim 后对上；空串和重复丢掉。对不上教材、或这一节没有预设考点时，只留输入框。
 - **点选**：预设考点排成标签。点一下就 `add_custom_knowledge_point`，名字原样写入。已经在这一节里的标签置灰、前面打勾、`disabled`，再点不会提交。浮层不关掉，方便连续勾。
 - **自定义**：标签下面留输入框，占位「没找到？手动添加自定义考点...」。回车或「添加」提交，成功后收起。
+
+### 排期时段校验
+
+- **后端**：`validate_time_range(start, end)`（`src-tauri/src/commands/sessions.rs`）。起止都必须能解析成 `HH:MM`（小时 0–23、分钟 0–59），否则返回 `SessionError::InvalidTimeFormat`；`end < start` 返回 `SessionError::InvalidTimeRange`。**零长时段（start == end）仍然合法**——完成路径按 `.max(1)` 记 1 分钟。
+- **入口**：新建排期、改期、完成弹窗的「剩余改到下次」（remainder）三条路径都过同一函数；校验在写库之前，出错整笔不写。
+- **前端**：`src/lib/timeField.ts` 的 `parseHHMM` / `formatHHMM` / `addMinutesToHHMM` 是同一套口径；`TimeRangeField` 在提交前先校验，倒挂时段直接提示、不调 command。
+- 由 `create_session_rejects_end_before_start` / `create_session_allows_zero_length_range` / `create_session_rejects_unparsable_time` / `reschedule_rejects_end_before_start` / `complete_with_inverted_defer_range_is_rejected` / `complete_dialog_defer_rejects_inverted_time_range` 锁定。
+
+### 排期删除
+
+- **只能删 `planned`**。`delete_session_impl` 在事务里查 `status`，非 `planned` 返回 `SessionError::SessionNotDeletable`；场次不存在返回 `SessionError::SessionNotFound`。
+- **有流水不删**。`actual_logs` 里存在指向该场次的记录时返回 `SessionError::SessionHasLogs`——历史记录不能因为删排期而丢。
+- **改期指针先解**：删除前把 `rescheduled_to = 该场次 id` 的那些场次置 `NULL`，避免留下悬空指针。
+- **前端**：今日页删除先弹确认框，确认后调 `delete_session`；取消不调 command，场次仍在。
+- 由 `delete_session_removes_planned_session` / `delete_session_refuses_done_session` / `delete_session_refuses_session_with_logs` / `delete_session_clears_source_rescheduled_pointer` / `delete_session_reports_missing_session` / `today_delete_asks_confirmation_then_calls_delete_session` / `today_delete_cancel_keeps_the_session` 锁定。
+
+### 单位口径（课 / 节）
+
+- **单位属于任务，不属于界面**：教材导入的任务单位是「节」，手建任务默认「课」。`src/lib/units.ts` 的 `unitNameOf` 读任务的 `unit_name`，空值回落到「课」。
+- **界面凡出现数量的地方都用任务的单位说话**：完成弹窗、进度环、排期卡片里的「计划 N」「实际 N」都读同一份单位名，不写死「课」。
+- **不改变存储口径**：进度仍然是 `sum(actual_units)`，XP 仍然按 `actual_units` 算，单位名只是展示层的文案。
+- 由 `complete_dialog_uses_task_unit_name_and_shows_section_title` 锁定。
+
+### 每日可用时段与上限
+
+- **存 `app_settings`**：键 `daily_slots`（值是 `[["08:00","09:00"], ...]` 的 JSON 串）与 `daily_limit_minutes`（分钟数的字符串）。键名前后端一致：`src/lib/studyPlan.ts` 的 `DAILY_SLOTS_SETTING_KEY` / `DAILY_LIMIT_SETTING_KEY` 与 `src-tauri/src/commands/planner.rs` 的 `DAILY_SLOTS_KEY` / `DAILY_LIMIT_KEY`。
+- **默认值**：没设置过 → 早上 / 下午 / 晚上各一小时（08:00–09:00、14:00–15:00、19:00–20:00）；上限默认 480 分钟。**写坏了（不是 JSON、不是数组）也退回默认三段**，不让一次脏数据把计划弄没。
+- **上限夹取**：夹在 60–720 分钟之间（`MAX_DAILY_STUDY_MINUTES`）。低于一小时等于没排。
+- **非法时段在两端都被丢掉**：读设置时过滤 `end <= start`；保存时前端也过滤并提示「已保存；有 N 段时间不合法，已忽略。」
+- **设置页**：`src/components/DailyPlanSetting.tsx`，预设（默认三段 / 上午 / 下午 / 晚上 / 早晚两段）一键填入，可增删段。
+- 由 `parse_daily_slots_returns_defaults_when_unset` / `parse_daily_slots_falls_back_on_broken_payload` / `parse_daily_slots_reads_pairs_and_drops_invalid` / `parse_daily_slots_accepts_object_form` / `serialize_daily_slots_round_trips` / `parse_daily_limit_clamps_and_defaults` / `daily_slot_minutes_sums_valid_slots` / `daily_plan_setting_loads_saved_slots_and_limit` / `daily_plan_setting_saves_preset_slots_and_limit` / `daily_plan_setting_drops_invalid_slot_on_save` / `daily_plan_setting_adds_and_removes_slots` 锁定。
+
+### 一键生成未来一周计划
+
+- **命令**：`generate_week_plan`（`src-tauri/src/commands/planner.rs`），入参 `GenerateWeekPlanInput { taskId, startDate?, days? }`，返回 `{ taskId, created, skipped, lastDate }`。`startDate` 空 = 今天；`days` 默认 7，夹在 1–31。
+- **只用学生自己设的可用时段排**，不自己发明时间。已被别的排期占用（`status IN ('planned','done')`）的时段跳过；当天累计时长超过每日上限也跳过，两种情况都计入 `skipped`。
+- **每场 1 个单位**，`round` 取任务的 `current_round`。
+- **整个写入在一个事务里**，中途出错不留半截数据。
+- **不排归档任务**（`TaskArchived`）、**任务不存在**返回 `TaskNotFound`、**日期格式不对**直接报错（提示用 `YYYY-MM-DD`）。
+- **幂等**：第二次跑会因为时段已被占用而全部跳过，不会重复排。
+- 由 `generate_week_plan_creates_sessions_across_days` / `generate_week_plan_skips_occupied_slots` / `generate_week_plan_respects_daily_limit` / `generate_week_plan_uses_configured_slots` / `generate_week_plan_rejects_archived_task` / `generate_week_plan_rejects_unknown_task` / `generate_week_plan_rejects_broken_start_date` / `generate_week_plan_is_idempotent_on_second_run` / `task_detail_week_plan_generates_schedule_and_reports` / `task_detail_week_plan_reports_skipped_slots` / `task_detail_week_plan_says_when_no_slot_is_free` 锁定。
+
+### 今日剩余待学的去重与上限
+
+- **重叠排期先合并**：`mergePlannedWindows` 把当天所有未完成场次的时段求并集（端点相接不算重叠），再按并集算剩余分钟。同一时段被排两次不会把时长算两遍。
+- **上限截断**：合并后的分钟数超过 `daily_limit_minutes` 时按上限截断，并在面板上说明「已按每日上限 X 分钟截断」。
+- **无重叠不加解释**：没有重叠、也没触顶时保持原来的一句话，不给用户添噪音。
+- 由 `calculate_today_remaining_minutes_merges_duplicate_slots` / `calculate_today_remaining_minutes_merges_partial_overlap` / `calculate_today_remaining_minutes_caps_at_daily_limit` / `calculate_today_remaining_minutes_respects_custom_daily_limit` / `merge_planned_windows_returns_non_overlapping_windows` / `summarize_today_plan_reports_merged_sessions_and_cap` / `resolve_remaining_study_reports_merged_sessions` / `study_remaining_merges_overlapping_sessions_and_explains` / `study_remaining_caps_daily_total_and_explains` / `study_remaining_stays_plain_when_no_overlap` 锁定。
+
+### 教材导入跨天铺排
+
+- **每天最多三场**（08:00 / 14:00 / 19:00），生成的排期从今天开始往后铺，不再把十几节课全堆在同一天。铺几天 = `ceil(待排节数 / 3)`，导入确认页直接告诉学生「预计铺到 N 天后」。
+- **已掌握的章节不占未来排期位**：它们记在今天的晚间回顾格（`status='done'`、`actual_units=1`、`xp_awarded=0`），直接插入，不走完成路径，因此无 XP、无流水、无连击变更、无成就。
+- **排期方式二选一**：导入向导可只建主线任务（不生成排期），也可为未掌握的章节自动生成排期。
+- 由 `src-tauri/src/commands/textbook.rs` 的 `SESSION_SLOTS` / `plan_sections` 与 `src/components/TextbookImportWizard.tsx` 锁定。
+
+### 日期时间自绘组件
+
+- **不依赖原生 `type="date"` / `type="time"`**：原生控件在深色主题下不可控且移动端体验差，改为自绘的 `DateField` / `TimeField` / `TimeRangeField`。
+- **纯函数在 `src/lib/dateField.ts` / `src/lib/timeField.ts`**：月历网格从周一开始整周补齐；`addDaysISO` / `shiftMonth` 处理跨月跨年；`parseHHMM` / `formatHHMM` / `addMinutesToHHMM` 处理时间。组件只负责渲染。
+- **保留键入通道**：`TimeField` 允许直接键入 `HH:MM`，输不出错时回落到上一次合法值。
+- **时段快捷**：`TimeRangeField` 一键套用预设时段，并可按时长顺延结束时间。
+- 由 `date_field_shows_relative_label_and_opens_shortcuts` / `date_field_shortcut_picks_tomorrow` / `date_field_grid_picks_a_day_and_marks_today` / `date_field_can_move_to_next_month` / `time_field_picks_hour_then_minute` / `time_field_exact_input_updates_value` / `time_range_field_applies_preset_slot_in_one_click` / `time_range_field_extends_end_by_duration` 与 `src/lib/__tests__/dateField.test.ts` / `src/lib/__tests__/timeField.test.ts` 锁定。
+
+### 术语词条与数字来源
+
+- **数据在 `src/lib/glossary.ts`**：每个词条有稳定 `id`、术语名、问句式 `question`（用作提示按钮的无障碍名称）、一句话解释、`formula`（口径）与 `source`（数据来源）。
+- **口径必须与实现一致**：XP / 连击 / 等级对 `src-tauri/src/gamification.rs`，达成率对统计 SQL，今日剩余待学对 `src/lib/studyCountdown.ts`。`glossary_xp_formula_matches_gamification_constants` / `glossary_level_formula_matches_level_curve` / `glossary_daily_limit_matches_settings_bounds` 钉住这些数字，改公式时必须同步改词条。
+- **展示**：`GlossaryHint` 在界面上就地弹出该词条的公式说明（`role="dialog"`）；`GlossaryList` 列出全部词条与来源。未知 id 渲染空、不报错。
+- 由 `glossary_entries_have_unique_ids_and_complete_text` / `glossary_covers_the_numbers_students_ask_about` / `glossary_hint_opens_the_formula_on_click` / `glossary_hint_renders_nothing_for_unknown_id` / `glossary_hint_closes_on_confirm` / `glossary_list_shows_every_term_with_its_source` 锁定。
+
+### 模考倒计时
+
+- **模考 = 除主考（高考）以外的考试目标**。设置页加一条「名称（如模考）+ 日期」即可，`isPrimary` 的那条不算模考。
+- **只取今天及以后的最近一个**（`nextMockExam`）：过去的模考不再倒计时；一条都没有时返回 `null`，面板不渲染（不占空白）。
+- **今天就是模考日**显示「就是今天」，否则显示「N 天」。高考倒计时动辄几百天，模考才是最近的抓手。
+- 由 `mock_exam_picks_the_nearest_future_non_primary_exam` / `mock_exam_ignores_the_primary_exam` / `mock_exam_ignores_past_exams` / `mock_exam_marks_today_as_is_today` / `mock_exam_returns_null_without_any_exam` / `mock_countdown_shows_days_until_next_mock_exam` / `mock_countdown_hides_when_there_is_no_mock_exam` 锁定。
+
+### 便签绑定日期
+
+- **新增列 `notes.note_date`**（迁移 `20261118120000_add_note_date.sql`，可空）。绑定后这张便签会出现在「当天要做的事」里，历史也能按日期追溯。
+- **日期格式严格**：`normalize_note_date` 只接受 `YYYY-MM-DD`（10 位、两位分隔符、全数字），其余一律当「没绑日期」，**不报错、不截断**。
+- **解绑**：传空值即把 `note_date` 置 `NULL`。列表排序口径不变（仍是 `pinned DESC, updated_at DESC, id DESC`），绑定日期不参与排序。
+- **今日页只显示当天便签**：`src/lib/notes.ts` 的过滤只认 `note_date === 当天`，没绑日期的便签不出现（它们仍留在便签页）。`DayNotes` 在没有当天便签时整块不渲染。
+- 由 `create_note_with_date_stores_bound_date` / `create_note_without_date_leaves_note_date_null` / `update_note_binds_then_clears_date` / `normalize_note_date_rejects_malformed_values` / `keeps_only_notes_bound_to_that_day` / `ignores_notes_without_a_bound_date` / `returns_empty_for_empty_date_or_empty_list` / `note_card_binds_a_date_from_the_picker` / `note_card_shows_the_bound_date_and_can_unbind` / `notes_page_creates_a_note_with_the_chosen_date` / `today_page_shows_only_notes_bound_to_that_day` 锁定。
+
+### 错题本契约
+
+- **表**：`mistakes`（迁移 `20261118140000_create_mistakes.sql`），字段 `id / subject / title / reason / correct_note / is_mastered / created_at / updated_at`。走 rusqlite 同步连接（与便签同款），不是 sqlx 池。
+- **错因是闭合集合**：Rust `REASON_WHITELIST`（概念不清、公式记错、审题失误、计算失误、方法不会、粗心大意、其他）与前端 `src/lib/mistakes.ts` 的 `MISTAKE_REASONS` 必须逐项相等，由跨端护栏 `frontend_reason_list_matches_backend_whitelist` 钉住（Rust 测试直接读 `src/lib/mistakes.ts` 源码比对）。**改一边必须改另一边**。未知 / 空错因归「其他」，不报错。
+- **科目是开放字符串**：只 `trim`，空值归「其他」；不做白名单校验，与 `actual_logs.subject` 的开放语义一致。
+- **`is_mastered` 用 0/1 而不是 boolean**：Rust 侧是 `Option<i64>`（serde 不能把 bool 反序列化成 i64），前端传 0/1，command 层归一为 `if m != 0 { 1 } else { 0 }`。列的默认值是 0（未订正）。
+- **排序**：`ORDER BY is_mastered ASC, created_at DESC, id DESC`——未订正的排前面，同组内按创建时间倒序，最后按 id 倒序保证顺序稳定。
+- **导出导入**：`mistakes` 已进 `export_json_impl` / `import_json_impl` 的表清单，与其它用户表一起往返；由 `export_json_includes_every_user_table` 的双向覆盖护栏与 `mistakes_survive_export_import_round_trip` 锁定。
+- 由 `normalize_reason_maps_unknown_to_other` / `normalize_subject_trims_and_falls_back_to_other` / `create_mistake_stores_normalized_reason_and_subject` / `list_mistakes_puts_unmastered_first` / `update_mistake_only_touches_given_fields` / `delete_mistake_removes_the_row` / `mistakes_survive_export_import_round_trip` 与前端 `mistake_reasons_match_the_backend_whitelist` / `normalize_reason_falls_back_to_other` / `normalize_subject_trims_and_defaults_to_other` / `summarize_mistakes_counts_pending_and_mastered` / `filter_mistakes_splits_pending_and_mastered` / `reason_counts_lists_the_most_common_reason_first` / `mistakes_page_records_subject_reason_and_correct_note` / `mistakes_page_refuses_to_save_without_a_title` / `mistakes_page_toggles_mastered_state` / `mistakes_page_filters_pending_and_mastered` / `mistakes_page_shows_the_empty_state` 锁定。
+
+### 成绩缺考折算
+
+- **公式**（`src/lib/scoreScaling.ts`）：`折算总分 = 实考总分 × 六科满分(610) ÷ 已考科目满分之和`，四舍五入。也就是把缺考科目按已考科目的得分率补齐，得到与「六科都考了」可比的分数。各科满分：语文 120 / 数学 130 / 英语 120 / 物理、化学、生物各 80，合计 610，与设置页默认目标一致。
+- **留空 = 缺考**：录入弹窗文案明确「没考的科目留空——留空就是缺考，总分会按已考科目比例折算」。`null` 就是缺考，不写 0。
+- **单科不折算**：只记一科时 `scaledTotalNote` 返回 `null`，界面不显示折算说明（拿一科推六科没有意义）。六科齐全时折算分等于实考总分。空记录没有折算分。
+- **胶囊与档案页**：`ScoreOverview` 的第三分支是 `kind: "scaled"`（带 `score / sum / count / missing / gap / tone`），胶囊显示折算分 + 「折算 · 缺考生物」，档案页 `RecordCard` 额外渲染 `data-testid="scaled-total-note"` 说明行与缺考提示行。
+- **趋势图口径不变**：`ScoreTrendChart` 仍然只收「六科都有分」的场次计入总分（不折算），避免历史趋势被改写。这与胶囊的折算是两套口径，属有意为之。
+- 由 `full_paper_needs_no_scaling` / `missing_biology_scales_the_total_to_the_six_subject_scale` / `several_missing_subjects_scale_by_the_taken_share` / `a_single_subject_is_not_scaled` / `an_empty_paper_has_no_scaled_total` / `subject_full_marks_match_the_default_targets` / `scales a partial paper so the gap to the target stays comparable` / `does not scale a paper that only has one score` 锁定。
+
+### 教材源插件契约
+
+- **插件只带清单，不带教材内容。** `resources/plugins/<id>/catalog.json` 是教材清单快照（路径、学段、科目、版本、年级、大小、分片 sha）。用户挑中哪本才下载哪本；不预置批量抽取的目录数据。
+- **清单是静态快照**，版本锁在 `commit` 字段上。安装时随插件解包到 `plugins/<id>/resources/`；插件没装也能读内置的那份。仓库更新后要重新生成快照。
+- **下载有两个源**：`blob` 走 GitHub blob 接口（地址里只有 sha，不受中文路径影响，但未认证每小时 60 次）；`raw` 走 `raw.githubusercontent`。两个源写在插件选项 `download_source` 里。
+- **这两个选项对普通用户是黑话**：界面上一律不出现 `blob` / `raw` / `GitHub token`。详见下一节「插件选项的文案约定」。
+- **blob 源遇到 403 是限额用完**：提示语说「今天的下载次数用完了……换一个下载通道」，不直接甩 `GitHub token` 给学生。
+- **下载必须能断点续传**：慢网上几十兆的教材常常传到一半就断线。断了要带 `Range: bytes=<已收>-` 接着传，不从头再来；两个源指向同一个 commit 的同一份文件，字节完全一样，换源续传不会拼出坏文件（下载计划里首选源 + 备用源各存一条地址）。
+- **服务端不认 `Range`（回 200）时要从头重下这一片**，不能把整本接在半截后面；每片下完要核对清单里的字节数，对不上就是没下全，要重建这一片。
+- **下载失败不留半成品**：临时文件 `.part` 一律删掉，下次重新下。
+- **报错要带底层原因**：reqwest 把「连接断了」这类传输层错误统一显示成 `error decoding response body`，不看 `source()` 链就分不清是超时还是被掐断。
+- **没开 gzip/brotli/deflate feature**，所以不会自动发 `Accept-Encoding`、也不会自动解压；GitHub blob 接口碰到超大文件会改回 JSON，要按 `content-type` 判。
+- **分片书按 `.pdf_merge_folder/<书名>.pdf.N` 顺序拼接**，全部下完才改名，失败不留半成品。教材落到 `appData/textbooks/<插件 id>/`，文件名取书名去非法字符后截到 120 字。
+- **PDF 目录解析必须查字体的 `/ToUnicode` 表**：教材正文用 Type0 字体配 `UniGB-UTF16-H` 编码，lopdf 的内置编码解不出中文（它按 UTF-16BE 直解）。自实现的解码器在 `src-tauri/src/pdf_text.rs`，按 `ObjectId` 缓存。解析 CMap 时遇到 `<< ... >>` 头部的落单 `>` 必须跳过，否则 tokenizer 原地打转会把内存吃光。
+- **目录只到「章 + 节」**，知识点留空让学生在任务详情里自己补。目录页页码列要剥掉；页码前的 `/` 也要剥，否则小节标题尾巴上会留斜杠。
+- **导入后的教材不出现在「从教材导入」的第一步**：那个列表只含内置教材（`list_available_textbooks`）。插件页下载完直接给「勾选已掌握」的入口（`TextbookImportWizard` 的 `preloaded`），不走选书那一步。
+- 由 `builtin_catalog_lists_textbooks_with_dimensions` / `sharded_book_joins_parts_into_one_pdf` / `failed_download_leaves_no_partial_file` / `interrupted_download_resumes_from_where_it_stopped` / `server_ignoring_range_restarts_the_shard` / `size_mismatch_is_reported_and_nothing_is_left` / `decodes_chinese_through_the_font_tounicode_table` / `plugin_library_turns_the_parsed_outline_into_a_task` 锁定。
+
+### 插件选项的文案约定
+
+- **插件清单里的选项要面向中学生写**：技术词（`blob`、`raw`、`GitHub token`）不能直接出现在界面上。`PluginOption` 支持四个可选字段：
+  - `choice_labels`：`{ 候选值: 显示名 }`。下拉里显示显示名，存进 settings 的仍是候选值，后端取值逻辑不变。
+  - `help`：选项下面的一句说明，用大白话讲「什么时候用、要不要动」。
+  - `advanced`：收进「高级设置（一般不用改）」折叠区，默认不展开。技术性选项一律标上。
+  - `secret`：敏感内容（令牌、口令）用密码框渲染，不在屏幕上明文回显。
+- **没写这些字段的老插件照旧能用**：`help` 空、不算高级、不敏感，选项平铺显示。
+- **教材库插件的选项全部标 `advanced`**：学生打开插件页先看到的是教材库本身，而不是一排看不懂的技术项；要换通道或填令牌时，才展开「高级设置」。
+- **学生视角的下载通道名**：`blob` → 「标准通道（推荐）」，`raw` → 「备用通道（标准通道失败时再试）」。
+- **令牌对普通用户是选填的**：文案写「平时不用填」，并说明只有提示下载次数用完时才需要。
+- 由 `textbook_plugin_options_carry_user_facing_text` / `plugin_option_defaults_are_backward_compatible` / `plugin_detail_folds_advanced_options_away_by_default` / `plugin_detail_shows_friendly_choice_names_instead_of_raw_values` / `plugin_detail_masks_the_token_field_and_explains_it` / `plugin_detail_keeps_normal_options_flat_without_an_advanced_section` 锁定。
 
 ## 待处理技术债
 

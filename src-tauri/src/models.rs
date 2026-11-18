@@ -67,6 +67,10 @@ pub struct TaskSession {
     pub task_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subject: Option<String>,
+    /// Unit label of the owning task ("课" / "节"). Kept next to the session so
+    /// the UI can say "计划 2 节" without guessing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_unit_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -167,6 +171,8 @@ pub struct Note {
     pub content: String,
     pub color: String,
     pub pinned: i64,
+    /// 绑定的日期（`YYYY-MM-DD`）；没绑定就是空。
+    pub note_date: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -177,6 +183,37 @@ pub struct UpdateNotePayload {
     pub content: Option<String>,
     pub color: Option<String>,
     pub pinned: Option<bool>,
+    /// `None` = 不改；`Some("")` = 取消绑定；`Some("2026-11-18")` = 绑定到该日。
+    pub note_date: Option<String>,
+}
+
+/// 错题本里的一条错题。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Mistake {
+    pub id: i64,
+    /// 科目，空串表示还没归类。
+    pub subject: String,
+    /// 题目 / 知识点的简述。
+    pub title: String,
+    /// 错因分类，见 `MISTAKE_REASONS`。
+    pub reason: String,
+    /// 自己写下的正确思路，可空。
+    pub correct_note: String,
+    /// 1 = 已订正。
+    pub is_mastered: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateMistakePayload {
+    pub subject: Option<String>,
+    pub title: Option<String>,
+    pub reason: Option<String>,
+    pub correct_note: Option<String>,
+    /// 0 = 未订正，1 = 已订正。
+    pub is_mastered: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

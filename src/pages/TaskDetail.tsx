@@ -1,10 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { TaskProgressRing } from "../components/ProgressRing";
+import { GlossaryHint } from "../components/GlossaryHint";
 import { SessionCard } from "../components/SessionCard";
 import { KnowledgePointList } from "../components/KnowledgePointDrawer";
 import { useTask, useTaskKnowledgePoints, useTaskMutations, useTaskProgress } from "../hooks/useTasks";
 import { useSessionsByTask } from "../hooks/useSessions";
+import { formatMonthDay } from "../lib/date";
 
 export function TaskDetail() {
   const { id } = useParams();
@@ -15,7 +17,8 @@ export function TaskDetail() {
   const { data: sessions = [] } = useSessionsByTask(idOrNull);
   const { data: knowledgePoints } = useTaskKnowledgePoints(idOrNull);
   const points = Array.isArray(knowledgePoints) ? knowledgePoints : [];
-  const { archive, advanceRound } = useTaskMutations();
+  const { archive, advanceRound, generateWeekPlan } = useTaskMutations();
+  const [planMessage, setPlanMessage] = useState<string | null>(null);
 
   const byRound = useMemo(() => {
     const map = new Map<number, typeof sessions>();
@@ -57,9 +60,12 @@ export function TaskDetail() {
             {task.textbook ? ` · ${task.textbook}` : ""}
           </p>
           {task.type === "main" ? (
-            <p className="mt-1 text-sm text-ink-muted">
-              当前第 {task.current_round} / {task.total_rounds} 轮 · 本轮{" "}
-              {roundDone}/{task.total_units} {task.unit_name}
+            <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-ink-muted">
+              <span>
+                当前第 {task.current_round} / {task.total_rounds} 轮 · 本轮{" "}
+                {roundDone}/{task.total_units} {task.unit_name}
+              </span>
+              <GlossaryHint id="progress_ring" />
             </p>
           ) : (
             <p className="mt-1 text-sm text-ink-muted">
@@ -79,6 +85,42 @@ export function TaskDetail() {
             ) : null}
             <button
               type="button"
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-sm hover:bg-white/5 disabled:opacity-50"
+              disabled={generateWeekPlan.isPending}
+              onClick={() => {
+                setPlanMessage(null);
+                generateWeekPlan.mutate(
+                  { taskId: task.id, days: 7 },
+                  {
+                    onSuccess: (result) => {
+                      const parts: string[] = [];
+                      parts.push(
+                        result.created > 0
+                          ? `已排 ${result.created} 个排期${
+                              result.lastDate ? `，铺到 ${formatMonthDay(result.lastDate)}` : ""
+                            }`
+                          : "没有空位可排",
+                      );
+                      if (result.skipped > 0) {
+                        parts.push(`跳过 ${result.skipped} 个被占用或超上限的时段`);
+                      }
+                      setPlanMessage(`${parts.join("；")}。`);
+                    },
+                    onError: (err: unknown) => {
+                      setPlanMessage(
+                        typeof err === "string" && err.trim()
+                          ? err
+                          : "排期失败，请稍后再试。",
+                      );
+                    },
+                  },
+                );
+              }}
+            >
+              一键排一周
+            </button>
+            <button
+              type="button"
               className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-ink-muted hover:bg-white/5"
               onClick={() =>
                 archive.mutate({ id: task.id, archived: !task.archived })
@@ -87,6 +129,11 @@ export function TaskDetail() {
               {task.archived ? "取消归档" : "归档"}
             </button>
           </div>
+          {planMessage ? (
+            <p className="mt-2 text-xs text-ink-muted" role="status">
+              {planMessage}
+            </p>
+          ) : null}
         </div>
       </div>
 

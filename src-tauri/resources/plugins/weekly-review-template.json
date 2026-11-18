@@ -1,0 +1,26 @@
+{
+  "id": "weekly-review-template",
+  "name": "周计划复盘模板",
+  "summary": "生成周计划时自动带上运动和周末复盘，别让一周只剩下刷题。",
+  "author": "TimeQuest 官方",
+  "version": "1.0.0",
+  "icon": "📅",
+  "capabilities": [
+    "周计划：一键套用「学习 + 运动 + 复盘」模板",
+    "周日自动提醒写周复盘"
+  ],
+  "options": [
+    {
+      "key": "sport_minutes",
+      "label": "每天运动时长（分钟）",
+      "kind": "number",
+      "default": "30"
+    },
+    {
+      "key": "review_day",
+      "label": "复盘安排在周几",
+      "kind": "text",
+      "default": "周日"
+    }
+  ]
+}

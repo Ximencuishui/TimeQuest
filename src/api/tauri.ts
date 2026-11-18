@@ -5,6 +5,7 @@ import type {
   CompleteSessionInput,
   CompleteSessionResult,
   CreateExamRecordPayload,
+  DownloadedTextbook,
   ExamRecord,
   CompletionRate,
   MethodShareRow,
@@ -13,15 +14,22 @@ import type {
   AvailableTextbook,
   GenerateTasksFromOutlineInput,
   GenerateTasksResult,
+  GenerateWeekPlanInput,
+  GenerateWeekPlanResult,
   ImportTextbookResult,
+  Mistake,
   PlanVsActualRow,
+  PluginInfo,
+  PluginOptionValue,
   RescheduleInput,
   TagTypeRow,
   Task,
   TaskKnowledgePoint,
   TaskSession,
+  TextbookCatalog,
   TextbookCatalogItem,
   TextbookOutline,
+  UpdateMistakePayload,
   UserAchievement,
   UserProfile,
   UserStats,
@@ -50,6 +58,18 @@ export const api = {
   listTextbookCatalog: () => invoke<TextbookCatalogItem[]>("list_textbook_catalog"),
   importTextbookJson: (json: string) =>
     invoke<ImportTextbookResult>("import_textbook_json", { json }),
+  importTextbookPdf: (
+    file: string,
+    subject: string,
+    version: string,
+    volume: string,
+  ) =>
+    invoke<ImportTextbookResult>("import_textbook_pdf", {
+      file,
+      subject,
+      version,
+      volume,
+    }),
   getTaskKnowledgePoints: (taskId: number) =>
     invoke<TaskKnowledgePoint[]>("get_task_knowledge_points", { taskId }),
   toggleKnowledgePoint: (id: number) =>
@@ -87,6 +107,9 @@ export const api = {
     round?: number;
     plannedUnits?: number;
   }) => invoke<TaskSession>("create_session", { payload }),
+  deleteSession: (sessionId: number) => invoke<void>("delete_session", { sessionId }),
+  generateWeekPlan: (input: GenerateWeekPlanInput) =>
+    invoke<GenerateWeekPlanResult>("generate_week_plan", { input }),
   completeSession: (input: CompleteSessionInput) =>
     invoke<CompleteSessionResult>("complete_session", { input }),
   rescheduleSession: (input: RescheduleInput) =>
@@ -129,13 +152,50 @@ export const api = {
 
   // notes
   listNotes: () => invoke<Note[]>("list_notes"),
-  createNote: (content: string, color: string) =>
-    invoke<Note>("create_note", { content, color }),
+  createNote: (content: string, color: string, noteDate?: string | null) =>
+    invoke<Note>("create_note", { content, color, noteDate: noteDate ?? null }),
   updateNote: (
     id: number,
-    payload: { content?: string; color?: string; pinned?: boolean },
+    payload: {
+      content?: string;
+      color?: string;
+      pinned?: boolean;
+      /** 空串 = 取消绑定日期。 */
+      noteDate?: string;
+    },
   ) => invoke<Note>("update_note", { id, payload }),
   deleteNote: (id: number) => invoke<void>("delete_note", { id }),
+
+  // mistakes
+  listMistakes: () => invoke<Mistake[]>("list_mistakes"),
+  createMistake: (payload: {
+    subject: string;
+    title: string;
+    reason: string;
+    correctNote: string;
+  }) =>
+    invoke<Mistake>("create_mistake", {
+      subject: payload.subject,
+      title: payload.title,
+      reason: payload.reason,
+      correctNote: payload.correctNote,
+    }),
+  updateMistake: (id: number, payload: UpdateMistakePayload) =>
+    invoke<Mistake>("update_mistake", { id, payload }),
+  deleteMistake: (id: number) => invoke<void>("delete_mistake", { id }),
+
+  // plugins (toolbox)
+  listPlugins: () => invoke<PluginInfo[]>("list_plugins"),
+  installPlugin: (id: string) => invoke<PluginInfo>("install_plugin", { id }),
+  uninstallPlugin: (id: string) => invoke<void>("uninstall_plugin", { id }),
+  listPluginOptions: (pluginId: string) =>
+    invoke<PluginOptionValue[]>("list_plugin_options", { pluginId }),
+  setPluginOption: (pluginId: string, key: string, value: string) =>
+    invoke<void>("set_plugin_option", { pluginId, key, value }),
+  listPluginTextbookCatalog: (pluginId: string) =>
+    invoke<TextbookCatalog>("list_plugin_textbook_catalog", { pluginId }),
+  downloadPluginTextbook: (pluginId: string, path: string) =>
+    invoke<DownloadedTextbook>("download_plugin_textbook", { pluginId, path }),
 
   // gamification / user
   getUserStats: () => invoke<UserStats>("get_user_stats"),

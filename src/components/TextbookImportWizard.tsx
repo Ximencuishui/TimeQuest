@@ -17,6 +17,8 @@ import { Modal } from "./Modal";
 
 const STEPS = ["选择教材", "勾选已掌握", "确认生成"] as const;
 const CONFIRM_DEBOUNCE_MS = 400;
+/** 每天最多排几场（与后端 `SESSION_SLOTS` 一致）。 */
+const SESSIONS_PER_DAY = 3;
 
 function bookKey(book: AvailableTextbook): string {
   return `${book.subject}\u0000${book.version}\u0000${book.volume}`;
@@ -33,19 +35,33 @@ function errorText(err: unknown): string {
 export function TextbookImportWizard({
   onClose,
   onCreated,
+  preloaded,
 }: {
   onClose: () => void;
-  onCreated: (plannedCount: number, autoSchedule: boolean) => void;
+  onCreated: (
+    plannedCount: number,
+    autoSchedule: boolean,
+    lastPlannedDate: string | null,
+  ) => void;
+  /**
+   * 已经选好教材时的入口：插件下载完教材，目录已经解析好了，
+   * 直接从「勾选已掌握」开始，不必再选一次书。
+   */
+  preloaded?: { outline: TextbookOutline; taskName: string };
 }) {
   const { generateFromOutline } = useTaskMutations();
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStep] = useState<Step>(preloaded ? 2 : 1);
   const [books, setBooks] = useState<AvailableTextbook[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [loadingBooks, setLoadingBooks] = useState(true);
-  const [outline, setOutline] = useState<TextbookOutline | null>(null);
-  const [openChapters, setOpenChapters] = useState<Set<number>>(() => new Set());
+  const [loadingBooks, setLoadingBooks] = useState(!preloaded);
+  const [outline, setOutline] = useState<TextbookOutline | null>(
+    preloaded?.outline ?? null,
+  );
+  const [openChapters, setOpenChapters] = useState<Set<number>>(
+    () => new Set(preloaded?.outline.chapters.map((_, index) => index) ?? []),
+  );
   const [masteredKeys, setMasteredKeys] = useState<Set<string>>(() => new Set());
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(preloaded?.taskName ?? "");
   const [autoSchedule, setAutoSchedule] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingOutline, setLoadingOutline] = useState(false);
@@ -59,6 +75,8 @@ export function TextbookImportWizard({
   const titleMissing = title.trim().length === 0;
 
   useEffect(() => {
+    // 教材已经选好的时候不用再读内置教材清单。
+    if (preloaded) return;
     let alive = true;
     api
       .listAvailableTextbooks()
@@ -76,7 +94,7 @@ export function TextbookImportWizard({
     return () => {
       alive = false;
     };
-  }, []);
+  }, [preloaded]);
 
   const loadOutline = async () => {
     if (!selectedBook) return;
@@ -137,7 +155,7 @@ export function TextbookImportWizard({
         selectedSections: plan.selectedSections,
         autoSchedule,
       });
-      onCreated(result.plannedCount, autoSchedule);
+      onCreated(result.plannedCount, autoSchedule, result.lastPlannedDate ?? null);
     } catch (err) {
       confirmLock.current = 0;
       setError(errorText(err));
@@ -160,6 +178,7 @@ export function TextbookImportWizard({
               generating={generateFromOutline.isPending}
               canSelectBook={selectedBook != null && !loadingBooks}
               canGenerate={!titleMissing}
+              showBack={!preloaded}
               onClose={onClose}
               onBack={() => {
                 setError(null);
@@ -182,11 +201,12 @@ export function TextbookImportWizard({
       }
     >
       <ol className="mb-4 flex gap-2 text-xs text-ink-muted">
-        {STEPS.map((label, index) => {
-          const current = index + 1 === step;
+        {(preloaded ? STEPS.slice(1) : STEPS).map((label, index) => {
+          const number = preloaded ? index + 2 : index + 1;
+          const current = number === step;
           return (
             <li key={label} className={current ? "text-accent" : undefined}>
-              {index + 1}. {label}
+              {number}. {label}
             </li>
           );
         })}
@@ -439,6 +459,8 @@ function ConfirmStep({
   onTitle: (title: string) => void;
   onAutoSchedule: (value: boolean) => void;
 }) {
+  // 每天最多三场（08:00 / 14:00 / 19:00），告诉学生会铺几天。
+  const spreadDays = Math.max(1, Math.ceil(plannedCount / SESSIONS_PER_DAY));
   return (
     <div className="space-y-3 text-sm">
       <p className="text-ink">
@@ -446,6 +468,12 @@ function ConfirmStep({
           ? `共 ${total} 节，已掌握 ${masteredCount} 节，将生成 ${plannedCount} 个待办排期。`
           : `共 ${total} 节，已掌握 ${masteredCount} 节。只创建主线任务，不生成排期。`}
       </p>
+      {autoSchedule && plannedCount > 0 ? (
+        <p className="text-xs text-ink-muted">
+          排期会从今天开始往后铺，每天最多 {SESSIONS_PER_DAY} 场
+          （08:00、14:00、19:00），预计铺到 {spreadDays} 天后。
+        </p>
+      ) : null}
       <fieldset className="space-y-2">
         <legend className="text-ink-muted">排期方式</legend>
         <label className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5">
@@ -489,6 +517,7 @@ function Footer({
   generating,
   canSelectBook,
   canGenerate,
+  showBack,
   onClose,
   onBack,
   onNext,
@@ -499,6 +528,8 @@ function Footer({
   generating: boolean;
   canSelectBook: boolean;
   canGenerate: boolean;
+  /** 教材已经选好时没有「上一步」，只能取消。 */
+  showBack: boolean;
   onClose: () => void;
   onBack: () => void;
   onNext: () => void;
@@ -506,7 +537,7 @@ function Footer({
 }) {
   return (
     <>
-      {step === 1 ? (
+      {step === 1 || !showBack ? (
         <button type="button" className="rounded-lg px-3 py-2 text-ink-muted hover:bg-white/5" onClick={onClose}>
           取消
         </button>

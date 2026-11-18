@@ -77,6 +77,7 @@ function makeNotes(count: number): Note[] {
       content: `便签-${id}`,
       color: NOTE_COLORS[i % NOTE_COLORS.length]!,
       pinned: i % 5 === 0 ? 1 : 0,
+      note_date: null,
       created_at: "2026-01-01 10:00:00",
       updated_at: "2026-01-01 10:00:00",
     };
@@ -343,6 +344,7 @@ function note(
     content,
     color,
     pinned,
+    note_date: null,
     created_at: updatedAt,
     updated_at: updatedAt,
   };

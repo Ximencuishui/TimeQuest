@@ -44,6 +44,26 @@ pub enum SessionError {
     #[error("cannot complete session with status {status}")]
     InvalidCompleteStatus { status: String },
 
+    /// `end_time` must be strictly after `start_time` on the same day.
+    /// A reversed range ("20:00 → 10:00") is a typo, not a plan.
+    #[error("结束时间不能早于开始时间（{start_time} → {end_time}），请检查排期时段")]
+    InvalidTimeRange { start_time: String, end_time: String },
+
+    /// Session bounds must be `HH:MM`-parseable.
+    #[error("时间格式不对（{value}），请用 HH:MM 这样的时间，例如 19:00")]
+    InvalidTimeFormat { value: String },
+
+    #[error("排期不存在: {session_id}")]
+    SessionNotFound { session_id: i64 },
+
+    /// Only `planned` sessions can be deleted; finished history stays.
+    #[error("只有「待完成」的排期可以删除，当前状态是 {status}")]
+    SessionNotDeletable { status: String },
+
+    /// A session with study logs is history — it cannot be deleted.
+    #[error("这条排期已经有学习记录，不能删除")]
+    SessionHasLogs { session_id: i64 },
+
     #[error("database error: {0}")]
     Db(String),
 

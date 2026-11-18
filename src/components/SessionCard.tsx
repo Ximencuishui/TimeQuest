@@ -1,5 +1,6 @@
 import type { TaskSession } from "../types";
 import type { SessionTimePhase } from "../lib/sessionTime";
+import { unitNameOf, unitsLabel } from "../lib/units";
 
 const STATUS_LABEL: Record<string, string> = {
   planned: "待完成",
@@ -12,6 +13,8 @@ type Props = {
   session: TaskSession;
   onComplete?: () => void;
   onReschedule?: () => void;
+  /** Delete a still-planned session. */
+  onDelete?: () => void;
   onFocus?: () => void;
   /** Whole-card click. Dashboard uses this to open the session on Today. */
   onClick?: () => void;
@@ -26,6 +29,7 @@ export function SessionCard({
   session,
   onComplete,
   onReschedule,
+  onDelete,
   onFocus,
   onClick,
   onOpenKnowledge,
@@ -34,6 +38,12 @@ export function SessionCard({
 }: Props) {
   const color = session.task_color || "#F97316";
   const canAct = session.status === "planned";
+  const unit = unitNameOf(session);
+  // 教材导入的排期把节标题放在 self_note 里，完成前就是「这一场学什么」。
+  const sectionTitle =
+    session.status === "planned"
+      ? (session.self_note?.trim() || null)
+      : null;
   // Dim finished / missed / rescheduled even if the clock window is still open.
   const isPast =
     timePhase === "past" ||
@@ -93,9 +103,12 @@ export function SessionCard({
             {session.start_time} – {session.end_time}
             {session.subject ? ` · ${session.subject}` : ""}
             {session.task_type === "main"
-              ? ` · 第${session.round}轮 · 计划 ${session.planned_units}`
+              ? ` · 第${session.round}轮 · 计划 ${unitsLabel(session.planned_units, unit)}`
               : ""}
           </div>
+          {sectionTitle ? (
+            <div className={metaClass}>本场：{sectionTitle}</div>
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {onOpenKnowledge ? (
@@ -167,11 +180,23 @@ export function SessionCard({
           >
             改期 ↻
           </button>
+          {onDelete ? (
+            <button
+              type="button"
+              className="rounded-lg px-3 py-1.5 text-sm text-ink-muted hover:bg-white/5"
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete();
+              }}
+            >
+              删除
+            </button>
+          ) : null}
         </div>
       ) : null}
       {session.status === "done" && session.actual_units > 0 ? (
         <p className={`mt-2 text-xs ${isPast ? "text-zinc-500" : "text-ink-muted"}`}>
-          实际 {session.actual_units}
+          实际 {unitsLabel(session.actual_units, unit)}
           {session.self_rating ? ` · 自评 ${session.self_rating}★` : ""}
           {session.xp_awarded ? ` · +${session.xp_awarded} XP` : ""}
         </p>

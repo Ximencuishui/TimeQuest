@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useSessionsByDate } from "../hooks/useSessions";
+import { useAppSetting } from "../hooks/useAppSetting";
 import { computeCountdown, todayStr } from "../lib/date";
 import { StudyRemaining } from "../components/StudyRemaining";
 import { findScrollTargetSession, sessionTimePhase } from "../lib/sessionTime";
+import { DAILY_LIMIT_SETTING_KEY, parseDailyLimit } from "../lib/studyPlan";
 import { hideWidgetWindow, requestFocusSession } from "../lib/widgetWindow";
 import { useUiStore } from "../store/ui";
 
@@ -19,6 +21,8 @@ export function WidgetPage() {
 
   const today = todayStr(now);
   const { data: sessions = [], isLoading } = useSessionsByDate(today);
+  const limit = useAppSetting(DAILY_LIMIT_SETTING_KEY);
+  const limitMinutes = parseDailyLimit(limit.data);
   const focus = findScrollTargetSession(sessions, now);
   const phase = focus
     ? sessionTimePhase(focus.start_time, focus.end_time, now)
@@ -62,6 +66,7 @@ export function WidgetPage() {
                 sessions={sessions}
                 now={now}
                 pending={isLoading}
+                limitMinutes={limitMinutes}
                 labelClassName="text-[11px] text-zinc-400"
                 clockClassName="font-mono text-sm text-zinc-200 tabular-nums"
               />

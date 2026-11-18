@@ -1,3 +1,4 @@
+import { MAX_DAILY_STUDY_MINUTES } from "./constants";
 import { pad2 } from "./date";
 import { timeToMinutes } from "./sessionTime";
 
@@ -8,17 +9,84 @@ export type TimedSession = {
   task_title?: string | null;
 };
 
-/** Sum of planned session lengths in minutes. Done and other statuses are skipped. */
-export function calculateTodayRemainingMinutes(sessions: TimedSession[]): number {
-  let total = 0;
+/** 一个待学时间窗（分钟，自当天 00:00 起算）。 */
+export type StudyWindow = { start: number; end: number };
+
+/** planned 排期中合法的时间窗（跳过已完成的与写坏时间的）。 */
+function plannedWindowList(sessions: TimedSession[]): StudyWindow[] {
+  const windows: StudyWindow[] = [];
   for (const session of sessions) {
     if (session.status !== "planned") continue;
     const start = timeToMinutes(session.start_time);
     const end = timeToMinutes(session.end_time);
     if (start == null || end == null || end <= start) continue;
-    total += end - start;
+    windows.push({ start, end });
   }
-  return total;
+  return windows;
+}
+
+/**
+ * 把 planned 排期压成互不重叠的时间窗。
+ *
+ * 防呆：同一天同一时段排了多场课（教材导入的老毛病）时，人只能同时学一门，
+ * 所以重叠部分只算一次，而不是把每场课的长度加在一起。
+ */
+export function mergePlannedWindows(sessions: TimedSession[]): StudyWindow[] {
+  const sorted = plannedWindowList(sessions).sort((a, b) => a.start - b.start);
+  const merged: StudyWindow[] = [];
+  for (const win of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && win.start <= last.end) {
+      last.end = Math.max(last.end, win.end);
+      continue;
+    }
+    merged.push({ ...win });
+  }
+  return merged;
+}
+
+/** 今日待学计划的汇总，供「今日剩余待学」展示与解释用。 */
+export type TodayPlan = {
+  /** 去重合并后的待学分钟数（未封顶） */
+  mergedMinutes: number;
+  /** 实际展示的分钟数（封顶后） */
+  minutes: number;
+  /** 被合并进别的时段的排期场次数 */
+  mergedSessions: number;
+  /** 是否触到每日上限 */
+  capped: boolean;
+};
+
+/** 汇总今日待学：先合并重叠时段，再按每日上限封顶。 */
+export function summarizeTodayPlan(
+  sessions: TimedSession[],
+  limitMinutes = MAX_DAILY_STUDY_MINUTES,
+): TodayPlan {
+  const limit = Math.min(
+    Math.max(Math.round(limitMinutes), 1),
+    MAX_DAILY_STUDY_MINUTES,
+  );
+  const windows = mergePlannedWindows(sessions);
+  const mergedMinutes = windows.reduce((sum, win) => sum + (win.end - win.start), 0);
+  const validCount = plannedWindowList(sessions).length;
+  return {
+    mergedMinutes,
+    minutes: Math.min(mergedMinutes, limit),
+    mergedSessions: Math.max(0, validCount - windows.length),
+    capped: mergedMinutes > limit,
+  };
+}
+
+/**
+ * 今日待学分钟数：重叠时段只算一次，并且不超过每日上限。
+ *
+ * done 与其它状态不计入。
+ */
+export function calculateTodayRemainingMinutes(
+  sessions: TimedSession[],
+  limitMinutes = MAX_DAILY_STUDY_MINUTES,
+): number {
+  return summarizeTodayPlan(sessions, limitMinutes).minutes;
 }
 
 export type RemainingStudy =
@@ -28,6 +96,10 @@ export type RemainingStudy =
       title: string;
       plannedMinutes: number;
       seconds: number;
+      /** 有几场排期因为时间重叠被合并了 */
+      mergedSessions: number;
+      /** 待学总量是否触到每日上限 */
+      capped: boolean;
     };
 
 function titleOf(session: TimedSession, fallback: string): string {
@@ -39,11 +111,16 @@ function titleOf(session: TimedSession, fallback: string): string {
  * Planned minutes stay a fixed sum. The live number is the wall clock:
  * time left in the current planned session, or time until the next one starts.
  */
-export function resolveRemainingStudy(sessions: TimedSession[], now: Date): RemainingStudy {
+export function resolveRemainingStudy(
+  sessions: TimedSession[],
+  now: Date,
+  limitMinutes = MAX_DAILY_STUDY_MINUTES,
+): RemainingStudy {
   const planned = sessions.filter((session) => session.status === "planned");
   if (planned.length === 0) return { kind: "done" };
 
-  const plannedMinutes = calculateTodayRemainingMinutes(planned);
+  const plan = summarizeTodayPlan(sessions, limitMinutes);
+  const plannedMinutes = plan.minutes;
   const nowSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
   const windows = planned
     .map((session) => {
@@ -62,6 +139,8 @@ export function resolveRemainingStudy(sessions: TimedSession[], now: Date): Rema
       title: titleOf(active.session, "这场"),
       plannedMinutes,
       seconds: active.endSec - nowSeconds,
+      mergedSessions: plan.mergedSessions,
+      capped: plan.capped,
     };
   }
 
@@ -72,10 +151,19 @@ export function resolveRemainingStudy(sessions: TimedSession[], now: Date): Rema
       title: titleOf(upcoming.session, "下一场"),
       plannedMinutes,
       seconds: upcoming.startSec - nowSeconds,
+      mergedSessions: plan.mergedSessions,
+      capped: plan.capped,
     };
   }
 
-  return { kind: "overdue", title: "", plannedMinutes, seconds: 0 };
+  return {
+    kind: "overdue",
+    title: "",
+    plannedMinutes,
+    seconds: 0,
+    mergedSessions: plan.mergedSessions,
+    capped: plan.capped,
+  };
 }
 
 export function formatStudyClock(totalSeconds: number): string {

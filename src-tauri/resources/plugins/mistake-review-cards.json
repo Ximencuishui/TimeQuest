@@ -1,0 +1,26 @@
+{
+  "id": "mistake-review-cards",
+  "name": "错题复习卡",
+  "summary": "把错题本里的待订正题目做成复习卡片，每天开工前先过一遍。",
+  "author": "TimeQuest 官方",
+  "version": "1.0.0",
+  "icon": "🃏",
+  "capabilities": [
+    "工具箱：按科目生成错题复习卡",
+    "今日面板显示待复习错题数量"
+  ],
+  "options": [
+    {
+      "key": "daily_cards",
+      "label": "每天复习卡片数",
+      "kind": "number",
+      "default": "10"
+    },
+    {
+      "key": "only_pending",
+      "label": "只复习未订正的错题",
+      "kind": "bool",
+      "default": "true"
+    }
+  ]
+}

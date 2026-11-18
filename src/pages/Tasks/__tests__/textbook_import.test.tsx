@@ -135,7 +135,13 @@ describe("textbook import wizard", () => {
       if (cmd === "list_available_textbooks") return catalog;
       if (cmd === "get_textbook_outline") return outline;
       if (cmd === "generate_tasks_from_outline") {
-        return { taskId: 7, totalUnits: 6, plannedCount: 4, doneCount: 2 };
+        return {
+          taskId: 7,
+          totalUnits: 6,
+          plannedCount: 4,
+          doneCount: 2,
+          lastPlannedDate: "2026-11-24",
+        };
       }
       return null;
     });
@@ -174,6 +180,11 @@ describe("textbook import wizard", () => {
     await user.click(screen.getByRole("button", { name: "下一步" }));
 
     expect(screen.getByText("共 6 节，已掌握 2 节，将生成 4 个待办排期。")).toBeInTheDocument();
+    // 防呆：告诉学生会按天铺排，而不是全挤在同一天。
+    expect(
+      screen.getByText(/排期会从今天开始往后铺，每天最多 3 场/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/预计铺到 2 天后/)).toBeInTheDocument();
     expect(screen.getByLabelText("任务名称")).toHaveValue("数学必修一");
 
     const beforeRefresh = listTaskCalls();
@@ -182,7 +193,9 @@ describe("textbook import wizard", () => {
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
-    expect(screen.getByRole("status")).toHaveTextContent("任务创建成功，已生成 4 个排期。");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "任务创建成功，已生成 4 个排期，铺到 11月24日。",
+    );
 
     const generateCalls = mockedInvoke.mock.calls.filter(
       (call) => call[0] === "generate_tasks_from_outline",

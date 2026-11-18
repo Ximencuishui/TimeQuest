@@ -1,3 +1,5 @@
+import { MAX_DAILY_STUDY_MINUTES } from "../lib/constants";
+import { GlossaryHint } from "./GlossaryHint";
 import {
   formatStudyClock,
   type RemainingStudy,
@@ -10,6 +12,7 @@ export function StudyRemaining({
   now,
   pending = false,
   study,
+  limitMinutes = MAX_DAILY_STUDY_MINUTES,
   clockClassName = "font-mono text-lg text-ink tabular-nums",
   labelClassName = "text-xs text-ink-muted",
 }: {
@@ -17,6 +20,8 @@ export function StudyRemaining({
   now?: Date;
   pending?: boolean;
   study?: RemainingStudy;
+  /** 每日学习上限（分钟），「今日剩余待学」按它封顶。 */
+  limitMinutes?: number;
   clockClassName?: string;
   labelClassName?: string;
 }) {
@@ -28,7 +33,7 @@ export function StudyRemaining({
     );
   }
 
-  const view = study ?? resolveRemainingStudy(sessions ?? [], now ?? new Date());
+  const view = study ?? resolveRemainingStudy(sessions ?? [], now ?? new Date(), limitMinutes);
   if (view.kind === "done") {
     return (
       <span data-testid="today-remaining" className={labelClassName}>
@@ -40,7 +45,20 @@ export function StudyRemaining({
   const total = formatStudyClock(view.plannedMinutes * 60);
   return (
     <span data-testid="today-remaining" className="inline-flex flex-wrap items-baseline gap-x-3 gap-y-1">
-      <span className={labelClassName}>今日剩余待学 {total}</span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className={labelClassName}>今日剩余待学 {total}</span>
+        <GlossaryHint id="remaining" />
+      </span>
+      {view.mergedSessions > 0 ? (
+        <span className={labelClassName}>
+          （{view.mergedSessions} 场时间重叠，已按实际时段合并）
+        </span>
+      ) : null}
+      {view.capped ? (
+        <span className={labelClassName}>
+          （已按每日 {MAX_DAILY_STUDY_MINUTES / 60} 小时上限计）
+        </span>
+      ) : null}
       {view.kind === "active" ? (
         <span className={labelClassName}>
           本场还剩{" "}

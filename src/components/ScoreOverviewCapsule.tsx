@@ -39,12 +39,21 @@ function CapsuleBody({ overview }: { overview: ScoreOverview }) {
       </>
     );
   }
-  if (overview.kind === "partial") {
+  if (overview.kind === "scaled") {
     return (
       <>
         <span className="text-ink-muted">最近成绩：</span>
-        <span className="font-display tabular-nums">{overview.sum}</span>
-        <span className="text-xs text-ink-muted">{overview.count} 科</span>
+        <span className="font-display tabular-nums">{overview.score}</span>
+        <span className="text-xs text-ink-muted">
+          {overview.missing.length > 0
+            ? `折算 · 缺考${overview.missing.join("、")}`
+            : `${overview.count} 科`}
+        </span>
+        {overview.gap && overview.tone ? (
+          <span className={`rounded-full px-2 py-0.5 text-xs ${GAP_CLASS[overview.tone]}`}>
+            {overview.gap}
+          </span>
+        ) : null}
       </>
     );
   }

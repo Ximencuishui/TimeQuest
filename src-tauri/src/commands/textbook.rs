@@ -1,16 +1,25 @@
 use crate::error::TextbookError;
+use crate::pdf_outline::{extract_outline, outline_to_textbook};
 use crate::textbooks::{
     get_textbook_outline as load_builtin_outline, outline_sections, parse_textbook_json,
     validate_outline, TextbookOutline,
 };
-use chrono::Local;
+use chrono::{Local, NaiveDate};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::collections::HashSet;
 use tauri::State;
 
-const SESSION_START: &str = "19:00";
-const SESSION_END: &str = "20:00";
+/// 教材导入的默认时段池：一天最多三场，彼此不重叠。
+///
+/// 防呆：以前所有章节都塞进同一天同一个时段，结果 16 个排期挤在 19:00–20:00，
+/// 今日计划直接崩掉。这里改成跨天铺排，一天最多三场。
+const SESSION_SLOTS: [(&str, &str); 3] = [
+    ("08:00", "09:00"),
+    ("14:00", "15:00"),
+    ("19:00", "20:00"),
+];
+
 const DEFAULT_COLOR: &str = "#F97316";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,6 +41,53 @@ pub struct GenerateTasksResult {
     pub total_units: i64,
     pub planned_count: i64,
     pub done_count: i64,
+    /// 排期铺到的最后一天（`YYYY-MM-DD`）；没有待学排期时为空。
+    pub last_planned_date: Option<String>,
+}
+
+/// 一节教材在排期表里的落位。
+struct PlannedSection<'a> {
+    name: &'a str,
+    date: String,
+    start_time: &'static str,
+    end_time: &'static str,
+    mastered: bool,
+}
+
+/// 把章节铺成排期：待学的从今天开始，每天最多 `SESSION_SLOTS.len()` 场。
+///
+/// - 已掌握的章节记在今天的晚间回顾格（`status = 'done'`），不占用未来的学习位。
+/// - 待学的章节按教材顺序铺开，一天一格往下推，不会出现同一天同一时段的堆叠。
+fn plan_sections<'a>(
+    sections: &[&'a str],
+    mastered: &HashSet<String>,
+    start_date: NaiveDate,
+) -> Vec<PlannedSection<'a>> {
+    let mut planned = Vec::with_capacity(sections.len());
+    let mut next_slot = 0usize;
+    let today = start_date.format("%Y-%m-%d").to_string();
+    for section in sections {
+        let is_mastered = mastered.contains(*section);
+        let (date, start_time, end_time) = if is_mastered {
+            // 已掌握：记在今天的回顾格，不占用未来排期位。
+            let slot = SESSION_SLOTS[SESSION_SLOTS.len() - 1];
+            (today.clone(), slot.0, slot.1)
+        } else {
+            let day = next_slot / SESSION_SLOTS.len();
+            let slot = SESSION_SLOTS[next_slot % SESSION_SLOTS.len()];
+            next_slot += 1;
+            let date = start_date + chrono::Duration::days(day as i64);
+            (date.format("%Y-%m-%d").to_string(), slot.0, slot.1)
+        };
+        planned.push(PlannedSection {
+            name: section,
+            date,
+            start_time,
+            end_time,
+            mastered: is_mastered,
+        });
+    }
+    planned
 }
 
 /// Create one main task from the outline of `(subject, version, volume)`.
@@ -43,8 +99,9 @@ pub struct GenerateTasksResult {
 ///
 /// When `auto_schedule` is false, the task and its knowledge points are inserted
 /// and no `task_sessions` are created.
-/// When it is true, every section becomes one session dated today
-/// (`YYYY-MM-DD` in local time), `19:00–20:00`.
+/// When it is true, every section becomes one session, spread across the
+/// following days: at most one section per time slot per day
+/// (`08:00–09:00`, `14:00–15:00`, `19:00–20:00`).
 ///
 /// A section whose title is in `selected_sections` is already mastered:
 /// `status = 'done'`, `actual_units = 1`, `xp_awarded = 0`. It is inserted
@@ -71,7 +128,7 @@ pub async fn generate_tasks_from_outline_impl(
     let total_units = i64::try_from(sections.len())
         .map_err(|_| TextbookError::InvalidOutline("section count does not fit in i64".into()))?;
     let textbook = format!("{} {}", outline.version, outline.volume);
-    let today = Local::now().format("%Y-%m-%d").to_string();
+    let today = Local::now().date_naive();
 
     let mut tx = db.begin().await?;
     let task_id = sqlx::query(
@@ -115,14 +172,15 @@ pub async fn generate_tasks_from_outline_impl(
 
     let mut planned_count = 0i64;
     let mut done_count = 0i64;
+    let mut last_planned_date: Option<String> = None;
     if input.auto_schedule {
-        for section in &sections {
-            let mastered_section = mastered.contains(*section);
-            let (status, actual_units) = if mastered_section {
+        for slot in plan_sections(&sections, &mastered, today) {
+            let (status, actual_units) = if slot.mastered {
                 done_count += 1;
                 ("done", 1i64)
             } else {
                 planned_count += 1;
+                last_planned_date = Some(slot.date.clone());
                 ("planned", 0i64)
             };
             sqlx::query(
@@ -132,12 +190,12 @@ pub async fn generate_tasks_from_outline_impl(
                    ) VALUES (?1, ?2, ?3, ?4, 1, ?5, 1, ?6, ?7, 0)"#,
             )
             .bind(task_id)
-            .bind(&today)
-            .bind(SESSION_START)
-            .bind(SESSION_END)
+            .bind(&slot.date)
+            .bind(slot.start_time)
+            .bind(slot.end_time)
             .bind(status)
             .bind(actual_units)
-            .bind(*section)
+            .bind(slot.name)
             .execute(&mut *tx)
             .await?;
         }
@@ -149,6 +207,7 @@ pub async fn generate_tasks_from_outline_impl(
         total_units,
         planned_count,
         done_count,
+        last_planned_date,
     })
 }
 
@@ -306,6 +365,32 @@ pub async fn import_textbook_json(
     pool: State<'_, SqlitePool>,
     json: String,
 ) -> Result<ImportTextbookResult, String> {
+    import_textbook_json_impl(pool.inner(), &json)
+        .await
+        .map_err(Into::into)
+}
+
+/// 从本地 PDF 的目录页解析出章节，存进教材库。
+///
+/// 解析出来的目录是「章 + 节」，没有细到知识点，所以知识点列表是空的，
+/// 学生可以在任务详情里自己补。目录里的节标题会带上编号（`1.1 正数和负数`）。
+///
+/// PDF 里找不到目录页、或者目录里没有可用的章节时直接报错，
+/// 不写一条空教材进库。
+#[tauri::command]
+pub async fn import_textbook_pdf(
+    pool: State<'_, SqlitePool>,
+    file: String,
+    subject: String,
+    version: String,
+    volume: String,
+) -> Result<ImportTextbookResult, String> {
+    let bytes = tokio::fs::read(&file)
+        .await
+        .map_err(|err| format!("读取教材文件失败：{err}"))?;
+    let chapters = extract_outline(&bytes).map_err(|err| format!("解析教材目录失败：{err}"))?;
+    let outline = outline_to_textbook(&chapters, &subject, &version, &volume)?;
+    let json = serde_json::to_string(&outline).map_err(|err| err.to_string())?;
     import_textbook_json_impl(pool.inner(), &json)
         .await
         .map_err(Into::into)
