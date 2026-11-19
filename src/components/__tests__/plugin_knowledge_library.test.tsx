@@ -2,11 +2,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   KnowledgePackEntry,
   KnowledgeTopic,
   PrerequisiteResult,
+  TopicMistakes,
 } from "../../types";
 import { PluginKnowledgeLibrary } from "../PluginKnowledgeLibrary";
 
@@ -87,14 +89,76 @@ const PREREQUISITES_BY_TOPIC: Record<string, PrerequisiteResult> = {
   },
 };
 
-function renderLibrary() {
+/**
+ * 某个知识点上记过的错题。
+ *
+ * 字段名必须跟后端 `TopicMistakes` 序列化出来的一致（snake_case）。
+ * Rust 那边有 `frontend_types_match_the_serialized_field_names` 把这条钉死：
+ * 后端一旦改成 camelCase，前端读到的就是 undefined，而且不报错。
+ *
+ * 故意让两个知识点错开：`cnm_001` 有错题，`cnm_002` 一条没有，
+ * 这样「有错题」和「没错题」两条分支都能各自验到。
+ */
+const TOPIC_MISTAKES_BY_TOPIC: Record<string, TopicMistakes> = {
+  cnm_001: {
+    topic_id: "cnm_001",
+    topic_name: "有理数",
+    total: 2,
+    pending: 1,
+    items: [
+      {
+        id: 11,
+        subject: "数学",
+        title: "负数比较大小",
+        reason: "概念不清",
+        correct_note: "",
+        is_mastered: 0,
+        created_at: "2026-11-18 10:00:00",
+      },
+      {
+        id: 12,
+        subject: "数学",
+        title: "有理数加减",
+        reason: "计算失误",
+        correct_note: "",
+        is_mastered: 1,
+        created_at: "2026-11-18 11:00:00",
+      },
+    ],
+  },
+  cnm_002: {
+    topic_id: "cnm_002",
+    topic_name: "相反数",
+    total: 0,
+    pending: 0,
+    items: [],
+  },
+};
+
+/** 把当前路由写出来，用来验跳转。 */
+function LocationProbe() {
+  const location = useLocation();
+  return (
+    <div data-testid="location">
+      {location.pathname}
+      {location.search}
+    </div>
+  );
+}
+
+function renderLibrary(
+  props: { initialSubject?: string; initialTopicId?: string } = {},
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={client}>
-      <PluginKnowledgeLibrary pluginId={PLUGIN_ID} />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <PluginKnowledgeLibrary pluginId={PLUGIN_ID} {...props} />
+        <LocationProbe />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -117,6 +181,18 @@ describe("PluginKnowledgeLibrary", () => {
       if (cmd === "list_plugin_prerequisites") {
         const topicId = (args as { topicId?: string } | undefined)?.topicId ?? "cnm_001";
         return PREREQUISITES_BY_TOPIC[topicId] ?? PREREQUISITES;
+      }
+      if (cmd === "list_topic_mistakes") {
+        const topicId = (args as { topicId?: string } | undefined)?.topicId ?? "cnm_001";
+        return (
+          TOPIC_MISTAKES_BY_TOPIC[topicId] ?? {
+            topic_id: topicId,
+            topic_name: "",
+            total: 0,
+            pending: 0,
+            items: [],
+          }
+        );
       }
       if (cmd === "download_plugin_knowledge_pack") {
         return {
@@ -310,5 +386,54 @@ describe("PluginKnowledgeLibrary", () => {
 
     expect(await screen.findByText(/cn-math-taxonomy/)).toBeInTheDocument();
     expect(screen.getByText(/CC BY-NC 4\.0/)).toBeInTheDocument();
+  });
+
+  it("knowledge_library_shows_the_mistakes_recorded_on_this_topic", async () => {
+    renderLibrary();
+
+    fireEvent.click(await screen.findByRole("button", { name: /有理数/ }));
+
+    // 错题本和图谱说的是同一件事：这个知识点上我错过几次。
+    expect(await screen.findByText("我在这里错过")).toBeInTheDocument();
+    expect(
+      screen.getByText(/错题本里在这个知识点上记了 2 道，还有 1 道没订正/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("负数比较大小")).toBeInTheDocument();
+    expect(screen.getByText("有理数加减")).toBeInTheDocument();
+    // 订正状态得跟着后端给的字段走：一条订正过，一条还没。
+    expect(screen.getByText("已订正")).toBeInTheDocument();
+    expect(screen.getByText("待订正")).toBeInTheDocument();
+
+    await waitFor(() => {
+      const calls = callsOf("list_topic_mistakes");
+      expect(calls.length).toBeGreaterThan(0);
+      expect(calls[0]).toMatchObject({
+        pluginId: PLUGIN_ID,
+        subject: "math",
+        topicId: "cnm_001",
+      });
+    });
+  });
+
+  it("knowledge_library_sends_the_topic_over_to_the_mistake_book", async () => {
+    renderLibrary();
+
+    // 相反数这个知识点上还没记过错题，所以给一个「记一条」的入口。
+    fireEvent.click(await screen.findByRole("button", { name: /相反数/ }));
+    fireEvent.click(await screen.findByTestId("topic-record-mistake"));
+
+    await waitFor(() => {
+      const location = screen.getByTestId("location").textContent ?? "";
+      expect(location).toContain("/mistakes?");
+      expect(location).toContain("graphTopic=cnm_002");
+      expect(location).toContain("graphSubject=math");
+    });
+  });
+
+  it("knowledge_library_lands_on_the_topic_a_deep_link_points_at", async () => {
+    renderLibrary({ initialSubject: "math", initialTopicId: "cnm_002" });
+
+    // 错题本里点知识点跳过来，不用再自己找一遍。
+    expect(await screen.findByRole("heading", { name: "相反数" })).toBeInTheDocument();
   });
 });

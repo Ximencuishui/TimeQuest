@@ -20,6 +20,12 @@ export function useMistakeMutations() {
         title: string;
         reason: string;
         correctNote: string;
+        /** 上游知识点 id（知识图谱）。不挂知识点就传 null。 */
+        graphTopicId?: string | null;
+        /** 图谱学科代号。 */
+        graphSubject?: string | null;
+        /** 知识点名字。 */
+        graphTopicName?: string | null;
       }) => api.createMistake(payload),
       onSuccess: invalidate,
     }),

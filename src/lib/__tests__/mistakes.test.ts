@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_MISTAKE_REASON,
   MISTAKE_REASONS,
+  STRUCTURE_REASONS,
   filterMistakes,
   normalizeReason,
   normalizeSubject,
   reasonCounts,
+  suggestsPrerequisites,
   summarizeMistakes,
+  topicCount,
 } from "../mistakes";
 import type { Mistake } from "../../types";
 
@@ -17,6 +20,9 @@ function makeMistake(partial: Partial<Mistake> & { id: number }): Mistake {
     reason: "概念不清",
     correct_note: "",
     is_mastered: 0,
+    graph_topic_id: null,
+    graph_subject: null,
+    graph_topic_name: null,
     created_at: "2026-11-18 10:00:00",
     updated_at: "2026-11-18 10:00:00",
     ...partial,
@@ -91,5 +97,39 @@ describe("mistakes lib", () => {
     expect(counts[0]).toEqual({ reason: "计算失误", count: 2 });
     expect(counts).toContainEqual({ reason: "其他", count: 1 });
     expect(counts).toHaveLength(3);
+  });
+
+  it("suggests_prerequisites_only_for_structure_reasons", () => {
+    // 指向知识结构本身的错因，才值得把人引去看先修关系。
+    expect([...STRUCTURE_REASONS]).toEqual(["概念不清", "公式记错", "方法不会"]);
+    expect(suggestsPrerequisites("概念不清")).toBe(true);
+    expect(suggestsPrerequisites("公式记错")).toBe(true);
+    expect(suggestsPrerequisites("方法不会")).toBe(true);
+
+    // 执行层的问题跟知识结构无关，不该往图谱上拽。
+    expect(suggestsPrerequisites("审题失误")).toBe(false);
+    expect(suggestsPrerequisites("计算失误")).toBe(false);
+    expect(suggestsPrerequisites("粗心大意")).toBe(false);
+    expect(suggestsPrerequisites("其他")).toBe(false);
+
+    // 未知错因归到「其他」，一样不提示。
+    expect(suggestsPrerequisites("瞎写的")).toBe(false);
+    expect(suggestsPrerequisites("")).toBe(false);
+  });
+
+  it("topic_count_counts_distinct_knowledge_points", () => {
+    expect(topicCount([])).toBe(0);
+    // 没挂知识点的错题不参与计数。
+    expect(topicCount([makeMistake({ id: 1 })])).toBe(0);
+
+    const rows = [
+      makeMistake({ id: 1, graph_topic_id: "cnm_001" }),
+      makeMistake({ id: 2, graph_topic_id: "cnm_001" }),
+      makeMistake({ id: 3, graph_topic_id: "cnm_002" }),
+      makeMistake({ id: 4, graph_topic_id: null }),
+      // 空白 id 不算挂了知识点。
+      makeMistake({ id: 5, graph_topic_id: "   " }),
+    ];
+    expect(topicCount(rows)).toBe(2);
   });
 });

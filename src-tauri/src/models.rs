@@ -201,8 +201,63 @@ pub struct Mistake {
     pub correct_note: String,
     /// 1 = 已订正。
     pub is_mastered: i64,
+    /// 上游知识点 id（知识图谱），比如 `cnm_001`。没挂知识点的错题没有。
+    pub graph_topic_id: Option<String>,
+    /// 图谱学科代号，比如 `math`。跟 `graph_topic_id` 同进同出。
+    pub graph_subject: Option<String>,
+    /// 知识点的名字。跟着 id 一起存下，错题列表不用再拉整包图谱。
+    pub graph_topic_name: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+/// 挂在某个图谱知识点上的一条错题。
+///
+/// 字段名跟 [`Mistake`] 一模一样（snake_case）。这俩是同一条错题的两种视图，
+/// 字段名一旦分叉，前端就得记两套读法，很容易读错一边。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TopicMistake {
+    pub id: i64,
+    pub subject: String,
+    pub title: String,
+    pub reason: String,
+    pub correct_note: String,
+    /// 1 = 已订正。
+    pub is_mastered: i64,
+    pub created_at: String,
+}
+
+/// 某个知识点上的错题汇总。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TopicMistakes {
+    pub topic_id: String,
+    /// 图谱里的知识点名。图谱读不到时是空串。
+    pub topic_name: String,
+    /// 错题总数。
+    pub total: i64,
+    /// 还没订正的条数。
+    pub pending: i64,
+    pub items: Vec<TopicMistake>,
+}
+
+/// 新建一条错题的请求体。
+///
+/// 字段名跟 `UpdateMistakePayload` 一致（camelCase），两个接口写法统一。
+/// 图谱那三个字段用结构体装而不是平铺参数：三个相邻的 `Option<String>`
+/// 传错顺序编译器抓不到，而它们本来就必须是一组的。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateMistakePayload {
+    pub subject: String,
+    pub title: String,
+    pub reason: String,
+    pub correct_note: String,
+    /// 上游知识点 id（知识图谱）。不挂知识点就是 null。
+    pub graph_topic_id: Option<String>,
+    /// 图谱学科代号。
+    pub graph_subject: Option<String>,
+    /// 知识点名字。
+    pub graph_topic_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -214,6 +269,12 @@ pub struct UpdateMistakePayload {
     pub correct_note: Option<String>,
     /// 0 = 未订正，1 = 已订正。
     pub is_mastered: Option<i64>,
+    /// 上游知识点 id。`None` 表示不改这一项。
+    pub graph_topic_id: Option<String>,
+    /// 图谱学科代号。`None` 表示不改这一项。
+    pub graph_subject: Option<String>,
+    /// 知识点名字。`None` 表示不改这一项。
+    pub graph_topic_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

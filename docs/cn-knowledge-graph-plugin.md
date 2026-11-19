@@ -198,6 +198,7 @@ appData/plugins/cn-knowledge-graph/
 | M2 | 图谱知识点与任务考点打通：建任务时能挑图谱里的知识点，带上 id | ✅ 已落地 |
 | M3 | 排期建议：按先修关系检查排期顺序，把「先修还没学完就排了后面」标出来 | ✅ 已落地 |
 | M4 | 可视化：单个知识点的前置关系图（局部展开，不做全局力导向图） | ✅ 已落地 |
+| M5 | 与错题本对齐：错题可挂图谱知识点，图谱侧反查「我在这里错过」 | ✅ 已落地 |
 
 ## 11. 风险
 
@@ -454,3 +455,61 @@ list_plugin_prerequisites(pluginId, subject, topicId)   ← M1 已有命令，M4
 | AC-32 | 「返回」真的退回上一个知识点 | `knowledge_library_goes_back_to_the_previous_topic` |
 | AC-33 | 重复访问同一知识点后，「返回」仍退到上一个 | `knowledge_library_goes_back_to_the_last_visited_topic_even_after_revisiting_one` |
 | AC-34 | 连线本身硬边实线、软边虚线 | `prerequisite_graph_draws_hard_edges_solid_and_soft_edges_dashed` |
+
+## 15. M5 详细设计：与错题本对齐
+
+M2 把图谱知识点接到了任务考点上，M5 把同一套 id 接到了错题本上。
+
+### 为什么不是「第二张图」
+
+错题本和知识图谱是两件事，但**不是两个互不相干的知识点体系**：
+
+- 知识图谱回答「这块知识该先会什么」——结构层，先修关系。
+- 错题本回答「我在哪儿翻过车」——证据层，我的真实失误。
+
+两边如果各自造一个「知识点」（图谱是 `cnm_001` 这样的 id，错题本是自由文本标题），学生看到两个都叫「知识点」的面板就会以为有两个知识体系。所以必须共用同一个 id。
+
+### 用户视角
+
+**错题本 → 图谱**
+
+错题表单多一个「关联知识点（可选）」，点开能从图谱里挑一个；挑完科目自动跟着走，不用再手选一遍。记好的错题卡片上多一个 📘 标签：
+
+- 装了图谱插件：标签可点，跳到图谱里那个知识点。
+- 没装插件：标签只是标签，不给死链。
+
+错因是「概念不清 / 公式记错 / 方法不会」时，卡片下多一句「这类错因多半是前面没学扎实，点上面的知识点看看它的前置关系。」
+
+**图谱 → 错题本**
+
+知识点详情区多一块「我在这里错过」：在这个知识点上记过几道错题、还有几道没订正，每条列出题目与错因。一个错题都没记过时给一个「记一条」入口，跳到错题本并把知识点带过去，表单直接预填。
+
+### 技术方案
+
+- **存储**：迁移 `20261119150000_add_graph_topic_to_mistakes.sql` 给 `mistakes` 加三列 `graph_topic_id / graph_subject / graph_topic_name`。id 是主角（决定这条错题落在图谱哪个点上），学科代号用来拼深链，名字用来显示标签——不拉整包图谱就能渲染。
+- **写入**：错题本走 rusqlite 同步连接（与便签同款）。三个字段各自归一，空白当「没挂」，不做「要么都有要么都没有」的强绑定。
+- **读取**：新增只读命令 `list_topic_mistakes(pluginId, subject, topicId)`，走 sqlx 池查 `mistakes WHERE graph_topic_id = ?`，排序 `is_mastered ASC, created_at DESC, id DESC`（未订正排前面，与错题本一致）。
+- **降级**：图谱读不到时知识点名留空，错题照样返回。不能因为缺一个学科包就把学生已经记下的错题藏起来。
+- **深链**：错题本 → 图谱走 `/toolbox/plugins/cn-knowledge-graph?subject=&topic=`；图谱 → 错题本走 `/mistakes?graphTopic=&graphSubject=&graphSubjectName=&graphTopicName=`。两侧都只应用一次深链，用户自己换知识点后不再被弹回去。
+- **备份**：三列进 `export_json_impl` / `import_json_impl`；旧备份缺这三个 key，导入后是 NULL，当作没挂知识点的普通错题。
+
+### 边界
+
+- **图谱插件不是记错题的前置条件**：没装插件、没下载学科包，错题照记，只是没有「关联知识点」可选。
+- **错因闸门**：只有结构类错因才引图谱。执行层问题（审题/计算/粗心）往图谱上拽只会制造噪音，还会让两个面板看起来像两套东西。
+- **术语纪律**：界面不出现「错题图谱」「第二张图」。错题本里叫「关联知识点」，图谱里叫「我在这里错过」。
+
+### 验收标准
+
+| 编号 | 验收项 | 对应测试 |
+|---|---|---|
+| AC-40 | 错题能挂上图谱知识点 id / 学科 / 名字 | `mistake_carries_the_graph_topic_id` |
+| AC-41 | 空白知识点 id 当作没挂 | `blank_graph_topic_id_is_treated_as_not_attached` |
+| AC-42 | 知识点跟着备份往返；旧备份导入后为空 | `graph_topics_survive_export_import_round_trip` / `old_backup_without_graph_fields_imports_as_null` |
+| AC-43 | 图谱侧能查到某知识点上错过哪些题 | `list_topic_mistakes_returns_the_mistakes_of_one_knowledge_point` |
+| AC-44 | 缺学科包时错题照返，不藏 | `missing_pack_still_returns_the_mistakes_of_one_knowledge_point` |
+| AC-45 | 只有结构类错因才提示去看先修关系 | `suggests_prerequisites_only_for_structure_reasons` |
+| AC-46 | 错题页能挂知识点、卡片能跳回图谱 | `mistakes_page_attaches_a_knowledge_point_from_the_graph` / `mistakes_page_links_a_mistake_to_the_knowledge_point_in_the_graph` |
+| AC-47 | 没装插件时知识点只当标签 | `mistakes_page_keeps_the_knowledge_point_as_a_plain_tag_without_the_graph_plugin` |
+| AC-48 | 两侧深链互相打通并预填 | `mistakes_page_prefills_the_form_from_a_deep_link` / `knowledge_library_sends_the_topic_over_to_the_mistake_book` |
+| AC-49 | 图谱详情区显示「我在这里错过」 | `knowledge_library_shows_the_mistakes_recorded_on_this_topic` |

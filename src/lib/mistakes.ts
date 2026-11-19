@@ -33,6 +33,24 @@ export function normalizeSubject(raw: string): string {
 
 export type MistakeFilter = "all" | "pending" | "mastered";
 
+/**
+ * 这些错因指向知识结构本身，值得去看先修关系。
+ *
+ * 「审题失误 / 计算失误 / 粗心大意」是执行层的问题，跟知识结构没关系。
+ * 把它们也拽到知识图谱上只会制造噪音，还会让图谱和错题本看起来像两套
+ * 互不相干的地图。
+ */
+export const STRUCTURE_REASONS: readonly MistakeReason[] = [
+  "概念不清",
+  "公式记错",
+  "方法不会",
+];
+
+/** 这个错因要不要提示去看先修关系。 */
+export function suggestsPrerequisites(reason: string): boolean {
+  return STRUCTURE_REASONS.includes(normalizeReason(reason));
+}
+
 export const MISTAKE_FILTERS: { key: MistakeFilter; label: string }[] = [
   { key: "all", label: "全部" },
   { key: "pending", label: "未订正" },
@@ -62,6 +80,16 @@ export function summarizeMistakes(mistakes: Mistake[]): MistakeSummary {
     pending: total - mastered,
     rate: total === 0 ? 0 : mastered / total,
   };
+}
+
+/** 错题涉及多少个不同的知识点。 */
+export function topicCount(mistakes: Mistake[]): number {
+  const ids = new Set<string>();
+  for (const m of mistakes) {
+    const id = m.graph_topic_id?.trim();
+    if (id) ids.add(id);
+  }
+  return ids.size;
 }
 
 /** 错因分布：从多到少，同数按名称排，用来提示「哪一类错最多」。 */

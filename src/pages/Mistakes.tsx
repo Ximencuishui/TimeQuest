@@ -1,6 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  MistakeTopicPicker,
+  type MistakeTopic,
+} from "../components/MistakeTopicPicker";
 import { useMistakeMutations, useMistakes } from "../hooks/useMistakes";
-import { SUBJECTS } from "../lib/constants";
+import { usePlugins } from "../hooks/usePlugins";
+import { KNOWLEDGE_GRAPH_PLUGIN_ID, SUBJECTS } from "../lib/constants";
 import {
   MISTAKE_FILTERS,
   MISTAKE_REASONS,
@@ -8,21 +14,39 @@ import {
   normalizeReason,
   normalizeSubject,
   reasonCounts,
+  suggestsPrerequisites,
   summarizeMistakes,
+  topicCount,
   type MistakeFilter,
 } from "../lib/mistakes";
 import type { Mistake } from "../types";
+
+/** 知识图谱里某个知识点的深链。 */
+function graphTopicHref(mistake: Mistake): string {
+  const params = new URLSearchParams();
+  if (mistake.graph_subject) params.set("subject", mistake.graph_subject);
+  if (mistake.graph_topic_id) params.set("topic", mistake.graph_topic_id);
+  return `/toolbox/plugins/${KNOWLEDGE_GRAPH_PLUGIN_ID}?${params.toString()}`;
+}
 
 function MistakeCard({
   mistake,
   onToggleMastered,
   onDelete,
+  onOpenTopic,
+  graphInstalled,
 }: {
   mistake: Mistake;
   onToggleMastered: (m: Mistake) => void;
   onDelete: (m: Mistake) => void;
+  onOpenTopic: (m: Mistake) => void;
+  /** 知识图谱插件装了没有。没装就不给链接，免得点进去是死路。 */
+  graphInstalled: boolean;
 }) {
   const mastered = mistake.is_mastered === 1;
+  const hasTopic = Boolean(mistake.graph_topic_id);
+  const topicLabel = mistake.graph_topic_name ?? mistake.graph_topic_id ?? "";
+
   return (
     <article
       className="rounded-2xl border border-white/5 bg-surface-2/80 p-4"
@@ -38,6 +62,27 @@ function MistakeCard({
             <span className="rounded-full bg-orange-500/15 px-2 py-0.5 text-orange-200">
               {mistake.reason}
             </span>
+            {hasTopic ? (
+              graphInstalled ? (
+                <button
+                  type="button"
+                  data-testid="mistake-topic-link"
+                  onClick={() => onOpenTopic(mistake)}
+                  className="rounded-full bg-sky-500/15 px-2 py-0.5 text-sky-300 transition hover:bg-sky-500/25"
+                  title="在知识图谱里看这个知识点"
+                >
+                  📘 {topicLabel}
+                </button>
+              ) : (
+                <span
+                  data-testid="mistake-topic-tag"
+                  className="rounded-full bg-sky-500/15 px-2 py-0.5 text-sky-300"
+                  title="装了知识图谱插件后，这个知识点就能点进去看"
+                >
+                  📘 {topicLabel}
+                </span>
+              )
+            ) : null}
             {mastered ? (
               <span className="text-emerald-300">已订正</span>
             ) : (
@@ -48,6 +93,11 @@ function MistakeCard({
           {mistake.correct_note ? (
             <p className="mt-1 text-sm text-ink-muted">
               正确思路：{mistake.correct_note}
+            </p>
+          ) : null}
+          {hasTopic && suggestsPrerequisites(mistake.reason) ? (
+            <p className="mt-1 text-[11px] text-ink-muted">
+              这类错因多半是前面没学扎实，点上面的知识点看看它的前置关系。
             </p>
           ) : null}
         </div>
@@ -74,25 +124,61 @@ function MistakeCard({
 
 export function Mistakes() {
   const { data: mistakes = [], isLoading, isError } = useMistakes();
+  const { data: plugins = [] } = usePlugins();
   const { create, update, remove } = useMistakeMutations();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [subject, setSubject] = useState<string>("物理");
   const [title, setTitle] = useState("");
   const [reason, setReason] = useState<string>(MISTAKE_REASONS[0]);
   const [correctNote, setCorrectNote] = useState("");
+  const [topic, setTopic] = useState<MistakeTopic | null>(null);
   const [filter, setFilter] = useState<MistakeFilter>("all");
   const [error, setError] = useState("");
+  /** 列表里的操作（订正、删除）失败了要说一声，不然用户以为改成了。 */
+  const [actionError, setActionError] = useState("");
+
+  const graphInstalled = plugins.some(
+    (plugin) => plugin.id === KNOWLEDGE_GRAPH_PLUGIN_ID && plugin.installed,
+  );
+
+  // 从知识图谱点「记一条错题」跳过来时，直接把知识点带进表单。
+  const deepLinkApplied = useRef(false);
+  useEffect(() => {
+    if (deepLinkApplied.current) return;
+    const topicId = searchParams.get("graphTopic")?.trim();
+    if (!topicId) return;
+    deepLinkApplied.current = true;
+    const subjectName = searchParams.get("graphSubjectName")?.trim() ?? "";
+    const topicName = searchParams.get("graphTopicName")?.trim() ?? topicId;
+    if (subjectName) setSubject(subjectName);
+    setTopic({
+      id: topicId,
+      name: topicName,
+      subject: searchParams.get("graphSubject")?.trim() ?? "",
+      subjectName,
+    });
+  }, [searchParams]);
 
   const visible = useMemo(
     () => filterMistakes(mistakes, filter),
     [mistakes, filter],
   );
   const summary = useMemo(() => summarizeMistakes(mistakes), [mistakes]);
+  const topics = useMemo(() => topicCount(mistakes), [mistakes]);
   const topReason = useMemo(() => reasonCounts(mistakes)[0], [mistakes]);
   const titleMissing = title.trim() === "";
   const summaryLine =
     `共 ${summary.total} 条 · 已订正 ${summary.mastered} 条 · 待订正 ${summary.pending} 条` +
+    (topics > 0 ? ` · 涉及 ${topics} 个知识点` : "") +
     (topReason ? ` · 错得最多：${topReason.reason} ×${topReason.count}` : "");
+
+  const onTopicChange = (next: MistakeTopic | null) => {
+    setTopic(next);
+    // 挑了知识点就跟着它的学科走，科目不用再手选一遍。
+    if (next?.subjectName) setSubject(next.subjectName);
+  };
 
   const onSubmit = async () => {
     if (titleMissing) {
@@ -106,25 +192,37 @@ export function Mistakes() {
         title: title.trim(),
         reason: normalizeReason(reason),
         correctNote: correctNote.trim(),
+        graphTopicId: topic?.id ?? null,
+        graphSubject: topic?.subject ?? null,
+        graphTopicName: topic?.name ?? null,
       });
       setTitle("");
       setCorrectNote("");
+      setTopic(null);
     } catch (e) {
       setError(String(e));
     }
   };
 
   const onToggleMastered = (m: Mistake) => {
-    update.mutate({
-      id: m.id,
-      payload: { isMastered: m.is_mastered === 1 ? 0 : 1 },
-    });
+    setActionError("");
+    update.mutate(
+      { id: m.id, payload: { isMastered: m.is_mastered === 1 ? 0 : 1 } },
+      { onError: (e) => setActionError(`没能更新订正状态：${String(e)}`) },
+    );
   };
 
   const onDelete = (m: Mistake) => {
     if (window.confirm(`确认删除「${m.title}」？`)) {
-      remove.mutate(m.id);
+      setActionError("");
+      remove.mutate(m.id, {
+        onError: (e) => setActionError(`没能删除这条错题：${String(e)}`),
+      });
     }
+  };
+
+  const onOpenTopic = (m: Mistake) => {
+    navigate(graphTopicHref(m));
   };
 
   return (
@@ -132,7 +230,7 @@ export function Mistakes() {
       <div>
         <h1 className="font-display text-2xl">错题本</h1>
         <p className="mt-1 text-sm text-ink-muted">
-          做错的题记一条，订正完打个勾。下次复习先看没订正的。
+          做错的题记一条，订正完打个勾。挂上知识点之后，在知识图谱里就能看到你在这儿错了几次。
         </p>
       </div>
 
@@ -193,6 +291,7 @@ export function Mistakes() {
             onChange={(event) => setCorrectNote(event.target.value)}
           />
         </label>
+        <MistakeTopicPicker value={topic} onChange={onTopicChange} />
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -228,6 +327,12 @@ export function Mistakes() {
         </div>
       </section>
 
+      {actionError ? (
+        <p className="text-sm text-amber-300" data-testid="mistake-action-error">
+          {actionError}
+        </p>
+      ) : null}
+
       {isLoading ? (
         <p className="text-sm text-ink-muted">加载中…</p>
       ) : isError ? (
@@ -246,6 +351,8 @@ export function Mistakes() {
               mistake={m}
               onToggleMastered={onToggleMastered}
               onDelete={onDelete}
+              onOpenTopic={onOpenTopic}
+              graphInstalled={graphInstalled}
             />
           ))}
         </div>

@@ -67,6 +67,28 @@ export function useTaskPrerequisiteConflicts(
   });
 }
 
+/**
+ * 某个知识点上错过哪些题。
+ *
+ * 后端是纯读的，图谱读不到时只少一个名字，错题照样返回。
+ */
+export function useTopicMistakes(
+  pluginId: string | null,
+  subject: string | null,
+  topicId: string | null,
+) {
+  return useQuery({
+    queryKey: ["topic-mistakes", pluginId, subject, topicId],
+    queryFn: () =>
+      api.listTopicMistakes(
+        pluginId as string,
+        subject as string,
+        topicId as string,
+      ),
+    enabled: Boolean(pluginId && subject && topicId),
+  });
+}
+
 /** 下载某个学科的知识点包。下完把清单和列表都刷新一遍。 */
 export function useKnowledgePackDownload() {
   const qc = useQueryClient();

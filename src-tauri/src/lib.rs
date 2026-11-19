@@ -18,14 +18,15 @@ pub use commands::exams::{
 pub use commands::knowledge_graph::{
     download_plugin_knowledge_pack, downloaded_pack_exists, list_plugin_knowledge_packs,
     list_plugin_knowledge_points, list_plugin_prerequisites, list_task_prerequisite_conflicts,
-    list_task_prerequisite_conflicts_impl, KnowledgeDownloadProgress, KnowledgePackEntry,
-    PrerequisiteConflict, PrerequisiteResult, CONFLICT_ORDER_SWAPPED,
+    list_task_prerequisite_conflicts_impl, list_topic_mistakes, list_topic_mistakes_impl,
+    KnowledgeDownloadProgress, KnowledgePackEntry, PrerequisiteConflict, PrerequisiteResult,
+    CONFLICT_ORDER_SWAPPED,
     CONFLICT_PREREQUISITE_TASK_INCOMPLETE, KNOWLEDGE_PACK_DOWNLOAD_PROGRESS_EVENT,
 };
 pub use commands::logs::{compute_duration_min, create_log_impl};
 pub use commands::mistakes::{
-    create_mistake_impl, delete_mistake_impl, list_mistakes_impl, normalize_reason,
-    normalize_subject, update_mistake_impl, REASON_WHITELIST,
+    create_mistake_impl, delete_mistake_impl, list_mistakes_impl, normalize_graph_link,
+    normalize_reason, normalize_subject, update_mistake_impl, REASON_WHITELIST,
 };
 pub use commands::mock::{clear_mock_data_impl, generate_mock_data_impl, has_mock_data_impl};
 pub use commands::notes::{
@@ -68,9 +69,9 @@ pub use knowledge_graph::{
 };
 pub use models::{
     CompleteSessionResult, CompletionRate, CreateExamRecordPayload, CreateLogPayload,
-    DailyUnitsRow, ExamRecord, MethodShareRow, Mistake, PlanVsActualRow, RemainderSchedule,
-    SubjectTargets, TagTypeRow, Task, TaskProgress, TaskSession, UpdateMistakePayload,
-    UpdateNotePayload, UserProfile,
+    CreateMistakePayload, DailyUnitsRow, ExamRecord, MethodShareRow, Mistake, PlanVsActualRow,
+    RemainderSchedule, SubjectTargets, TagTypeRow, Task, TaskProgress, TaskSession, TopicMistake,
+    TopicMistakes, UpdateMistakePayload, UpdateNotePayload, UserProfile,
 };
 pub use pdf_outline::{
     extract_outline, extract_outline_lines, inspect_pdf_pages, outline_to_textbook,
@@ -231,6 +232,7 @@ pub fn run() {
             commands::list_plugin_knowledge_points,
             commands::list_plugin_prerequisites,
             commands::list_task_prerequisite_conflicts,
+            commands::list_topic_mistakes,
             commands::download_plugin_knowledge_pack,
             commands::list_mistakes,
             commands::create_mistake,

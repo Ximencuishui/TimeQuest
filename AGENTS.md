@@ -343,6 +343,8 @@
 | summarize_mistakes_counts_pending_and_mastered | 统计条数字正确 | `src/lib/__tests__/mistakes.test.ts` |
 | filter_mistakes_splits_pending_and_mastered | 筛选切分未订正/已订正 | `src/lib/__tests__/mistakes.test.ts` |
 | reason_counts_lists_the_most_common_reason_first | 错因统计按次数降序 | `src/lib/__tests__/mistakes.test.ts` |
+| suggests_prerequisites_only_for_structure_reasons | 只有「概念不清/公式记错/方法不会」才引图谱 | `src/lib/__tests__/mistakes.test.ts` |
+| topic_count_counts_distinct_knowledge_points | 错题涉及的知识点去重计数 | `src/lib/__tests__/mistakes.test.ts` |
 | frontend_reason_list_matches_backend_whitelist | 跨端护栏：前端 `MISTAKE_REASONS` 必须等于 Rust `REASON_WHITELIST` | `src-tauri/tests/mistakes_test.rs` |
 | normalize_reason_maps_unknown_to_other | 后端错因归一 | `src-tauri/tests/mistakes_test.rs` |
 | normalize_subject_trims_and_falls_back_to_other | 后端科目归一 | `src-tauri/tests/mistakes_test.rs` |
@@ -351,11 +353,33 @@
 | update_mistake_only_touches_given_fields | 只更新传入字段 | `src-tauri/tests/mistakes_test.rs` |
 | delete_mistake_removes_the_row | 删除错题 | `src-tauri/tests/mistakes_test.rs` |
 | mistakes_survive_export_import_round_trip | 错题本进出备份 JSON | `src-tauri/tests/mistakes_test.rs` |
+| mistake_carries_the_graph_topic_id | 错题能挂上图谱知识点 id / 学科 / 名字 | `src-tauri/tests/mistakes_test.rs` |
+| blank_graph_topic_id_is_treated_as_not_attached | 空白知识点 id 当作没挂 | `src-tauri/tests/mistakes_test.rs` |
+| graph_topics_survive_export_import_round_trip | 错题上的知识点跟着备份往返 | `src-tauri/tests/mistakes_test.rs` |
+| old_backup_without_graph_fields_imports_as_null | 旧备份缺字段导入后为 NULL | `src-tauri/tests/mistakes_test.rs` |
+| list_topic_mistakes_returns_the_mistakes_of_one_knowledge_point | 图谱侧查某知识点上错过哪些题 | `src-tauri/tests/mistakes_test.rs` |
+| missing_pack_still_returns_the_mistakes_of_one_knowledge_point | 缺学科包时错题照返，只少一个名字 | `src-tauri/tests/mistakes_test.rs` |
 | mistakes_page_records_subject_reason_and_correct_note | 错题页录入科目/错因/正确思路 | `src/pages/__tests__/mistakes_page.test.tsx` |
 | mistakes_page_refuses_to_save_without_a_title | 标题为空不保存 | `src/pages/__tests__/mistakes_page.test.tsx` |
 | mistakes_page_toggles_mastered_state | 标记/取消订正 | `src/pages/__tests__/mistakes_page.test.tsx` |
 | mistakes_page_filters_pending_and_mastered | 三个筛选按钮 | `src/pages/__tests__/mistakes_page.test.tsx` |
 | mistakes_page_shows_the_empty_state | 空态文案 | `src/pages/__tests__/mistakes_page.test.tsx` |
+| mistakes_page_attaches_a_knowledge_point_from_the_graph | 错题页能挂图谱知识点，入库带上 id | `src/pages/__tests__/mistakes_page.test.tsx` |
+| mistakes_page_links_a_mistake_to_the_knowledge_point_in_the_graph | 错题卡片上的知识点能跳回图谱 | `src/pages/__tests__/mistakes_page.test.tsx` |
+| mistakes_page_keeps_the_knowledge_point_as_a_plain_tag_without_the_graph_plugin | 没装图谱插件时知识点只当标签 | `src/pages/__tests__/mistakes_page.test.tsx` |
+| mistakes_page_prefills_the_form_from_a_deep_link | 从图谱点「记一条」跳过来时预填知识点与科目 | `src/pages/__tests__/mistakes_page.test.tsx` |
+| mistakes_page_hints_at_prerequisites_only_for_structure_reasons | 只有结构类错因才提示去看先修关系 | `src/pages/__tests__/mistakes_page.test.tsx` |
+| knowledge_library_shows_the_mistakes_recorded_on_this_topic | 图谱详情区显示「我在这里错过」 | `src/components/__tests__/plugin_knowledge_library.test.tsx` |
+| knowledge_library_sends_the_topic_over_to_the_mistake_book | 图谱侧「记一条」跳错题本并带上知识点 | `src/components/__tests__/plugin_knowledge_library.test.tsx` |
+| knowledge_library_lands_on_the_topic_a_deep_link_points_at | 深链直接落到那个知识点 | `src/components/__tests__/plugin_knowledge_library.test.tsx` |
+| mistakes_page_only_loads_knowledge_points_when_the_picker_is_opened | 不展开知识点选择器就不拉整包知识点 | `src/pages/__tests__/mistakes_page.test.tsx` |
+| mistakes_page_tells_the_user_when_marking_mastered_fails | 标记订正失败要在页面上说一声 | `src/pages/__tests__/mistakes_page.test.tsx` |
+| create_mistake_rejects_an_empty_title | 题目简述为空时后端拒收，不入库 | `src-tauri/tests/mistakes_test.rs` |
+| update_mistake_rebinds_the_knowledge_point_as_a_whole | 换绑知识点整组换，不让新 id 挂着旧名字 | `src-tauri/tests/mistakes_test.rs` |
+| update_mistake_with_a_blank_topic_id_detaches_everything | 空 id 解绑时三个图谱字段一起清 | `src-tauri/tests/mistakes_test.rs` |
+| frontend_types_match_the_serialized_field_names | 前端 `types.ts` 字段名与后端序列化键名逐个对齐 | `src-tauri/tests/mistakes_test.rs` |
+| topic_mistakes_uses_the_same_field_names_as_the_mistake_model | 图谱侧错题与错题本错题用同名字段 | `src-tauri/tests/mistakes_test.rs` |
+| import_normalizes_blank_graph_fields | 备份里的图谱三列是空白串时，导入后按「没挂知识点」处理 | `src-tauri/tests/mistakes_test.rs` |
 | full_paper_needs_no_scaling | 六科齐不折算 | `src/lib/__tests__/scoreScaling.test.ts` |
 | missing_biology_scales_the_total_to_the_six_subject_scale | 缺考生物按比例折算 | `src/lib/__tests__/scoreScaling.test.ts` |
 | several_missing_subjects_scale_by_the_taken_share | 缺多科按已考占比折算 | `src/lib/__tests__/scoreScaling.test.ts` |
@@ -941,12 +965,34 @@
 ### 错题本契约
 
 - **表**：`mistakes`（迁移 `20261118140000_create_mistakes.sql`），字段 `id / subject / title / reason / correct_note / is_mastered / created_at / updated_at`。走 rusqlite 同步连接（与便签同款），不是 sqlx 池。
+- **图谱挂载列**：迁移 `20261119150000_add_graph_topic_to_mistakes.sql` 加了 `graph_topic_id / graph_subject / graph_topic_name` 三列（只 ADD COLUMN，老库原地升级）。id 是主角，学科代号与名字是跟着走的信息。
 - **错因是闭合集合**：Rust `REASON_WHITELIST`（概念不清、公式记错、审题失误、计算失误、方法不会、粗心大意、其他）与前端 `src/lib/mistakes.ts` 的 `MISTAKE_REASONS` 必须逐项相等，由跨端护栏 `frontend_reason_list_matches_backend_whitelist` 钉住（Rust 测试直接读 `src/lib/mistakes.ts` 源码比对）。**改一边必须改另一边**。未知 / 空错因归「其他」，不报错。
 - **科目是开放字符串**：只 `trim`，空值归「其他」；不做白名单校验，与 `actual_logs.subject` 的开放语义一致。
 - **`is_mastered` 用 0/1 而不是 boolean**：Rust 侧是 `Option<i64>`（serde 不能把 bool 反序列化成 i64），前端传 0/1，command 层归一为 `if m != 0 { 1 } else { 0 }`。列的默认值是 0（未订正）。
 - **排序**：`ORDER BY is_mastered ASC, created_at DESC, id DESC`——未订正的排前面，同组内按创建时间倒序，最后按 id 倒序保证顺序稳定。
 - **导出导入**：`mistakes` 已进 `export_json_impl` / `import_json_impl` 的表清单，与其它用户表一起往返；由 `export_json_includes_every_user_table` 的双向覆盖护栏与 `mistakes_survive_export_import_round_trip` 锁定。
-- 由 `normalize_reason_maps_unknown_to_other` / `normalize_subject_trims_and_falls_back_to_other` / `create_mistake_stores_normalized_reason_and_subject` / `list_mistakes_puts_unmastered_first` / `update_mistake_only_touches_given_fields` / `delete_mistake_removes_the_row` / `mistakes_survive_export_import_round_trip` 与前端 `mistake_reasons_match_the_backend_whitelist` / `normalize_reason_falls_back_to_other` / `normalize_subject_trims_and_defaults_to_other` / `summarize_mistakes_counts_pending_and_mastered` / `filter_mistakes_splits_pending_and_mastered` / `reason_counts_lists_the_most_common_reason_first` / `mistakes_page_records_subject_reason_and_correct_note` / `mistakes_page_refuses_to_save_without_a_title` / `mistakes_page_toggles_mastered_state` / `mistakes_page_filters_pending_and_mastered` / `mistakes_page_shows_the_empty_state` 锁定。
+- **三个图谱字段各自归一，不做「要么都有要么都没有」**（创建时）：空白 id 当「没挂知识点」，空白学科 / 名字同样当没有。缺一个字段不应该把整条挂载丢掉。
+- **导入路径跟新建路径走同一条归一**：`import_json_impl` 写 `mistakes` 时也调 `normalize_graph_link`，备份里的空白串按「没挂知识点」处理，不把空格原样写进库。否则一份手改过的备份就能塞进一条挂着空名字的错题——错题本里看不出异常，图谱侧却多出一个空点。由 `import_normalizes_blank_graph_fields` 锁定。
+- **更新时 id 是锚**：换绑知识点是**整组换**——给了新的 `graph_topic_id` 就把 id / 学科 / 名字一起换成新值，学科与名字没给就一并清空（宁可少一个深链，也不能让新 id 挂着旧名字，那会把错题显示成另一个知识点）；给了空的 id 就是解绑，三个字段一起清，不留「没 id 却有名字」的孤儿；完全没碰 id 时才只改明确给定的字段。
+- **题目简述不能为空**：前端 `onSubmit` 拦一道，后端 `create_mistake_impl` 也拦一道（`title.trim()` 为空 → `Err("题目简述不能为空")`），入不了库。导入是另一条路，不受此限——老备份里允许有空的。
+- **字段名跨端一致**：`Mistake` / `TopicMistake` / `TopicMistakes` 三个结构体一律 snake_case 序列化，与前端 `src/types.ts` 的类型逐字段对齐。`TopicMistake` / `TopicMistakes` 放在 `src-tauri/src/models.rs` 里紧挨 `Mistake`，就是提醒它们是同一条错题的两种视图。
+- **新建走 `CreateMistakePayload` 结构体**：`create_mistake` / `create_mistake_impl` 收一个 payload，不收平铺参数。图谱那三个字段是三个相邻的 `Option<String>`，平铺传错顺序编译器抓不到，而它们本来就必须是一组的。字段名 camelCase，跟 `UpdateMistakePayload` 一致；前端 `invoke("create_mistake", { payload: {...} })`。
+- **由 `normalize_reason_maps_unknown_to_other` / `normalize_subject_trims_and_falls_back_to_other` / `create_mistake_stores_normalized_reason_and_subject` / `list_mistakes_puts_unmastered_first` / `update_mistake_only_touches_given_fields` / `delete_mistake_removes_the_row` / `mistakes_survive_export_import_round_trip` / `mistake_carries_the_graph_topic_id` / `blank_graph_topic_id_is_treated_as_not_attached` / `graph_topics_survive_export_import_round_trip` / `old_backup_without_graph_fields_imports_as_null` / `list_topic_mistakes_returns_the_mistakes_of_one_knowledge_point` / `missing_pack_still_returns_the_mistakes_of_one_knowledge_point` 与前端 `mistake_reasons_match_the_backend_whitelist` / `normalize_reason_falls_back_to_other` / `normalize_subject_trims_and_defaults_to_other` / `summarize_mistakes_counts_pending_and_mastered` / `filter_mistakes_splits_pending_and_mastered` / `reason_counts_lists_the_most_common_reason_first` / `suggests_prerequisites_only_for_structure_reasons` / `topic_count_counts_distinct_knowledge_points` / `mistakes_page_records_subject_reason_and_correct_note` / `mistakes_page_refuses_to_save_without_a_title` / `mistakes_page_toggles_mastered_state` / `mistakes_page_filters_pending_and_mastered` / `mistakes_page_shows_the_empty_state` / `mistakes_page_attaches_a_knowledge_point_from_the_graph` / `mistakes_page_links_a_mistake_to_the_knowledge_point_in_the_graph` / `mistakes_page_keeps_the_knowledge_point_as_a_plain_tag_without_the_graph_plugin` / `mistakes_page_prefills_the_form_from_a_deep_link` / `mistakes_page_hints_at_prerequisites_only_for_structure_reasons` / `mistakes_page_only_loads_knowledge_points_when_the_picker_is_opened` / `mistakes_page_tells_the_user_when_marking_mastered_fails` / `create_mistake_rejects_an_empty_title` / `update_mistake_rebinds_the_knowledge_point_as_a_whole` / `update_mistake_with_a_blank_topic_id_detaches_everything` / `frontend_types_match_the_serialized_field_names` / `topic_mistakes_uses_the_same_field_names_as_the_mistake_model` / `import_normalizes_blank_graph_fields` 锁定。
+
+### 知识图谱与错题本的对齐契约
+
+图谱与错题本不是两张各画各的地图：图谱是**结构层**（这儿该先会什么），错题本是**证据层**（我在这儿翻车过几次）。两者靠同一个知识点 id 焊在一起。
+
+- **同一个 id**：错题挂的是上游 id（如 `cnm_001`），与任务考点 `task_knowledge_points.graph_topic_id`、图谱节点 id 完全同一套。所以「知识点」在应用里是**一个**实体，不是两套同名概念。
+- **双向可见**：
+  - 错题本 → 图谱：错题卡片上的 📘 标签点开 `/toolbox/plugins/cn-knowledge-graph?subject=&topic=`。
+  - 图谱 → 错题本：知识点详情区的「我在这里错过」区块（`list_topic_mistakes`）列出该知识点上的错题，「记一条」跳 `/mistakes?graphTopic=&graphSubject=&graphSubjectName=&graphTopicName=`，表单直接预填。
+- **深链只应用一次**：两侧都用 `useRef` 记住「深链已经用过」，用户自己换了知识点后不再被弹回深链目标。
+- **同一套字段名**：图谱侧看到的错题（`TopicMistake`）与错题本卡片上的错题（`Mistake`）字段名完全相同，前端不用记两套读法。跨端护栏 `frontend_types_match_the_serialized_field_names` 直接读 `src/types.ts` 的源码，跟后端实际序列化出来的键名比对——前端自己的 mock 盖不住这类漂移，必须由 Rust 侧的护栏兜住。
+- **术语纪律**：界面里不出现「错题图谱」「第二张图」这类说法。错题本里叫「关联知识点」，图谱里叫「我在这里错过」，两边都指同一个 id。
+- **错因闸门**：只有「概念不清 / 公式记错 / 方法不会」（`STRUCTURE_REASONS`）才提示去看先修关系；「审题失误 / 计算失误 / 粗心大意」是执行层问题，不往图谱上拽，否则图谱会被噪音淹、也会让人以为是两套东西。
+- **降级不藏错题**：没装图谱插件、没下载学科包时，错题照记（图谱插件不是记错题的前置条件），图谱侧的错题列表也照常返回，只少一个知识点名字。错题卡片上的知识点在没有插件时只是标签，不给死链。
+- **由 `mistake_carries_the_graph_topic_id` / `blank_graph_topic_id_is_treated_as_not_attached` / `graph_topics_survive_export_import_round_trip` / `old_backup_without_graph_fields_imports_as_null` / `list_topic_mistakes_returns_the_mistakes_of_one_knowledge_point` / `missing_pack_still_returns_the_mistakes_of_one_knowledge_point` / `suggests_prerequisites_only_for_structure_reasons` / `topic_count_counts_distinct_knowledge_points` / `mistakes_page_attaches_a_knowledge_point_from_the_graph` / `mistakes_page_links_a_mistake_to_the_knowledge_point_in_the_graph` / `mistakes_page_keeps_the_knowledge_point_as_a_plain_tag_without_the_graph_plugin` / `mistakes_page_prefills_the_form_from_a_deep_link` / `mistakes_page_hints_at_prerequisites_only_for_structure_reasons` / `knowledge_library_shows_the_mistakes_recorded_on_this_topic` / `knowledge_library_sends_the_topic_over_to_the_mistake_book` / `knowledge_library_lands_on_the_topic_a_deep_link_points_at` / `frontend_types_match_the_serialized_field_names` / `topic_mistakes_uses_the_same_field_names_as_the_mistake_model` 锁定。
 
 ### 成绩缺考折算
 

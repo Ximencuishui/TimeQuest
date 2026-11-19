@@ -78,8 +78,38 @@ export type Mistake = {
   correct_note: string;
   /** 1 = 已订正。 */
   is_mastered: number;
+  /** 上游知识点 id（知识图谱），比如 `cnm_001`。没挂知识点的错题没有。 */
+  graph_topic_id: string | null;
+  /** 图谱学科代号，比如 `math`。没挂知识点的错题没有。 */
+  graph_subject: string | null;
+  /** 知识点的名字。错题列表靠它显示标签，不用再拉整包图谱。 */
+  graph_topic_name: string | null;
   created_at: string;
   updated_at: string;
+};
+
+/** 挂在某个图谱知识点上的一条错题。 */
+export type TopicMistake = {
+  id: number;
+  subject: string;
+  title: string;
+  reason: string;
+  correct_note: string;
+  /** 1 = 已订正。 */
+  is_mastered: number;
+  created_at: string;
+};
+
+/** 某个知识点上的错题汇总。 */
+export type TopicMistakes = {
+  topic_id: string;
+  /** 图谱里的知识点名。图谱读不到时是空串。 */
+  topic_name: string;
+  /** 错题总数。 */
+  total: number;
+  /** 还没订正的条数。 */
+  pending: number;
+  items: TopicMistake[];
 };
 
 /** 更新错题的请求体，字段名与 Rust `UpdateMistakePayload` 的 camelCase 一致。 */
@@ -90,6 +120,12 @@ export type UpdateMistakePayload = {
   correctNote?: string;
   /** 0 = 未订正，1 = 已订正。 */
   isMastered?: number;
+  /** 上游知识点 id（知识图谱）。 */
+  graphTopicId?: string | null;
+  /** 图谱学科代号。 */
+  graphSubject?: string | null;
+  /** 知识点名字。 */
+  graphTopicName?: string | null;
 };
 
 /** 插件的一个可配置项。 */

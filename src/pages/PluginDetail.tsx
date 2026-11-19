@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PluginKnowledgeLibrary } from "../components/PluginKnowledgeLibrary";
 import { PluginTextbookLibrary } from "../components/PluginTextbookLibrary";
 import {
@@ -192,6 +192,8 @@ function PluginOptions({
 export function PluginDetail() {
   const { pluginId = "" } = useParams();
   const navigate = useNavigate();
+  // 错题本里点某个知识点跳过来时，带着学科与知识点 id。
+  const [searchParams] = useSearchParams();
   const { data: plugins = [], isLoading } = usePlugins();
   const { install, uninstall } = usePluginMutations();
   const [error, setError] = useState("");
@@ -316,7 +318,11 @@ export function PluginDetail() {
       ) : null}
 
       {plugin.installed && isKnowledgeGraph(plugin) ? (
-        <PluginKnowledgeLibrary pluginId={plugin.id} />
+        <PluginKnowledgeLibrary
+          pluginId={plugin.id}
+          initialSubject={searchParams.get("subject")}
+          initialTopicId={searchParams.get("topic")}
+        />
       ) : null}
     </div>
   );

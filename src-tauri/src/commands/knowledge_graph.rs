@@ -10,6 +10,7 @@ use crate::knowledge_graph::{
     KnowledgeTopicsFile, KnowledgeTopic, PrerequisiteNode, TopicFilter, STRENGTH_HARD,
 };
 use crate::commands::plugins::{PLUGIN_OPTION_DOWNLOAD_SOURCE, PLUGIN_OPTION_GITHUB_TOKEN};
+use crate::models::{TopicMistake, TopicMistakes};
 use crate::plugins::{plugin_options_impl, plugin_resource_text, plugins_dir};
 use crate::textbook_source::{
     download_error_message, encode_repo_path, DownloadSource, GITHUB_BLOB_ACCEPT,
@@ -738,6 +739,96 @@ pub async fn list_task_prerequisite_conflicts_impl(
         }
     }
     Ok(conflicts)
+}
+
+/// 错题库里挂在某个图谱知识点上的一条错题。
+#[derive(Debug, Clone, sqlx::FromRow)]
+struct TopicMistakeRow {
+    id: i64,
+    subject: String,
+    title: String,
+    reason: String,
+    correct_note: String,
+    is_mastered: i64,
+    created_at: String,
+}
+
+/// 查某个知识点上错过哪些题。
+///
+/// 纯读：不动任何表。错题本和知识图谱共用同一套知识点 id，这里就是那条缝——
+/// 在图谱上看到「我在这里错过」，就知道错题本记的是同一件事，而不是另一张图。
+///
+/// 图谱读不到时知识点名留空，错题照样返回：不能因为缺一个学科包就把
+/// 学生已经记下的错题藏起来。
+#[tauri::command]
+pub async fn list_topic_mistakes(
+    app: AppHandle,
+    pool: State<'_, SqlitePool>,
+    plugin_id: String,
+    subject: String,
+    topic_id: String,
+) -> Result<TopicMistakes, String> {
+    let dir = plugins_dir(&app)?;
+    list_topic_mistakes_impl(pool.inner(), &dir, &plugin_id, &subject, &topic_id).await
+}
+
+/// 查某个知识点上错过哪些题的主体。
+pub async fn list_topic_mistakes_impl(
+    db: &SqlitePool,
+    graph_dir: &Path,
+    plugin_id: &str,
+    subject: &str,
+    topic_id: &str,
+) -> Result<TopicMistakes, String> {
+    let topic_id = topic_id.trim();
+    if topic_id.is_empty() {
+        return Ok(TopicMistakes {
+            topic_id: String::new(),
+            topic_name: String::new(),
+            total: 0,
+            pending: 0,
+            items: Vec::new(),
+        });
+    }
+
+    let rows = sqlx::query_as::<_, TopicMistakeRow>(
+        "SELECT id, subject, title, reason, correct_note, is_mastered, created_at
+         FROM mistakes
+         WHERE graph_topic_id = ?1
+         ORDER BY is_mastered ASC, created_at DESC, id DESC",
+    )
+    .bind(topic_id)
+    .fetch_all(db)
+    .await
+    .map_err(|err| err.to_string())?;
+
+    let items: Vec<TopicMistake> = rows
+        .into_iter()
+        .map(|row| TopicMistake {
+            id: row.id,
+            subject: row.subject,
+            title: row.title,
+            reason: row.reason,
+            correct_note: row.correct_note,
+            is_mastered: row.is_mastered,
+            created_at: row.created_at,
+        })
+        .collect();
+    let pending = items.iter().filter(|item| item.is_mastered != 1).count() as i64;
+
+    // 图谱读不到就只留空名字，错题照样给出来。
+    let topic_name = load_graph(graph_dir, plugin_id, subject.trim())
+        .ok()
+        .and_then(|graph| graph.topic(topic_id).map(|topic| topic.name.clone()))
+        .unwrap_or_default();
+
+    Ok(TopicMistakes {
+        topic_id: topic_id.to_string(),
+        topic_name,
+        total: items.len() as i64,
+        pending,
+        items,
+    })
 }
 
 /// 同一个任务里：先修考点也在这儿，但排位比当前考点靠后。

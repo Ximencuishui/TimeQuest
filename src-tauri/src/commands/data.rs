@@ -1,4 +1,4 @@
-use crate::commands::mistakes::{normalize_reason, normalize_subject};
+use crate::commands::mistakes::{normalize_graph_link, normalize_reason, normalize_subject};
 use crate::commands::notes::{normalize_color, normalize_note_date};
 use crate::commands::profile::{upsert_user_profile_row, user_profile_from_export};
 use crate::db::{db_path, with_db, DbState};
@@ -196,7 +196,7 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
 
     let mistakes: Vec<Value> = {
         let mut stmt = conn
-            .prepare("SELECT id, subject, title, reason, correct_note, is_mastered, created_at, updated_at FROM mistakes")
+            .prepare("SELECT id, subject, title, reason, correct_note, is_mastered, created_at, updated_at, graph_topic_id, graph_subject, graph_topic_name FROM mistakes")
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |r| {
@@ -209,6 +209,9 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
                     "is_mastered": r.get::<_, i64>(5)?,
                     "created_at": r.get::<_, String>(6)?,
                     "updated_at": r.get::<_, String>(7)?,
+                    "graph_topic_id": r.get::<_, Option<String>>(8)?,
+                    "graph_subject": r.get::<_, Option<String>>(9)?,
+                    "graph_topic_name": r.get::<_, Option<String>>(10)?,
                 }))
             })
             .map_err(|e| e.to_string())?
@@ -558,9 +561,18 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
 
     if let Some(arr) = data.get("mistakes").and_then(|v| v.as_array()) {
         for m in arr {
+            // 旧备份没有图谱字段，导入后就是空，等同于没挂知识点的普通错题。
+            //
+            // 图谱三列走新建时同一条归一：备份里的空白串按「没挂」处理，
+            // 而不是把空格原样写进库——不然导入一次就多出一条挂着空名字的错题。
+            let (graph_topic_id, graph_subject, graph_topic_name) = normalize_graph_link(
+                m.get("graph_topic_id").and_then(|v| v.as_str()).map(str::to_string),
+                m.get("graph_subject").and_then(|v| v.as_str()).map(str::to_string),
+                m.get("graph_topic_name").and_then(|v| v.as_str()).map(str::to_string),
+            );
             tx.execute(
-                r#"INSERT INTO mistakes (id, subject, title, reason, correct_note, is_mastered, created_at, updated_at)
-                       VALUES (?1,?2,?3,?4,?5,?6,COALESCE(?7, datetime('now','localtime')), COALESCE(?8, datetime('now','localtime')))"#,
+                r#"INSERT INTO mistakes (id, subject, title, reason, correct_note, is_mastered, created_at, updated_at, graph_topic_id, graph_subject, graph_topic_name)
+                       VALUES (?1,?2,?3,?4,?5,?6,COALESCE(?7, datetime('now','localtime')), COALESCE(?8, datetime('now','localtime')),?9,?10,?11)"#,
                 params![
                     m.get("id").and_then(|v| v.as_i64()),
                     normalize_subject(m.get("subject").and_then(|v| v.as_str()).unwrap_or("")),
@@ -570,6 +582,9 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
                     m.get("is_mastered").and_then(|v| v.as_i64()).unwrap_or(0),
                     m.get("created_at").and_then(|v| v.as_str()),
                     m.get("updated_at").and_then(|v| v.as_str()),
+                    graph_topic_id,
+                    graph_subject,
+                    graph_topic_name,
                 ],
             )
             .map_err(|e| e.to_string())?;

@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { useNavigate } from "react-router-dom";
 import {
   useKnowledgePackDownload,
   useKnowledgePacks,
   useKnowledgePoints,
   usePrerequisites,
+  useTopicMistakes,
 } from "../hooks/useKnowledgeGraph";
 import {
   KNOWLEDGE_GRAPH_ATTRIBUTION,
@@ -18,6 +20,7 @@ import type {
   KnowledgeTopic,
   PrerequisiteNode,
   PrerequisiteResult,
+  TopicMistakes,
 } from "../types";
 
 /** 后端下载进度事件的名称。 */
@@ -77,8 +80,19 @@ function stateBadge(pack: KnowledgePackEntry) {
  *
  * 数学、物理随应用内置，不联网就能看；其余学科点下载时从上游仓库拉数据，
  * 落到插件目录缓存起来，之后切学科就是本地读。
+ *
+ * `initialSubject` / `initialTopicId` 用来深链：错题本里点某个知识点跳过来
+ * 时，直接落到那个学科、那个知识点上，不用再自己找一遍。
  */
-export function PluginKnowledgeLibrary({ pluginId }: { pluginId: string }) {
+export function PluginKnowledgeLibrary({
+  pluginId,
+  initialSubject,
+  initialTopicId,
+}: {
+  pluginId: string;
+  initialSubject?: string | null;
+  initialTopicId?: string | null;
+}) {
   const { data: packs = [], isLoading: packsLoading } = useKnowledgePacks(pluginId);
   const [subject, setSubject] = useState("");
   const [stage, setStage] = useState("");
@@ -93,13 +107,29 @@ export function PluginKnowledgeLibrary({ pluginId }: { pluginId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
 
   const download = useKnowledgePackDownload();
+  const navigate = useNavigate();
 
-  // 默认选中第一个已经能用的学科，内置的排在前面。
+  // 默认选中第一个已经能用的学科，内置的排在前面；深链指定的学科优先。
   useEffect(() => {
     if (subject || packs.length === 0) return;
+    const wanted = initialSubject?.trim();
+    const matched = wanted
+      ? packs.find((pack) => pack.subject === wanted)
+      : undefined;
     const first = packs.find((pack) => pack.state !== "available") ?? packs[0];
-    setSubject(first.subject);
-  }, [packs, subject]);
+    setSubject((matched ?? first).subject);
+  }, [packs, subject, initialSubject]);
+
+  // 深链指定的知识点：只应用一次。用户自己点别的知识点后不再弹回来。
+  const deepLinkApplied = useRef(false);
+  useEffect(() => {
+    if (deepLinkApplied.current) return;
+    const wanted = initialTopicId?.trim();
+    if (!wanted) return;
+    deepLinkApplied.current = true;
+    setTopicId(wanted);
+    setHistory([wanted]);
+  }, [initialTopicId]);
 
   // 搜索词防抖：后端每次都要整包解析，敲一个字查一次太浪费。
   useEffect(() => {
@@ -136,12 +166,25 @@ export function PluginKnowledgeLibrary({ pluginId }: { pluginId: string }) {
     debouncedQuery,
   );
   const prerequisites = usePrerequisites(pluginId, subject || null, topicId || null);
+  const topicMistakes = useTopicMistakes(pluginId, subject || null, topicId || null);
 
   const topics = useMemo(() => points.data ?? [], [points.data]);
   const selected = useMemo(
     () => prerequisites.data?.topic ?? null,
     [prerequisites.data],
   );
+
+  // 在这个知识点上记一条错题：跳到错题本，知识点已经带过去了。
+  const onRecordMistake = () => {
+    if (!topicId) return;
+    const pack = packs.find((item) => item.subject === subject);
+    const params = new URLSearchParams();
+    params.set("graphTopic", topicId);
+    if (subject) params.set("graphSubject", subject);
+    if (pack?.name) params.set("graphSubjectName", pack.name);
+    if (selected?.name) params.set("graphTopicName", selected.name);
+    navigate(`/mistakes?${params.toString()}`);
+  };
 
   const onDownload = async (pack: KnowledgePackEntry) => {
     setError(null);
@@ -358,6 +401,9 @@ export function PluginKnowledgeLibrary({ pluginId }: { pluginId: string }) {
         <TopicDetail
           result={prerequisites.data ?? null}
           loading={prerequisites.isLoading}
+          mistakes={topicMistakes.data ?? null}
+          mistakesLoading={topicMistakes.isLoading}
+          onRecordMistake={onRecordMistake}
           onSelectTopic={expandTopic}
           onBack={goBack}
           canGoBack={history.length > 1}
@@ -430,12 +476,19 @@ function TopicRow({
 function TopicDetail({
   result,
   loading,
+  mistakes,
+  mistakesLoading,
+  onRecordMistake,
   onSelectTopic,
   onBack,
   canGoBack,
 }: {
   result: PrerequisiteResult | null;
   loading: boolean;
+  /** 这个知识点上记过的错题。 */
+  mistakes?: TopicMistakes | null;
+  mistakesLoading?: boolean;
+  onRecordMistake?: () => void;
   onSelectTopic?: (topicId: string) => void;
   onBack?: () => void;
   canGoBack?: boolean;
@@ -503,6 +556,52 @@ function TopicDetail({
           </p>
         </div>
       ) : null}
+
+      {/* 错题本挂在这个知识点上的错题。放在前置关系图之前：先看自己在这儿
+          栽过几次，再看它该先学什么，两边说的是同一件事。 */}
+      <div className="mt-4" data-testid="topic-mistakes">
+        <h4 className="text-xs font-medium text-ink">我在这里错过</h4>
+        {mistakesLoading ? (
+          <p className="mt-1 text-xs text-ink-muted">加载中…</p>
+        ) : (mistakes?.total ?? 0) === 0 ? (
+          <p className="mt-1 text-xs text-ink-muted">
+            还没有在这个知识点上记过错题。
+            {onRecordMistake ? (
+              <button
+                type="button"
+                data-testid="topic-record-mistake"
+                className="ml-2 text-accent hover:underline"
+                onClick={onRecordMistake}
+              >
+                记一条
+              </button>
+            ) : null}
+          </p>
+        ) : (
+          <>
+            <p className="mt-1 text-xs text-ink-muted">
+              错题本里在这个知识点上记了 {mistakes?.total} 道，还有 {mistakes?.pending}{" "}
+              道没订正。
+            </p>
+            <ul className="mt-2 space-y-1">
+              {(mistakes?.items ?? []).map((item) => (
+                <li
+                  key={item.id}
+                  className="flex flex-wrap items-center gap-2 rounded-lg bg-white/5 px-2.5 py-1.5"
+                >
+                  <span className="text-xs text-ink">{item.title}</span>
+                  <span className="text-[11px] text-ink-muted">{item.reason}</span>
+                  {item.is_mastered === 1 ? (
+                    <span className="text-[11px] text-emerald-300">已订正</span>
+                  ) : (
+                    <span className="text-[11px] text-orange-300">待订正</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
 
       <div className="mt-4">
         <PrerequisiteGraph result={result} onSelectTopic={onSelectTopic} />

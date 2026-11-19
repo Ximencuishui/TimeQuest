@@ -34,6 +34,7 @@ import type {
   TextbookCatalog,
   TextbookCatalogItem,
   TextbookOutline,
+  TopicMistakes,
   UpdateMistakePayload,
   UserAchievement,
   UserProfile,
@@ -188,12 +189,23 @@ export const api = {
     title: string;
     reason: string;
     correctNote: string;
+    /** 上游知识点 id（知识图谱）。不挂知识点就传 null。 */
+    graphTopicId?: string | null;
+    /** 图谱学科代号。 */
+    graphSubject?: string | null;
+    /** 知识点名字。 */
+    graphTopicName?: string | null;
   }) =>
     invoke<Mistake>("create_mistake", {
-      subject: payload.subject,
-      title: payload.title,
-      reason: payload.reason,
-      correctNote: payload.correctNote,
+      payload: {
+        subject: payload.subject,
+        title: payload.title,
+        reason: payload.reason,
+        correctNote: payload.correctNote,
+        graphTopicId: payload.graphTopicId ?? null,
+        graphSubject: payload.graphSubject ?? null,
+        graphTopicName: payload.graphTopicName ?? null,
+      },
     }),
   updateMistake: (id: number, payload: UpdateMistakePayload) =>
     invoke<Mistake>("update_mistake", { id, payload }),
@@ -231,6 +243,8 @@ export const api = {
     invoke<PrerequisiteResult>("list_plugin_prerequisites", { pluginId, subject, topicId }),
   listTaskPrerequisiteConflicts: (pluginId: string, taskId: number) =>
     invoke<PrerequisiteConflict[]>("list_task_prerequisite_conflicts", { pluginId, taskId }),
+  listTopicMistakes: (pluginId: string, subject: string, topicId: string) =>
+    invoke<TopicMistakes>("list_topic_mistakes", { pluginId, subject, topicId }),
   downloadPluginKnowledgePack: (pluginId: string, subject: string) =>
     invoke<KnowledgePack>("download_plugin_knowledge_pack", { pluginId, subject }),
 

@@ -8,7 +8,7 @@ const BUILTIN_TOOLS = [
     id: "mistakes",
     name: "错题本",
     icon: "📕",
-    description: "做错的题记一条，订正完打个勾。",
+    description: "按知识点整理你的薄弱点，订正完打个勾。",
     to: "/mistakes",
   },
 ];
