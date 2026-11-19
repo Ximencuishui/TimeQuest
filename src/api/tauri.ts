@@ -17,10 +17,15 @@ import type {
   GenerateWeekPlanInput,
   GenerateWeekPlanResult,
   ImportTextbookResult,
+  KnowledgePack,
+  KnowledgePackEntry,
+  KnowledgeTopic,
   Mistake,
   PlanVsActualRow,
   PluginInfo,
   PluginOptionValue,
+  PrerequisiteConflict,
+  PrerequisiteResult,
   RescheduleInput,
   TagTypeRow,
   Task,
@@ -74,12 +79,22 @@ export const api = {
     invoke<TaskKnowledgePoint[]>("get_task_knowledge_points", { taskId }),
   toggleKnowledgePoint: (id: number) =>
     invoke<TaskKnowledgePoint>("toggle_knowledge_point", { id }),
-  addCustomKnowledgePoint: (taskId: number, sectionName: string, name: string) =>
-    invoke<TaskKnowledgePoint>("add_custom_knowledge_point", {
+  addCustomKnowledgePoint: (
+    taskId: number,
+    sectionName: string,
+    name: string,
+    graph?: { topicId: string; subject?: string | null },
+  ) => {
+    // 没给图谱来源就传 null，后端就知道这是自写 / 教材考点。
+    const topicId = graph?.topicId?.trim() ?? "";
+    return invoke<TaskKnowledgePoint>("add_custom_knowledge_point", {
       taskId,
       sectionName,
       name,
-    }),
+      graphTopicId: topicId ? topicId : null,
+      graphSubject: topicId ? (graph?.subject ?? null) : null,
+    });
+  },
   deleteKnowledgePoint: (id: number) =>
     invoke<void>("delete_knowledge_point", { id }),
   generateTasksFromOutline: (input: GenerateTasksFromOutlineInput) =>
@@ -196,6 +211,28 @@ export const api = {
     invoke<TextbookCatalog>("list_plugin_textbook_catalog", { pluginId }),
   downloadPluginTextbook: (pluginId: string, path: string) =>
     invoke<DownloadedTextbook>("download_plugin_textbook", { pluginId, path }),
+
+  // knowledge graph (toolbox)
+  listPluginKnowledgePacks: (pluginId: string) =>
+    invoke<KnowledgePackEntry[]>("list_plugin_knowledge_packs", { pluginId }),
+  listPluginKnowledgePoints: (
+    pluginId: string,
+    subject: string,
+    stage?: string | null,
+    query?: string | null,
+  ) =>
+    invoke<KnowledgeTopic[]>("list_plugin_knowledge_points", {
+      pluginId,
+      subject,
+      stage: stage ?? null,
+      query: query ?? null,
+    }),
+  listPluginPrerequisites: (pluginId: string, subject: string, topicId: string) =>
+    invoke<PrerequisiteResult>("list_plugin_prerequisites", { pluginId, subject, topicId }),
+  listTaskPrerequisiteConflicts: (pluginId: string, taskId: number) =>
+    invoke<PrerequisiteConflict[]>("list_task_prerequisite_conflicts", { pluginId, taskId }),
+  downloadPluginKnowledgePack: (pluginId: string, subject: string) =>
+    invoke<KnowledgePack>("download_plugin_knowledge_pack", { pluginId, subject }),
 
   // gamification / user
   getUserStats: () => invoke<UserStats>("get_user_stats"),

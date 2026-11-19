@@ -149,8 +149,18 @@ export function useToggleKnowledgePoint() {
 export function useAddCustomKnowledgePoint() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { taskId: number; sectionName: string; name: string }) =>
-      api.addCustomKnowledgePoint(input.taskId, input.sectionName, input.name),
+    mutationFn: (input: {
+      taskId: number;
+      sectionName: string;
+      name: string;
+      /** 来自知识图谱时带上上游 id，自写考点留空。 */
+      graphTopicId?: string | null;
+      graphSubject?: string | null;
+    }) =>
+      api.addCustomKnowledgePoint(input.taskId, input.sectionName, input.name, {
+        topicId: input.graphTopicId ?? "",
+        subject: input.graphSubject ?? null,
+      }),
     onSuccess: (point) => {
       qc.setQueryData<TaskKnowledgePoint[]>(
         ["task-knowledge-points", point.task_id],

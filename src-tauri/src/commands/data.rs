@@ -376,7 +376,8 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
     let task_knowledge_points: Vec<Value> = {
         let mut stmt = conn
             .prepare(
-                "SELECT id, task_id, section_name, name, is_mastered, position, created_at
+                "SELECT id, task_id, section_name, name, is_mastered, position, created_at,
+                        graph_topic_id, graph_subject
                  FROM task_knowledge_points ORDER BY id",
             )
             .map_err(|e| e.to_string())?;
@@ -390,6 +391,8 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
                     "is_mastered": r.get::<_, i64>(4)?,
                     "position": r.get::<_, i64>(5)?,
                     "created_at": r.get::<_, String>(6)?,
+                    "graph_topic_id": r.get::<_, Option<String>>(7)?,
+                    "graph_subject": r.get::<_, Option<String>>(8)?,
                 }))
             })
             .map_err(|e| e.to_string())?
@@ -643,13 +646,16 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
         upsert_user_profile_row(&tx, &UserProfile::default(), None)?;
     }
 
-    // Old backups omit this key. The DELETE above already left the table empty.
+    // Old backups omit `task_knowledge_points`. The DELETE above already left the table empty.
+    // Old backups also omit the two graph columns; they stay NULL, so such rows keep
+    // behaving like ordinary textbook points.
     if let Some(arr) = data.get("task_knowledge_points").and_then(|v| v.as_array()) {
         for row in arr {
             tx.execute(
                 r#"INSERT INTO task_knowledge_points (
-                     id, task_id, section_name, name, is_mastered, position, created_at
-                   ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, COALESCE(?7, datetime('now','localtime')))"#,
+                     id, task_id, section_name, name, is_mastered, position, created_at,
+                     graph_topic_id, graph_subject
+                   ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, COALESCE(?7, datetime('now','localtime')), ?8, ?9)"#,
                 params![
                     row.get("id").and_then(|v| v.as_i64()),
                     row.get("task_id").and_then(|v| v.as_i64()).unwrap_or(0),
@@ -658,6 +664,8 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
                     row.get("is_mastered").and_then(|v| v.as_i64()).unwrap_or(0),
                     row.get("position").and_then(|v| v.as_i64()).unwrap_or(0),
                     row.get("created_at").and_then(|v| v.as_str()),
+                    row.get("graph_topic_id").and_then(|v| v.as_str()),
+                    row.get("graph_subject").and_then(|v| v.as_str()),
                 ],
             )
             .map_err(|e| e.to_string())?;

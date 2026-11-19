@@ -1,0 +1,65 @@
+{
+  "id": "cn-knowledge-graph",
+  "name": "中小学知识图谱",
+  "summary": "按学科浏览对齐课标的知识点，看清每个考点的前置是什么，让排期有依据。",
+  "author": "xiaoyang111222 / cn-math-taxonomy",
+  "version": "1.0.0",
+  "icon": "🕸️",
+  "capabilities": [
+    "内置数学（870 个知识点）和物理（269 个知识点），离线可用",
+    "按学段和册次浏览知识点，也能直接搜名字",
+    "看每个考点的先修关系：哪些是硬门槛，哪些只是有帮助",
+    "其余学科按需下载，下载一次本地缓存，之后离线可用"
+  ],
+  "options": [
+    {
+      "key": "download_source",
+      "label": "下载通道",
+      "kind": "select",
+      "default": "blob",
+      "choices": ["blob", "raw"],
+      "choice_labels": {
+        "blob": "标准通道（推荐）",
+        "raw": "备用通道（标准通道失败时再试）"
+      },
+      "help": "知识点包存在 GitHub 上。默认用「标准通道」就行；如果下载总是失败，再换成「备用通道」试试。",
+      "advanced": true
+    },
+    {
+      "key": "github_token",
+      "label": "GitHub 访问令牌（选填）",
+      "kind": "text",
+      "default": "",
+      "help": "平时不用填。没有 GitHub 账号也能正常下载知识点包——换「下载通道」就够了。只有提示「今天的下载次数用完了」，才需要去 GitHub 申请一个访问令牌（Personal Access Token）粘进来提高额度。",
+      "advanced": true,
+      "secret": true
+    }
+  ],
+  "resources": [
+    {
+      "path": "topics.math.json",
+      "kind": "knowledge_graph",
+      "description": "数学知识点节点（870 个），随应用内置"
+    },
+    {
+      "path": "dependencies.math.json",
+      "kind": "knowledge_graph",
+      "description": "数学先修边，随应用内置"
+    },
+    {
+      "path": "topics.physics.json",
+      "kind": "knowledge_graph",
+      "description": "物理知识点节点（269 个），随应用内置"
+    },
+    {
+      "path": "dependencies.physics.json",
+      "kind": "knowledge_graph",
+      "description": "物理先修边，随应用内置"
+    },
+    {
+      "path": "packs.json",
+      "kind": "knowledge_graph",
+      "description": "其余学科包清单：有哪些学科、各多少点、下载信息"
+    }
+  ]
+}

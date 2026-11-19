@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "source": "https://github.com/xiaoyang111222/cn-math-taxonomy",
+  "repo": "xiaoyang111222/cn-math-taxonomy",
+  "rawBase": "https://raw.githubusercontent.com/xiaoyang111222/cn-math-taxonomy",
+  "commit": "aa2c22058222d0df404f1819e2fbdb97a62049ea",
+  "license": "CC BY-NC 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-nc/4.0/",
+  "generatedAt": "2026-11-19",
+  "files": {
+    "topics": {
+      "path": "data/topics.json",
+      "sha": "4a5d7eb084bc85a90556f637381d768ec859a4f7",
+      "size": 3361855
+    },
+    "dependencies": {
+      "path": "data/dependencies.json",
+      "sha": "7aab6f220b0bc19f25c9bf436852b721a6a485c2",
+      "size": 1022780
+    }
+  },
+  "builtin": [
+    {
+      "subject": "math",
+      "name": "数学",
+      "prefix": "cnm_",
+      "count": 870
+    },
+    {
+      "subject": "physics",
+      "name": "物理",
+      "prefix": "cnp_",
+      "count": 269
+    }
+  ],
+  "downloadable": [
+    {
+      "subject": "english",
+      "name": "英语",
+      "prefix": "cne_",
+      "count": 791
+    },
+    {
+      "subject": "chinese",
+      "name": "语文",
+      "prefix": "cnc_",
+      "count": 683
+    },
+    {
+      "subject": "science",
+      "name": "科学",
+      "prefix": "cns_",
+      "count": 269
+    },
+    {
+      "subject": "morality",
+      "name": "道德与法治",
+      "prefix": "cnd_",
+      "count": 269
+    },
+    {
+      "subject": "other",
+      "name": "其他学科",
+      "prefix": "cnh_,cng_,cnb_,cnk_",
+      "count": 406
+    }
+  ]
+}

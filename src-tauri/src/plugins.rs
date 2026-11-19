@@ -34,6 +34,9 @@ pub const PLUGIN_RESOURCE_KIND_FILE: &str = "file";
 /// 资源类型：教材清单（JSON，描述可下载的教材）。
 pub const PLUGIN_RESOURCE_KIND_TEXTBOOK_CATALOG: &str = "textbook_catalog";
 
+/// 资源类型：知识图谱（JSON，知识点节点 / 先修边 / 学科包清单）。
+pub const PLUGIN_RESOURCE_KIND_KNOWLEDGE_GRAPH: &str = "knowledge_graph";
+
 fn default_option_kind() -> String {
     "text".to_string()
 }

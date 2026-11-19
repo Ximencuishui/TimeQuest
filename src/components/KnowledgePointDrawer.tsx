@@ -9,6 +9,7 @@ import {
   useToggleKnowledgePoint,
 } from "../hooks/useTasks";
 import { KNOWLEDGE_POINT_DISCLAIMER } from "../lib/constants";
+import { GraphPointPicker } from "./GraphPointPicker";
 import {
   SECTION_EXISTS_MESSAGE,
   filterSectionOptions,
@@ -225,6 +226,11 @@ export function KnowledgePointList({
                     <span className={mastered ? "text-green-400 line-through" : "text-zinc-200"}>
                       {point.name}
                     </span>
+                    {point.graph_topic_id ? (
+                      <span className="mt-0.5 shrink-0 rounded-full bg-orange-500/15 px-1.5 py-0.5 text-[10px] text-orange-300">
+                        图谱
+                      </span>
+                    ) : null}
                   </label>
                   {taskId != null ? (
                     <button
@@ -262,6 +268,7 @@ export function KnowledgePointDrawer({
   const [sectionDraft, setSectionDraft] = useState("");
   const [sectionError, setSectionError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [pickingGraph, setPickingGraph] = useState(false);
   const listId = useId();
   const subject = task?.subject ?? loadedTask.data?.subject;
   const textbook = task?.textbook ?? loadedTask.data?.textbook;
@@ -274,6 +281,7 @@ export function KnowledgePointDrawer({
     setAddingSection(false);
     setSectionDraft("");
     setSectionError(null);
+    setPickingGraph(false);
   }, [task?.id]);
 
   useEffect(() => {
@@ -289,6 +297,14 @@ export function KnowledgePointDrawer({
   const taken = useMemo(
     () => takenSectionNames(points, draftSections),
     [points, draftSections],
+  );
+  // 已经加进这个任务的图谱考点，选择器里不再让重复加。
+  const takenTopicIds = useMemo(
+    () =>
+      points
+        .map((point) => point.graph_topic_id)
+        .filter((id): id is string => Boolean(id)),
+    [points],
   );
   const filtered = useMemo(
     () => filterSectionOptions(catalog, sectionDraft),
@@ -509,6 +525,34 @@ export function KnowledgePointDrawer({
             </button>
           )}
           {sectionError ? <p className="mt-1 text-xs text-orange-400">{sectionError}</p> : null}
+        </div>
+        <div className="mb-3 shrink-0">
+          {pickingGraph ? (
+            <>
+              <GraphPointPicker
+                taskId={task.id}
+                taskSubject={subject}
+                takenTopicIds={takenTopicIds}
+              />
+              <button
+                type="button"
+                className="mt-2 text-xs text-zinc-500 hover:text-zinc-300"
+                aria-label="收起知识图谱"
+                onClick={() => setPickingGraph(false)}
+              >
+                收起
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="text-xs text-zinc-500 hover:text-zinc-300"
+              aria-label="从知识图谱添加"
+              onClick={() => setPickingGraph(true)}
+            >
+              + 从知识图谱添加
+            </button>
+          )}
         </div>
         <div className="min-h-0 flex-1 overflow-auto">
           {isLoading ? (

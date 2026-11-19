@@ -29,7 +29,7 @@
       "label": "GitHub 访问令牌（选填）",
       "kind": "text",
       "default": "",
-      "help": "平时不用填。只有下载时提示「今天的下载次数用完了」，才需要去 GitHub 申请一个访问令牌（Personal Access Token）粘进来。",
+      "help": "平时不用填。没有 GitHub 账号也能正常下载教材——换「下载通道」就够了。只有提示「今天的下载次数用完了」，才需要去 GitHub 申请一个访问令牌（Personal Access Token）粘进来提高额度。",
       "advanced": true,
       "secret": true
     }

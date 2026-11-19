@@ -173,6 +173,8 @@ describe("knowledge point drawer", () => {
       taskId: 4,
       sectionName: "自定义节",
       name: "韦达定理",
+      graphTopicId: null,
+      graphSubject: null,
     });
 
     fireEvent.click(screen.getByRole("button", { name: "删除 韦达定理" }));
@@ -249,6 +251,8 @@ describe("knowledge point drawer", () => {
       taskId: 4,
       sectionName: "1.1 集合的概念",
       name: "集合的含义",
+      graphTopicId: null,
+      graphSubject: null,
     });
 
     fireEvent.click(screen.getByRole("button", { name: "添加节" }));
@@ -273,6 +277,8 @@ describe("knowledge point drawer", () => {
       taskId: 4,
       sectionName: "补充专题",
       name: "韦达定理",
+      graphTopicId: null,
+      graphSubject: null,
     });
   });
 
@@ -395,6 +401,8 @@ describe("knowledge point drawer", () => {
         taskId: 4,
         sectionName: "1.1 集合的概念",
         name: "元素与集合的关系",
+        graphTopicId: null,
+        graphSubject: null,
       });
     });
     expect(await screen.findByRole("button", { name: "已添加 元素与集合的关系" })).toBeDisabled();

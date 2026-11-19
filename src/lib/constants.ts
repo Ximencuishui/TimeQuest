@@ -12,6 +12,17 @@ export const ACCENT = "#F97316"; // sprint orange
 export const KNOWLEDGE_POINT_DISCLAIMER =
   "注：内置考点目录仅供参考，请以学校老师要求和最新考纲为准。";
 
+/** 知识图谱数据的出处。CC BY-NC 4.0 要求署名，这里不能省。 */
+export const KNOWLEDGE_GRAPH_ATTRIBUTION =
+  "知识点与先修关系来自开源项目 cn-math-taxonomy（xiaoyang111222），遵循 CC BY-NC 4.0 协议。";
+
+/** 知识图谱的免责说明。 */
+export const KNOWLEDGE_GRAPH_DISCLAIMER =
+  "注：知识点与先修关系由社区整理，可能与本校教学进度不一致，请以老师安排和最新考纲为准。";
+
+/** 知识图谱插件的 id。任务考点从这里挑知识点。 */
+export const KNOWLEDGE_GRAPH_PLUGIN_ID = "cn-knowledge-graph";
+
 /**
  * 一天最多安排多少分钟的学习（12 小时）。
  *

@@ -87,7 +87,11 @@ fn embed_plugin_json() {
         for resource in declared_resources(path) {
             let file = dir.join(id).join(&resource);
             if !file.is_file() {
-                panic!("插件 {id} 声明的资源不存在：{}", file.display());
+                panic!(
+                    "插件 {id} 声明的资源不存在：{}\n\
+                     知识图谱插件的资源要先跑一次：node scripts/build-cn-knowledge-graph.mjs",
+                    file.display()
+                );
             }
             println!("cargo:rerun-if-changed={}", file.display());
             let rendered = file.to_string_lossy().replace('\\', "/");

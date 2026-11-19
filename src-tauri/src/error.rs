@@ -123,6 +123,12 @@ pub enum TextbookError {
     #[error("这一节里已经有同名考点")]
     DuplicateKnowledgePoint,
 
+    #[error("这个考点已经在列表里了")]
+    DuplicateGraphTopic,
+
+    #[error("知识图谱考点编号不能为空")]
+    EmptyGraphTopicId,
+
     #[error("任务不存在: {id}")]
     TaskNotFound { id: i64 },
 }

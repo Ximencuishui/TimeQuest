@@ -665,10 +665,11 @@ fn describe_error(err: &dyn std::error::Error) -> String {
 /// 把 HTTP 状态码翻译成用户看得懂的中文提示。
 ///
 /// blob 接口未认证时每小时只有 60 次额度，用完了会返回 403；
-/// 这时候告诉用户「换个通道或者过会儿再试」，比干巴巴一句「403」有用。
-fn download_error_message(source: DownloadSource, status: reqwest::StatusCode) -> String {
+/// 这时候告诉用户「换个通道、过会儿再试，或者填个访问令牌提额」，
+/// 比干巴巴一句「403」有用；也要说清换通道不用注册账号。
+pub fn download_error_message(source: DownloadSource, status: reqwest::StatusCode) -> String {
     if source == DownloadSource::Blob && status == reqwest::StatusCode::FORBIDDEN {
-        return "今天的下载次数用完了。可以过一会儿再试，或在「高级设置」里换一个下载通道".to_string();
+        return "今天的下载次数用完了。换个下载通道通常就能继续（不用注册账号）；也可以过一会儿再试，或在「高级设置」里填一个访问令牌提高额度。".to_string();
     }
     if source == DownloadSource::Blob && status == reqwest::StatusCode::NOT_FOUND {
         return "GitHub 上找不到这个文件，清单可能过期了".to_string();

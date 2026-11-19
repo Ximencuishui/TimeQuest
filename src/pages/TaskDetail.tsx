@@ -4,6 +4,7 @@ import { TaskProgressRing } from "../components/ProgressRing";
 import { GlossaryHint } from "../components/GlossaryHint";
 import { SessionCard } from "../components/SessionCard";
 import { KnowledgePointList } from "../components/KnowledgePointDrawer";
+import { PrerequisiteAdvice } from "../components/PrerequisiteAdvice";
 import { useTask, useTaskKnowledgePoints, useTaskMutations, useTaskProgress } from "../hooks/useTasks";
 import { useSessionsByTask } from "../hooks/useSessions";
 import { formatMonthDay } from "../lib/date";
@@ -143,6 +144,8 @@ export function TaskDetail() {
           <KnowledgePointList points={points} />
         </section>
       ) : null}
+
+      <PrerequisiteAdvice taskId={task.id} />
 
       <section className="mt-8">
         <h2 className="mb-3 font-display text-lg">排期历史</h2>

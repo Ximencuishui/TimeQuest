@@ -443,18 +443,25 @@ pub struct TaskKnowledgePoint {
     pub name: String,
     pub is_mastered: i64,
     pub position: i64,
+    /// 上游知识点 id（知识图谱），比如 `cnm_001`。自写考点与教材考点是空。
+    pub graph_topic_id: Option<String>,
+    /// 图谱学科代号，比如 `math`。自写考点与教材考点是空。
+    pub graph_subject: Option<String>,
 }
+
+const TASK_KNOWLEDGE_POINT_COLUMNS: &str =
+    "id, task_id, section_name, name, is_mastered, position, graph_topic_id, graph_subject";
 
 pub async fn get_task_knowledge_points_impl(
     db: &SqlitePool,
     task_id: i64,
 ) -> Result<Vec<TaskKnowledgePoint>, TextbookError> {
-    let rows = sqlx::query_as::<_, TaskKnowledgePoint>(
-        "SELECT id, task_id, section_name, name, is_mastered, position
+    let rows = sqlx::query_as::<_, TaskKnowledgePoint>(&format!(
+        "SELECT {TASK_KNOWLEDGE_POINT_COLUMNS}
          FROM task_knowledge_points
          WHERE task_id = ?1
-         ORDER BY id ASC",
-    )
+         ORDER BY id ASC"
+    ))
     .bind(task_id)
     .fetch_all(db)
     .await?;
@@ -478,10 +485,9 @@ pub async fn toggle_knowledge_point_impl(
     if changed == 0 {
         return Err(TextbookError::KnowledgePointNotFound { id });
     }
-    let row = sqlx::query_as::<_, TaskKnowledgePoint>(
-        "SELECT id, task_id, section_name, name, is_mastered, position
-         FROM task_knowledge_points WHERE id = ?1",
-    )
+    let row = sqlx::query_as::<_, TaskKnowledgePoint>(&format!(
+        "SELECT {TASK_KNOWLEDGE_POINT_COLUMNS} FROM task_knowledge_points WHERE id = ?1"
+    ))
     .bind(id)
     .fetch_one(db)
     .await?;
@@ -519,6 +525,60 @@ pub async fn add_custom_knowledge_point_impl(
     section_name: String,
     name: String,
 ) -> Result<TaskKnowledgePoint, TextbookError> {
+    insert_knowledge_point(db, task_id, section_name, name, None).await
+}
+
+/// Insert one point that points at an upstream knowledge-graph topic.
+///
+/// The upstream id (`cnm_001`) is stored next to the name, so later milestones
+/// can look the prerequisite chain up without a separate mapping table. The
+/// same topic cannot be added to one task twice; another task may reuse it.
+///
+/// The task layer does not check that the id exists upstream: the list the
+/// student picked from comes from the graph itself.
+pub async fn add_graph_knowledge_point_impl(
+    db: &SqlitePool,
+    task_id: i64,
+    section_name: String,
+    name: String,
+    graph_topic_id: String,
+    graph_subject: Option<String>,
+) -> Result<TaskKnowledgePoint, TextbookError> {
+    let topic_id = graph_topic_id.trim().to_string();
+    if topic_id.is_empty() {
+        return Err(TextbookError::EmptyGraphTopicId);
+    }
+    let subject = graph_subject
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    insert_knowledge_point(
+        db,
+        task_id,
+        section_name,
+        name,
+        Some(GraphTopic {
+            topic_id,
+            subject,
+        }),
+    )
+    .await
+}
+
+/// A knowledge point's link to the upstream knowledge graph.
+struct GraphTopic {
+    topic_id: String,
+    subject: Option<String>,
+}
+
+/// Insert one knowledge point row. `graph` is `None` for textbook points and
+/// student-authored points.
+async fn insert_knowledge_point(
+    db: &SqlitePool,
+    task_id: i64,
+    section_name: String,
+    name: String,
+    graph: Option<GraphTopic>,
+) -> Result<TaskKnowledgePoint, TextbookError> {
     let section_name = section_name.trim().to_string();
     let name = name.trim().to_string();
     if section_name.is_empty() {
@@ -534,6 +594,20 @@ pub async fn add_custom_knowledge_point_impl(
     if task_exists.is_none() {
         return Err(TextbookError::TaskNotFound { id: task_id });
     }
+    // 同一个图谱考点在一个任务里只算一次。这里先查一遍，好把报错说清楚，
+    // 而不是让唯一索引抛一个看不懂的数据库错误。
+    if let Some(topic) = graph.as_ref() {
+        let existing: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM task_knowledge_points WHERE task_id = ?1 AND graph_topic_id = ?2",
+        )
+        .bind(task_id)
+        .bind(&topic.topic_id)
+        .fetch_optional(db)
+        .await?;
+        if existing.is_some() {
+            return Err(TextbookError::DuplicateGraphTopic);
+        }
+    }
     let position: i64 = sqlx::query_scalar(
         "SELECT COALESCE(MAX(position), -1) + 1
          FROM task_knowledge_points
@@ -543,14 +617,19 @@ pub async fn add_custom_knowledge_point_impl(
     .bind(&section_name)
     .fetch_one(db)
     .await?;
+    let graph_topic_id = graph.as_ref().map(|topic| topic.topic_id.clone());
+    let graph_subject = graph.as_ref().and_then(|topic| topic.subject.clone());
     let inserted = sqlx::query(
-        r#"INSERT INTO task_knowledge_points (task_id, section_name, name, is_mastered, position)
-           VALUES (?1, ?2, ?3, 0, ?4)"#,
+        r#"INSERT INTO task_knowledge_points
+             (task_id, section_name, name, is_mastered, position, graph_topic_id, graph_subject)
+           VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6)"#,
     )
     .bind(task_id)
     .bind(&section_name)
     .bind(&name)
     .bind(position)
+    .bind(graph_topic_id.as_deref())
+    .bind(graph_subject.as_deref())
     .execute(db)
     .await
     .map_err(|err| {
@@ -570,6 +649,8 @@ pub async fn add_custom_knowledge_point_impl(
         name,
         is_mastered: 0,
         position,
+        graph_topic_id,
+        graph_subject,
     })
 }
 
@@ -591,10 +672,23 @@ pub async fn add_custom_knowledge_point(
     task_id: i64,
     section_name: String,
     name: String,
+    graph_topic_id: Option<String>,
+    graph_subject: Option<String>,
 ) -> Result<TaskKnowledgePoint, String> {
-    add_custom_knowledge_point_impl(pool.inner(), task_id, section_name, name)
-        .await
-        .map_err(Into::into)
+    let db = pool.inner();
+    let graph_topic_id = graph_topic_id
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    match graph_topic_id {
+        Some(topic_id) => {
+            add_graph_knowledge_point_impl(db, task_id, section_name, name, topic_id, graph_subject)
+                .await
+                .map_err(Into::into)
+        }
+        None => add_custom_knowledge_point_impl(db, task_id, section_name, name)
+            .await
+            .map_err(Into::into),
+    }
 }
 
 #[tauri::command]

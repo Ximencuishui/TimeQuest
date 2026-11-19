@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { PluginKnowledgeLibrary } from "../components/PluginKnowledgeLibrary";
 import { PluginTextbookLibrary } from "../components/PluginTextbookLibrary";
 import {
   usePluginMutations,
@@ -20,6 +21,13 @@ function toolIcon(icon: string, name: string): string {
 function isTextbookSource(plugin: PluginInfo): boolean {
   return (plugin.resources ?? []).some(
     (resource) => resource.kind === "textbook_catalog",
+  );
+}
+
+/** 插件是不是知识图谱源：自带知识点节点与先修关系的那种。 */
+function isKnowledgeGraph(plugin: PluginInfo): boolean {
+  return (plugin.resources ?? []).some(
+    (resource) => resource.kind === "knowledge_graph",
   );
 }
 
@@ -305,6 +313,10 @@ export function PluginDetail() {
 
       {plugin.installed && isTextbookSource(plugin) ? (
         <PluginTextbookLibrary pluginId={plugin.id} />
+      ) : null}
+
+      {plugin.installed && isKnowledgeGraph(plugin) ? (
+        <PluginKnowledgeLibrary pluginId={plugin.id} />
       ) : null}
     </div>
   );

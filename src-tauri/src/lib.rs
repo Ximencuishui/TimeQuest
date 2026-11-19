@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod error;
 mod gamification;
+mod knowledge_graph;
 mod models;
 mod pdf_outline;
 mod pdf_text;
@@ -13,6 +14,13 @@ pub use commands::app_settings::{get_setting_impl, set_setting_impl};
 pub use commands::data::{export_json_impl, import_json_impl};
 pub use commands::exams::{
     create_exam_record_impl, delete_exam_record_impl, list_exam_records_impl,
+};
+pub use commands::knowledge_graph::{
+    download_plugin_knowledge_pack, downloaded_pack_exists, list_plugin_knowledge_packs,
+    list_plugin_knowledge_points, list_plugin_prerequisites, list_task_prerequisite_conflicts,
+    list_task_prerequisite_conflicts_impl, KnowledgeDownloadProgress, KnowledgePackEntry,
+    PrerequisiteConflict, PrerequisiteResult, CONFLICT_ORDER_SWAPPED,
+    CONFLICT_PREREQUISITE_TASK_INCOMPLETE, KNOWLEDGE_PACK_DOWNLOAD_PROGRESS_EVENT,
 };
 pub use commands::logs::{compute_duration_min, create_log_impl};
 pub use commands::mistakes::{
@@ -43,14 +51,21 @@ pub use commands::stats::{
 };
 pub use commands::tasks::{advance_round_impl, task_progress_impl};
 pub use commands::textbook::{
-    add_custom_knowledge_point_impl, delete_knowledge_point_impl, generate_tasks_from_outline_impl,
-    get_task_knowledge_points_impl, import_textbook_json_impl, import_textbook_pdf,
-    list_textbook_catalog_impl, resolve_textbook_outline, toggle_knowledge_point_impl,
-    GenerateTasksFromOutlineInput, GenerateTasksResult, ImportTextbookResult, TaskKnowledgePoint,
-    TextbookCatalogItem,
+    add_custom_knowledge_point_impl, add_graph_knowledge_point_impl, delete_knowledge_point_impl,
+    generate_tasks_from_outline_impl, get_task_knowledge_points_impl, import_textbook_json_impl,
+    import_textbook_pdf, list_textbook_catalog_impl, resolve_textbook_outline,
+    toggle_knowledge_point_impl, GenerateTasksFromOutlineInput, GenerateTasksResult,
+    ImportTextbookResult, TaskKnowledgePoint, TextbookCatalogItem,
 };
 pub use error::{AppError, SessionError, TextbookError};
 pub use gamification::{update_streak_values, RESCHEDULE_RECOVERY_BONUS};
+pub use knowledge_graph::{
+    filter_topics, parse_dependencies, parse_packs, parse_topics, slice_dependencies_by_prefix,
+    slice_topics_by_prefix, DiagnosticQuestion, KnowledgeDependenciesFile, KnowledgeDependency,
+    KnowledgeGraph, KnowledgePack, KnowledgePacks, KnowledgeSourceFile, KnowledgeTopic,
+    KnowledgeTopicsFile, MathLink, PrerequisiteNode, TopicFilter, KNOWLEDGE_GRAPH_LICENSE,
+    STAGE_JUNIOR, STAGE_PRIMARY, STAGE_SENIOR, STAGE_UNKNOWN, STRENGTH_HARD,
+};
 pub use models::{
     CompleteSessionResult, CompletionRate, CreateExamRecordPayload, CreateLogPayload,
     DailyUnitsRow, ExamRecord, MethodShareRow, Mistake, PlanVsActualRow, RemainderSchedule,
@@ -66,12 +81,13 @@ pub use plugins::{
     list_plugins_impl, plugin_option_key, plugin_options_impl, plugin_resource_text,
     set_plugin_option_impl, uninstall_plugin_impl, PluginInfo, PluginOption, PluginOptionValue,
     PluginPackage, PluginResource, INSTALLED_PLUGINS_KEY, PLUGIN_RESOURCES_DIR,
-    PLUGIN_RESOURCE_KIND_FILE, PLUGIN_RESOURCE_KIND_TEXTBOOK_CATALOG,
+    PLUGIN_RESOURCE_KIND_FILE, PLUGIN_RESOURCE_KIND_KNOWLEDGE_GRAPH,
+    PLUGIN_RESOURCE_KIND_TEXTBOOK_CATALOG,
 };
 pub use textbook_source::{
-    download_textbook, encode_repo_path, parse_textbook_catalog, safe_file_name,
-    textbook_download_plan, textbook_download_requests, textbook_download_urls, textbooks_dir,
-    CatalogShard, CatalogStage, CatalogTextbook, DownloadCandidate, DownloadProgress,
+    download_error_message, download_textbook, encode_repo_path, parse_textbook_catalog,
+    safe_file_name, textbook_download_plan, textbook_download_requests, textbook_download_urls,
+    textbooks_dir, CatalogShard, CatalogStage, CatalogTextbook, DownloadCandidate, DownloadProgress,
     DownloadRequest, DownloadRetryPolicy, DownloadShardPlan, DownloadSource, DownloadedTextbook,
     GITHUB_BLOB_ACCEPT, TextbookCatalog,
 };
@@ -211,6 +227,11 @@ pub fn run() {
             commands::read_plugin_resource,
             commands::list_plugin_textbook_catalog,
             commands::download_plugin_textbook,
+            commands::list_plugin_knowledge_packs,
+            commands::list_plugin_knowledge_points,
+            commands::list_plugin_prerequisites,
+            commands::list_task_prerequisite_conflicts,
+            commands::download_plugin_knowledge_pack,
             commands::list_mistakes,
             commands::create_mistake,
             commands::update_mistake,

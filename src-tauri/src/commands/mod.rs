@@ -1,6 +1,7 @@
 pub mod app_settings;
 pub mod data;
 pub mod exams;
+pub mod knowledge_graph;
 pub mod logs;
 pub mod mistakes;
 pub mod mock;
@@ -16,6 +17,7 @@ pub mod textbook;
 pub use app_settings::*;
 pub use data::*;
 pub use exams::*;
+pub use knowledge_graph::*;
 pub use logs::*;
 pub use mistakes::*;
 pub use mock::*;

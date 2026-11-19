@@ -360,6 +360,10 @@ export type TaskKnowledgePoint = {
   name: string;
   is_mastered: number;
   position: number;
+  /** 上游知识点 id（知识图谱），比如 `cnm_001`。自写考点与教材考点没有。 */
+  graph_topic_id?: string | null;
+  /** 图谱学科代号，比如 `math`。自写考点与教材考点没有。 */
+  graph_subject?: string | null;
 };
 
 export type TextbookSection = {
@@ -431,4 +435,101 @@ export type TextbookCatalogItem = {
   version: string;
   volume: string;
   source: string;
+};
+
+/** 知识图谱里的一个知识点。 */
+export type KnowledgeTopic = {
+  /** 上游的稳定 id，例如 `cnm_001`。 */
+  id: string;
+  name: string;
+  /** 领域，例如「数与代数」。 */
+  domain: string;
+  /** 年级：1–6 小学，7–9 初中，10 及以上高中。 */
+  grade: number;
+  /** 学段：小学 / 初中 / 高中 / 其他。后端按年级填好。 */
+  stage: string;
+  /** 册次：「上」「下」或「全」。 */
+  semester: string;
+  /** 人教版章节，例如「七上 第一章 有理数 1.2.1」。 */
+  chapter: string;
+  /** 知识点类型：conceptual / procedural / reasoning / application / modeling。 */
+  type: string;
+  description: string;
+  masteryCriteria: string[];
+  diagnosticQuestion: { question: string; answer: string } | null;
+  /** 引用到的数学知识点（物理用它连数学，不算先修边）。 */
+  mathLinks: { id: string; reason: string }[];
+};
+
+/** 先修链上的一环。 */
+export type PrerequisiteNode = {
+  topic: KnowledgeTopic;
+  /** `hard`（硬门槛）或 `soft`（有帮助但不是门槛）。 */
+  strength: string;
+  reason: string;
+  /** 距离查询点的跳数。1 是直接先修。 */
+  depth: number;
+};
+
+/** 某个知识点的先修信息。 */
+export type PrerequisiteResult = {
+  topic: KnowledgeTopic;
+  /** 直接先修，硬的在前。 */
+  direct: PrerequisiteNode[];
+  /** 沿硬先修回溯到的深层前置。 */
+  ancestors: PrerequisiteNode[];
+};
+
+/** 一条排期建议：先修还没学完就排了后面。 */
+export type PrerequisiteConflict = {
+  /** `order_swapped`（同任务内顺序颠倒）或 `prerequisite_task_incomplete`（先修所在任务没学完）。 */
+  kind: string;
+  /** 出问题的那场：依赖先修的考点。 */
+  topicId: string;
+  topicName: string;
+  /** 先修考点。 */
+  prerequisiteId: string;
+  prerequisiteName: string;
+  /** 先修边强度，这里恒为 `hard`。 */
+  strength: string;
+  /** 先修考点在哪个任务里。 */
+  prerequisiteTaskId: number | null;
+  prerequisiteTaskTitle: string | null;
+  /** 先修任务还差多少单元。 */
+  prerequisiteTaskRemaining: number | null;
+  /** 本任务第一场还没上的日期。 */
+  dependentSessionDate: string | null;
+  /** 先修任务第一场还没上的日期。 */
+  prerequisiteSessionDate: string | null;
+  /** 一句人话，直接显示。 */
+  message: string;
+};
+
+/** 工具箱里的一个学科包。 */
+export type KnowledgePackEntry = {
+  subject: string;
+  name: string;
+  /** 这个学科有多少个知识点。 */
+  count: number;
+  /** `builtin` 随应用内置，`downloaded` 已下载到本地，`available` 还没下载。 */
+  state: string;
+  builtin: boolean;
+};
+
+/** 下载完的学科包。 */
+export type KnowledgePack = {
+  subject: string;
+  name: string;
+  /** 知识点 id 前缀。 */
+  prefix: string;
+  count: number;
+};
+
+/** 知识点包下载进度。 */
+export type KnowledgeDownloadProgress = {
+  subject: string;
+  /** `topics` 或 `dependencies`。 */
+  file: string;
+  downloaded: number;
+  total: number;
 };

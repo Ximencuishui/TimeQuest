@@ -7,9 +7,9 @@
 
 use std::path::PathBuf;
 use timequest_lib::{
-    encode_repo_path, extract_outline, outline_to_textbook, parse_textbook_catalog,
-    plugin_resource_text, safe_file_name, textbook_download_requests, textbook_download_urls,
-    DownloadSource,
+    download_error_message, encode_repo_path, extract_outline, outline_to_textbook,
+    parse_textbook_catalog, plugin_resource_text, safe_file_name, textbook_download_requests,
+    textbook_download_urls, DownloadSource,
 };
 
 const PLUGIN_ID: &str = "china-textbook";
@@ -346,4 +346,44 @@ fn blob_requests_reject_a_shard_without_sha() {
     let error =
         textbook_download_requests(&catalog, &book, DownloadSource::Blob).expect_err("must fail");
     assert!(error.contains("sha"), "报错要说清缺什么：{error}");
+}
+
+#[test]
+fn rate_limit_message_points_to_the_channel_not_to_signing_up() {
+    let message = download_error_message(DownloadSource::Blob, reqwest::StatusCode::FORBIDDEN);
+
+    assert!(message.contains("下载通道"), "要告诉学生换通道：{message}");
+    assert!(
+        message.contains("不用注册账号"),
+        "换通道不需要 GitHub 账号，别让学生以为必须注册：{message}"
+    );
+    assert!(
+        message.contains("访问令牌"),
+        "令牌是可选的提额手段，也要点明：{message}"
+    );
+    assert!(
+        !message.contains("GitHub token"),
+        "界面上不出现技术黑话：{message}"
+    );
+}
+
+#[test]
+fn missing_file_and_server_errors_keep_their_own_wording() {
+    let missing =
+        download_error_message(DownloadSource::Blob, reqwest::StatusCode::NOT_FOUND);
+    assert!(missing.contains("找不到"), "文件没了要说清：{missing}");
+    assert!(
+        !missing.contains("下载次数"),
+        "限额提示不该混进找不到文件的场景：{missing}"
+    );
+
+    let broken = download_error_message(DownloadSource::Blob, reqwest::StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(
+        broken.contains("服务器返回"),
+        "其它状态码照实说：{broken}"
+    );
+    assert!(
+        !broken.contains("下载次数"),
+        "限额提示只属于 403：{broken}"
+    );
 }

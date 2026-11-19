@@ -421,6 +421,8 @@
 | raw_requests_fall_back_to_the_raw_paths | raw 源：回落到 raw 路径与分片目录 | `src-tauri/tests/textbook_source_test.rs` |
 | download_source_parses_plugin_option_values | 下载源选项解析；认不出来的回落到 blob | `src-tauri/tests/textbook_source_test.rs` |
 | blob_requests_reject_a_shard_without_sha | 分片缺 sha 时报错 | `src-tauri/tests/textbook_source_test.rs` |
+| rate_limit_message_points_to_the_channel_not_to_signing_up | 403 限额提示给出「换通道（不用注册账号）」与「填访问令牌提额」两条路，不出现 GitHub token | `src-tauri/tests/textbook_source_test.rs` |
+| missing_file_and_server_errors_keep_their_own_wording | 404 说「找不到」，其它状态码照实说，限额提示只属于 403 | `src-tauri/tests/textbook_source_test.rs` |
 | sharded_book_joins_parts_into_one_pdf | 两片按序接成一个 PDF；进度累计、落在第 2/2 片 | `src-tauri/tests/textbook_download_test.rs` |
 | whole_book_downloads_to_a_single_file | 整本书落成 .pdf，不留 .part | `src-tauri/tests/textbook_download_test.rs` |
 | failed_download_leaves_no_partial_file | 下载失败不留下 .part 或半截 PDF | `src-tauri/tests/textbook_download_test.rs` |
@@ -450,8 +452,113 @@
 | plugin_library_reports_a_failed_download | 下载失败只报错误，不假装成功 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
 | plugin_library_shows_the_retry_attempt_when_the_download_resumes | 续传时进度条标出「重试第 N 次」 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
 | plugin_library_turns_the_parsed_outline_into_a_task | 解析结果直接进向导：勾选已掌握 → 生成任务与排期 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
+| packs_manifest_builtin_math_and_physics | 学科包清单锁仓库与 commit、写明 CC BY-NC 4.0；只内置数学与物理 | `src-tauri/tests/knowledge_graph_test.rs` |
+| packs_manifest_records_subject_prefixes | 学科包记 id 前缀；「其他学科」是多个前缀合起来的 | `src-tauri/tests/knowledge_graph_test.rs` |
+| builtin_math_topics_match_upstream_count | 内置数学 870 个知识点，id 都是数学前缀，学段已填 | `src-tauri/tests/knowledge_graph_test.rs` |
+| builtin_physics_topics_match_upstream_count | 内置物理 269 个知识点，id 都是物理前缀 | `src-tauri/tests/knowledge_graph_test.rs` |
+| builtin_dependencies_reference_known_topics | 内置数学 1459 条先修边，两端都能在知识点里找到 | `src-tauri/tests/knowledge_graph_test.rs` |
+| builtin_physics_dependencies_stay_inside_physics | 内置物理 637 条先修边不跨出物理 | `src-tauri/tests/knowledge_graph_test.rs` |
+| physics_links_to_math_through_math_links_not_dependencies | 物理连数学走 mathLinks，不塞进先修边 | `src-tauri/tests/knowledge_graph_test.rs` |
+| stage_is_derived_from_grade | 1–6 小学、7–9 初中、10+ 高中，其余「其他」 | `src-tauri/tests/knowledge_graph_test.rs` |
+| parsed_topics_get_stage_filled_in | 解析时把学段填进字段 | `src-tauri/tests/knowledge_graph_test.rs` |
+| filter_topics_matches_any_text_field | 搜索命中名称 / 章节 / 领域 / 说明，忽略大小写 | `src-tauri/tests/knowledge_graph_test.rs` |
+| filter_topics_by_stage | 按学段筛；不限条件时全部返回 | `src-tauri/tests/knowledge_graph_test.rs` |
+| slice_by_prefix_keeps_subject_and_drops_cross_edges | 按 id 前缀切学科，跨学科的边剔掉 | `src-tauri/tests/knowledge_graph_test.rs` |
+| direct_prerequisites_put_hard_before_soft | 直接先修 hard 排前面，深度为 1 | `src-tauri/tests/knowledge_graph_test.rs` |
+| ancestors_follow_hard_edges_only | 深层前置只沿硬门槛回溯，带 depth | `src-tauri/tests/knowledge_graph_test.rs` |
+| ancestors_stop_on_cycles | 数据里有环也不会无限展开 | `src-tauri/tests/knowledge_graph_test.rs` |
+| packs_rejects_incomplete_manifest | 缺仓库名 / 缺知识点文件 / 坏 JSON 都报错 | `src-tauri/tests/knowledge_graph_test.rs` |
+| knowledge_graph_plugin_declares_resources_and_credits_upstream | 资源 kind 是 knowledge_graph，作者署名上游仓库 | `src-tauri/tests/knowledge_graph_test.rs` |
+| declared_resources_are_all_readable | 声明的资源没装也能读到，且不为空 | `src-tauri/tests/knowledge_graph_test.rs` |
+| knowledge_library_lists_packs_and_picks_a_builtin_subject_by_default | 学科包条列出各科与状态，默认落在内置学科 | `src/components/__tests__/plugin_knowledge_library.test.tsx` |
+| knowledge_library_filters_topics_by_stage | 学段 tab 带上 stage 重新查 | `src/components/__tests__/plugin_knowledge_library.test.tsx` |
+| knowledge_library_searches_topics_by_keyword | 搜索词防抖后带上 query 重新查 | `src/components/__tests__/plugin_knowledge_library.test.tsx` |
+| knowledge_library_shows_direct_and_deep_prerequisites | 点开知识点显示直接先修与深层前置 | `src/components/__tests__/plugin_knowledge_library.test.tsx` |
+| knowledge_library_downloads_an_undownloaded_subject_on_demand | 未下载的学科点下载才拉数据 | `src/components/__tests__/plugin_knowledge_library.test.tsx` |
+| knowledge_library_reports_a_failed_download_instead_of_pretending_it_worked | 下载失败只报错误，不假装成功 | `src/components/__tests__/plugin_knowledge_library.test.tsx` |
+| knowledge_library_credits_upstream_and_shows_the_license | 面板底部署名并写明协议 | `src/components/__tests__/plugin_knowledge_library.test.tsx` |
+| graph_point_carries_the_upstream_topic_id | 图谱考点入库带着上游 id 与学科代号 | `src-tauri/tests/task_graph_points_test.rs` |
+| custom_point_has_no_graph_topic_id | 自写考点没有图谱 id | `src-tauri/tests/task_graph_points_test.rs` |
+| textbook_generated_points_have_no_graph_topic_id | 教材导入的考点没有图谱 id | `src-tauri/tests/task_graph_points_test.rs` |
+| graph_topic_cannot_be_added_twice_to_one_task | 同一图谱考点在一个任务里只能加一次，换名换节也算 | `src-tauri/tests/task_graph_points_test.rs` |
+| same_graph_topic_can_join_another_task | 同一图谱考点可以进不同任务 | `src-tauri/tests/task_graph_points_test.rs` |
+| graph_point_with_blank_topic_id_is_rejected | 空的上游 id 报错，不塞没来源的图谱考点 | `src-tauri/tests/task_graph_points_test.rs` |
+| graph_point_on_a_missing_task_is_rejected | 任务不存在时不许挂考点 | `src-tauri/tests/task_graph_points_test.rs` |
+| graph_points_survive_export_import | 导出再导入，图谱 id 不丢 | `src-tauri/tests/task_graph_points_test.rs` |
+| old_backup_without_graph_fields_imports_as_null | 老备份没图谱字段，导入后留空且不报错 | `src-tauri/tests/task_graph_points_test.rs` |
+| graph_point_picker_lands_on_the_subject_matching_the_task | 选择器按任务科目落到对应学科包 | `src/components/__tests__/graph_point_picker.test.tsx` |
+| graph_point_picker_only_offers_packs_that_are_ready_to_use | 没下载的学科包不进选择器 | `src/components/__tests__/graph_point_picker.test.tsx` |
+| graph_point_picker_adds_a_topic_with_the_upstream_id | 选中的考点带着上游 id 入库 | `src/components/__tests__/graph_point_picker.test.tsx` |
+| graph_point_picker_marks_a_topic_that_is_already_added | 已加过的考点显示「已添加」且不可点 | `src/components/__tests__/graph_point_picker.test.tsx` |
+| graph_point_picker_reports_a_failed_add | 加入失败只报错误 | `src/components/__tests__/graph_point_picker.test.tsx` |
+| graph_point_badge_marks_only_the_points_came_from_the_graph | 只有图谱考点带「图谱」徽标 | `src/components/__tests__/graph_point_picker.test.tsx` |
+| order_swapped_conflict_is_reported | 同任务内先修考点排在后面要报出来 | `src-tauri/tests/prerequisite_conflicts_test.rs` |
+| prerequisite_before_dependent_is_not_a_conflict | 先修排在前面就不报 | `src-tauri/tests/prerequisite_conflicts_test.rs` |
+| incomplete_prerequisite_task_is_reported | 先修在另一个任务没学完、这边先开课要报 | `src-tauri/tests/prerequisite_conflicts_test.rs` |
+| finished_prerequisite_task_is_not_a_conflict | 先修任务已学完就不报 | `src-tauri/tests/prerequisite_conflicts_test.rs` |
+| prerequisite_in_no_task_is_not_a_conflict | 先修不在任何任务里就不报 | `src-tauri/tests/prerequisite_conflicts_test.rs` |
+| soft_prerequisite_is_not_a_conflict | 软边不报，只报硬门槛 | `src-tauri/tests/prerequisite_conflicts_test.rs` |
+| task_without_graph_points_has_no_conflicts | 没有图谱考点的任务返回空列表 | `src-tauri/tests/prerequisite_conflicts_test.rs` |
+| missing_pack_degrades_to_empty_conflicts | 学科包读不到降级成空列表，不报错 | `src-tauri/tests/prerequisite_conflicts_test.rs` |
+| later_dependent_task_is_not_a_conflict | 本任务比先修任务晚开课就不报 | `src-tauri/tests/prerequisite_conflicts_test.rs` |
+| shared_prerequisite_in_finished_task_is_not_a_conflict | 多个任务共享先修考点时只报没学完的那个 | `src-tauri/tests/prerequisite_conflicts_test.rs` |
+| side_task_is_not_a_conflict | 副本任务进度口径对不上，不报 | `src-tauri/tests/prerequisite_conflicts_test.rs` |
+| prerequisite_advice_shows_nothing_when_there_is_no_conflict | 没冲突时不显示建议块 | `src/components/__tests__/prerequisite_advice.test.tsx` |
+| prerequisite_advice_lists_an_order_swapped_conflict | 顺序颠倒显示「顺序反了」和提示文案 | `src/components/__tests__/prerequisite_advice.test.tsx` |
+| prerequisite_advice_shows_the_prerequisite_task_and_remaining_units | 显示先修任务名和还差多少课 | `src/components/__tests__/prerequisite_advice.test.tsx` |
+| prerequisite_advice_does_not_ask_for_a_missing_task | 没有任务时不发请求 | `src/components/__tests__/prerequisite_advice.test.tsx` |
+| knowledge_library_recenters_the_graph_on_a_clicked_prerequisite | 点图上节点以它为中心重拉先修链，并出现返回按钮 | `src/components/__tests__/plugin_knowledge_library.test.tsx` |
+| knowledge_library_goes_back_to_the_previous_topic | 点「返回」真的退回上一个知识点 | `src/components/__tests__/plugin_knowledge_library.test.tsx` |
+| knowledge_library_goes_back_to_the_last_visited_topic_even_after_revisiting_one | 重复访问同一知识点后，返回仍退到上一个 | `src/components/__tests__/plugin_knowledge_library.test.tsx` |
+| prerequisite_graph_shows_the_focus_and_its_direct_prerequisites | 图上画出中心与直接先修，中心自己不可点 | `src/components/__tests__/prerequisite_graph.test.tsx` |
+| prerequisite_graph_distinguishes_hard_edges_from_soft_ones | 硬边实线、软边虚线 | `src/components/__tests__/prerequisite_graph.test.tsx` |
+| prerequisite_graph_draws_hard_edges_solid_and_soft_edges_dashed | 连线本身硬边实线、软边虚线 | `src/components/__tests__/prerequisite_graph.test.tsx` |
+| prerequisite_graph_collapses_deep_prerequisites_until_they_are_expanded | 深层前置默认收起，展开才画 | `src/components/__tests__/prerequisite_graph.test.tsx` |
+| prerequisite_graph_calls_back_when_a_prerequisite_node_is_clicked | 点节点回调选中的 topic id | `src/components/__tests__/prerequisite_graph.test.tsx` |
+| prerequisite_graph_says_so_when_there_is_no_prerequisite_at_all | 没有先修时给一句话，不画空框 | `src/components/__tests__/prerequisite_graph.test.tsx` |
+| prerequisite_graph_splits_direct_and_deep_prerequisites_into_layers | 先修链按跳数分层 | `src/lib/__tests__/prerequisiteGraph.test.ts` |
+| prerequisite_graph_keeps_the_focus_out_of_its_own_layers | 成环时中心不进自己的先修 | `src/lib/__tests__/prerequisiteGraph.test.ts` |
+| prerequisite_graph_prefers_the_direct_entry_when_a_topic_appears_twice | 同时出现在直接与深层时以直接为准 | `src/lib/__tests__/prerequisiteGraph.test.ts` |
+| prerequisite_graph_sorts_hard_before_soft_inside_a_layer | 同层硬边在前 | `src/lib/__tests__/prerequisiteGraph.test.ts` |
+| prerequisite_graph_returns_nothing_without_a_result | 没数据时不出图 | `src/lib/__tests__/prerequisiteGraph.test.ts` |
+| prerequisite_graph_layout_places_layers_from_top_to_bottom | 层从上往下排，窄图时中心横向居中 | `src/lib/__tests__/prerequisiteGraph.test.ts` |
+| prerequisite_graph_layout_widens_nodes_for_longer_names | 名字长的节点更宽，短名不占地方 | `src/lib/__tests__/prerequisiteGraph.test.ts` |
+| prerequisite_graph_layout_keeps_the_focus_on_screen_when_the_layer_is_wide | 直接先修很多时，焦点也不被顶到画布右边 | `src/lib/__tests__/prerequisiteGraph.test.ts` |
+| prerequisite_graph_layout_draws_exact_edges_only_from_the_focus_to_direct | 精确边只有中心到直接先修 | `src/lib/__tests__/prerequisiteGraph.test.ts` |
+| prerequisite_graph_layout_hides_deep_layers_until_they_are_expanded | 收起时不画深层，也不画层带 | `src/lib/__tests__/prerequisiteGraph.test.ts` |
+| prerequisite_graph_layout_keeps_every_node_inside_the_canvas | 节点不超出画布 | `src/lib/__tests__/prerequisiteGraph.test.ts` |
+| prerequisite_graph_sorts_nodes_without_touching_the_input | 排序不改动入参 | `src/lib/__tests__/prerequisiteGraph.test.ts` |
+| truncate_to_width_cuts_long_names_and_keeps_short_ones | 长名按像素宽截，短名不动 | `src/lib/__tests__/prerequisiteGraph.test.ts` |
+| truncate_to_width_keeps_a_name_that_just_fits | 刚好放得下的名字不被砍，截断处不留孤零零的开括号 | `src/lib/__tests__/prerequisiteGraph.test.ts` |
+| upstream_raw_topics_keep_mastery_criteria_and_diagnostic_question | 上游原始文件（裸数组 + snake_case 字段）能解析，掌握标准与诊断题不丢 | `src-tauri/tests/knowledge_graph_test.rs` |
+| upstream_raw_dependencies_are_parsed | 上游原始先修边文件（裸数组）能解析 | `src-tauri/tests/knowledge_graph_test.rs` |
+| envelope_topics_keep_mastery_criteria_and_diagnostic_question | 内置包 / 下载缓存的信封格式（camelCase 字段）同样不丢掌握标准与诊断题 | `src-tauri/tests/knowledge_graph_test.rs` |
+| a_pack_needs_both_files_to_count_as_downloaded | 学科包缓存两个文件齐了才算「已下载」，缺一个不算 | `src-tauri/tests/knowledge_graph_test.rs` |
+| slicing_the_builtin_pack_matches_the_manifest_count | 切片结果与清单承诺的点数对得上 | `src-tauri/tests/knowledge_graph_test.rs` |
 
 ## 已知实现约束
+
+### 排期建议与先修检查
+
+- **纯读**：M3 不动任何表。`list_task_prerequisite_conflicts` 只 SELECT，靠 M2 落库的 `graph_topic_id` 读出上下游关系。
+- **只报硬门槛**：先修边强度为 `soft` 的一律不报。软边意思是「会了有帮助」，不是「不会就学不了」，报出来只会刷屏。
+- **两类冲突**：`order_swapped`（同任务内先修考点排位靠后）、`prerequisite_task_incomplete`（先修在别的任务且那边没学完，同时本任务的第一场排期不晚于先修任务的第一场）。
+- **排位比较**：`(position, id)`。先比考点在任务里的序号，序号相同再按入库顺序。
+- **进度口径**：先修任务「没学完」= `total_units > 0` 且本轮 `actual_units` 之和小于 `total_units`。副本任务 `total_units` 为空，进度口径对不上，不报 `prerequisite_task_incomplete`；副本内部的考点顺序颠倒仍按 `order_swapped` 报。
+- **降级不报错**：学科包读不到、上游 id 在图谱里找不到了，都直接跳过。这是只读建议，不能因为数据缺失挡住页面。
+- **几种情况不报**：先修考点不在任何任务里（是「还没排」不是「排后面」）、先修任务已学完、先修任务没有待学场次、本任务比先修任务晚开课。
+- **前端**：建议块没冲突时整块不渲染；文案用后端返回的 `message`，前端不二次拼句子。
+
+### 局部先修关系图（M4）
+
+- **不动后端**：M4 没有新命令、没有新字段、没有新表。局部展开就是拿 M1 的 `list_plugin_prerequisites` 换个 `topicId` 再调一次。
+- **边的两种口径**：第 1 层（直接先修）是中心的精确先修，边是准的；第 2 层往下上游只给了跳数、没给父节点，图上用左侧一条层带按层串起来，层内不连父子边。拿理由文案反推父节点只有约 60% 能唯一认定，不猜。
+- **深层前置默认收起**：数学里最深 8 层、最多 68 个节点，全铺开会把面板糊住。
+- **纯函数在 `src/lib/prerequisiteGraph.ts`**：分层去重、排序、布局坐标、名字截断都在这里，不在组件里现算。
+- **成环保护**：中心 id 先入黑名单，上游数据成环时中心不会出现在自己的先修里。
+- **节点宽度跟着名字走**：宽度夹在 108–200 px，名字短的节点不占地方，名字长的不截断。估宽留 1 px 容差，刚好放得下的名字不被砍；截断处不留孤零零的开括号。
+- **焦点不跟着最宽的层跑**：直接先修多的时候图能有九百多像素宽，面板只有五百多。焦点单独居中，限在首屏可见的那一段里，第一眼必须能看到主角。
+- **展开历史按访问顺序记**：同一个知识点再次被展开也记一笔，不去重。去重会让「返回」退错地方（看完 A → B → 又点回 A，返回会停在 A 自己）。
 
 ### 成就目录契约
 
@@ -856,7 +963,7 @@
 - **清单是静态快照**，版本锁在 `commit` 字段上。安装时随插件解包到 `plugins/<id>/resources/`；插件没装也能读内置的那份。仓库更新后要重新生成快照。
 - **下载有两个源**：`blob` 走 GitHub blob 接口（地址里只有 sha，不受中文路径影响，但未认证每小时 60 次）；`raw` 走 `raw.githubusercontent`。两个源写在插件选项 `download_source` 里。
 - **这两个选项对普通用户是黑话**：界面上一律不出现 `blob` / `raw` / `GitHub token`。详见下一节「插件选项的文案约定」。
-- **blob 源遇到 403 是限额用完**：提示语说「今天的下载次数用完了……换一个下载通道」，不直接甩 `GitHub token` 给学生。
+- **blob 源遇到 403 是限额用完**：提示语说「今天的下载次数用完了……换一个下载通道（不用注册账号），或填访问令牌提高额度」，不直接甩 `GitHub token` 给学生。令牌只是可选的提额手段，不是下载的前提。
 - **下载必须能断点续传**：慢网上几十兆的教材常常传到一半就断线。断了要带 `Range: bytes=<已收>-` 接着传，不从头再来；两个源指向同一个 commit 的同一份文件，字节完全一样，换源续传不会拼出坏文件（下载计划里首选源 + 备用源各存一条地址）。
 - **服务端不认 `Range`（回 200）时要从头重下这一片**，不能把整本接在半截后面；每片下完要核对清单里的字节数，对不上就是没下全，要重建这一片。
 - **下载失败不留半成品**：临时文件 `.part` 一律删掉，下次重新下。
@@ -866,7 +973,7 @@
 - **PDF 目录解析必须查字体的 `/ToUnicode` 表**：教材正文用 Type0 字体配 `UniGB-UTF16-H` 编码，lopdf 的内置编码解不出中文（它按 UTF-16BE 直解）。自实现的解码器在 `src-tauri/src/pdf_text.rs`，按 `ObjectId` 缓存。解析 CMap 时遇到 `<< ... >>` 头部的落单 `>` 必须跳过，否则 tokenizer 原地打转会把内存吃光。
 - **目录只到「章 + 节」**，知识点留空让学生在任务详情里自己补。目录页页码列要剥掉；页码前的 `/` 也要剥，否则小节标题尾巴上会留斜杠。
 - **导入后的教材不出现在「从教材导入」的第一步**：那个列表只含内置教材（`list_available_textbooks`）。插件页下载完直接给「勾选已掌握」的入口（`TextbookImportWizard` 的 `preloaded`），不走选书那一步。
-- 由 `builtin_catalog_lists_textbooks_with_dimensions` / `sharded_book_joins_parts_into_one_pdf` / `failed_download_leaves_no_partial_file` / `interrupted_download_resumes_from_where_it_stopped` / `server_ignoring_range_restarts_the_shard` / `size_mismatch_is_reported_and_nothing_is_left` / `decodes_chinese_through_the_font_tounicode_table` / `plugin_library_turns_the_parsed_outline_into_a_task` 锁定。
+- 由 `builtin_catalog_lists_textbooks_with_dimensions` / `sharded_book_joins_parts_into_one_pdf` / `failed_download_leaves_no_partial_file` / `interrupted_download_resumes_from_where_it_stopped` / `server_ignoring_range_restarts_the_shard` / `size_mismatch_is_reported_and_nothing_is_left` / `decodes_chinese_through_the_font_tounicode_table` / `plugin_library_turns_the_parsed_outline_into_a_task` / `rate_limit_message_points_to_the_channel_not_to_signing_up` / `missing_file_and_server_errors_keep_their_own_wording` 锁定。
 
 ### 插件选项的文案约定
 
@@ -878,8 +985,34 @@
 - **没写这些字段的老插件照旧能用**：`help` 空、不算高级、不敏感，选项平铺显示。
 - **教材库插件的选项全部标 `advanced`**：学生打开插件页先看到的是教材库本身，而不是一排看不懂的技术项；要换通道或填令牌时，才展开「高级设置」。
 - **学生视角的下载通道名**：`blob` → 「标准通道（推荐）」，`raw` → 「备用通道（标准通道失败时再试）」。
-- **令牌对普通用户是选填的**：文案写「平时不用填」，并说明只有提示下载次数用完时才需要。
+- **令牌对普通用户是选填的**：文案写「平时不用填」，并说清「没有 GitHub 账号也能正常下载——换下载通道就够了」；令牌只在限额用完时作为提额手段出现。
 - 由 `textbook_plugin_options_carry_user_facing_text` / `plugin_option_defaults_are_backward_compatible` / `plugin_detail_folds_advanced_options_away_by_default` / `plugin_detail_shows_friendly_choice_names_instead_of_raw_values` / `plugin_detail_masks_the_token_field_and_explains_it` / `plugin_detail_keeps_normal_options_flat_without_an_advanced_section` 锁定。
+
+### 知识图谱插件的数据与许可
+
+- **数据来自 [cn-math-taxonomy](https://github.com/xiaoyang111222/cn-math-taxonomy)，许可证 CC BY-NC 4.0**（署名-非商业性使用），与 TimeQuest 本体的 MIT 不兼容。当前项目无商业化计划，走「内置 embed」路线接受 NC 约束。
+- **一旦转向商业化，必须先取得上游书面授权，或从内置资源与下载源中移除该数据集。** 这不是形式主义：内置资源（`src-tauri/resources/plugins/cn-knowledge-graph/`）与 `packs.json` 里的 `repo` / `commit` 都指向该数据集，删数据要连清单里的 resources 声明一起改。
+- **BY（署名）义务三处都不能省**：插件清单的 `author` 写上游仓库、面板底部展示出处与协议名（`KNOWLEDGE_GRAPH_ATTRIBUTION`）、数据文件头部带 `license` 字段。
+- **内置范围只有数学与物理**（870 / 269 个知识点，1459 / 637 条先修边）。其余学科按需下载：拉上游全量文件后按 id 前缀切片。**上游只发全量文件，没有按学科拆分的版本**，切分脚本 `scripts/build-cn-knowledge-graph.mjs` 的点数校验对不上就 `process.exit(1)` 中止——宁可停下报错，也不要把切错的数据内置进应用。
+- **先修边不跨学科**：物理连数学走 `mathLinks` 字段，不塞进 `dependencies`。切分时也要把跨学科的边剔掉，避免子图出现悬空引用。
+- **深层前置只沿 hard 边回溯**：soft 表示「会了有帮助」，回溯它会淹没重点。回溯带 `seen` 去重与最大深度兜底，数据里有环也不会无限展开。
+- **学段由后端统一推导**：1–6 小学、7–9 初中、10+ 高中，其余「其他」；解析时写进 `stage` 字段，前端不重复实现年级映射。
+- **下载缓存放 `packs/` 而不是 `resources/`**：后者会被 `unpack_plugin_resources` 清空。原始文件按 sha 缓存（`packs/_raw/`），换学科时本地切片即可，不用重下 4MB。卸载插件会连 `packs/` 一起删。
+- **数据文件有两种形态，解析层都要认**：上游原始文件是**裸数组**（`[...]`），我们自己的内置包和下载缓存带**信封**（`{"topics": [...]}`）。节点字段名同理：上游写 `mastery_criteria` / `diagnostic_question`（snake_case），构建脚本转成 `masteryCriteria` / `diagnosticQuestion`（camelCase）。`parse_topics` / `parse_dependencies` 两种形态都吃，`KnowledgeTopic` 的这两个字段用 `serde(alias)` 都认。**这一条是踩过坑的**：只认信封时整个下载通道必然失败（`invalid type: sequence`）；只认 camelCase 时掌握标准与诊断题会被 serde 静默丢弃（未知字段不报错）。
+- **一个学科包的两个缓存文件是一套**：`topics.<subject>.json` 与 `dependencies.<subject>.json` 都写好才算下载完成。写盘时先写 `.tmp` 再依次 rename，先修边先落盘、知识点文件最后落盘；清单里的「已下载」以知识点文件为准（`downloaded_pack_exists` 要两个文件都在）。
+- **不新增数据表**：图谱本体是插件资源文件，用户数据仍走 `app_settings`，导出 / 导入护栏不受影响。
+- 由 `packs_manifest_builtin_math_and_physics` / `builtin_math_topics_match_upstream_count` / `builtin_dependencies_reference_known_topics` / `physics_links_to_math_through_math_links_not_dependencies` / `ancestors_follow_hard_edges_only` / `ancestors_stop_on_cycles` / `knowledge_graph_plugin_declares_resources_and_credits_upstream` / `upstream_raw_topics_keep_mastery_criteria_and_diagnostic_question` / `upstream_raw_dependencies_are_parsed` / `envelope_topics_keep_mastery_criteria_and_diagnostic_question` / `a_pack_needs_both_files_to_count_as_downloaded` / `slicing_the_builtin_pack_matches_the_manifest_count` 锁定。
+
+### 图谱考点与任务考点的打通
+
+- **任务考点多了两个可空列**：`task_knowledge_points.graph_topic_id`（上游知识点 id，如 `cnm_001`）与 `graph_subject`（学科代号，如 `math`）。自写考点与教材考点这两列都是空，行为与改造前完全一样。迁移 `20261119100000_add_graph_topic_to_knowledge_points.sql` 只做 `ALTER TABLE ADD COLUMN`，老库原地升级，不重建表。
+- **原有的 `UNIQUE(task_id, section_name, name)` 不动**。另加一个**部分唯一索引** `UNIQUE(task_id, graph_topic_id) WHERE graph_topic_id IS NOT NULL`：图谱考点按 id 去重，自写考点不受影响。
+- **去重按 id，不按名字**：同一个图谱考点换个节名、换个显示名再加一次，仍然报错「这个考点已经在列表里了」。报错前先查一遍，不让唯一索引抛看不懂的数据库错误。
+- **后端不校验上游 id 存不存在**：任务层不依赖插件层。学生挑的列表本来就来自图谱，后端只负责存。将来上游 id 变了、真找不到了，按「普通考点」降级即可。
+- **导出 / 导入要把两列一起带走**。旧备份没有这两个键，导入后留空，不报错——旧备份里那些行就是普通考点。
+- **接口多了两个可选参数**：`add_custom_knowledge_point` 收 `graphTopicId` / `graphSubject`，前端没给图谱来源时传 `null`（不是空串）。Rust 侧保留 4 参数的 `add_custom_knowledge_point_impl` 不动，图谱那条走 `add_graph_knowledge_point_impl`。
+- **图谱考点的节名用学科名**（如「数学」），和教材的「第一章 有理数」这类节各占各的，互不干扰。
+- 由 `graph_point_carries_the_upstream_topic_id` / `custom_point_has_no_graph_topic_id` / `graph_topic_cannot_be_added_twice_to_one_task` / `same_graph_topic_can_join_another_task` / `graph_points_survive_export_import` / `old_backup_without_graph_fields_imports_as_null` / `graph_point_picker_*` 锁定。
 
 ## 待处理技术债
 
