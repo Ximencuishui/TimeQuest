@@ -81,6 +81,10 @@ describe("TaskDetail edit task", () => {
     expect(screen.getByLabelText("课本")).toHaveValue("人教A版");
     expect(screen.getByLabelText("总课数")).toHaveValue(20);
     expect(screen.getByLabelText("总轮次")).toHaveValue(2);
+    // 轮次编号翻译成阶段名：教材学习排在第一轮复习前面。
+    expect(
+      screen.getByText(/阶段顺序：教材学习 → 第一轮复习/),
+    ).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("标题"), {
       target: { value: "数学必修一 第一轮" },

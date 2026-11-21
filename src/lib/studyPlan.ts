@@ -5,6 +5,9 @@ import { timeToMinutes } from "./sessionTime";
 export const DAILY_SLOTS_SETTING_KEY = "daily_slots";
 export const DAILY_LIMIT_SETTING_KEY = "daily_limit_minutes";
 
+/** `app_settings` 里存「启动时自动排今天的计划」开关的键。 */
+export const AUTO_SCHEDULE_SETTING_KEY = "auto_schedule_today";
+
 export type DailySlot = { start: string; end: string };
 
 /** 默认三段：早上、下午、晚上各一小时。 */
@@ -82,6 +85,18 @@ export function dailySlotMinutes(slots: DailySlot[]): number {
     if (start === null || end === null || end <= start) return sum;
     return sum + (end - start);
   }, 0);
+}
+
+/**
+ * 自动排期开关：未写入、空串都算开启，只有明确的 `0` / `false` 才关掉。
+ *
+ * 与后端 `planner.rs` 的 `auto_schedule_enabled` 同一套口径。
+ */
+export function isAutoScheduleEnabled(value: string | null | undefined): boolean {
+  if (value == null) return true;
+  const trimmed = value.trim();
+  if (trimmed === "") return true;
+  return trimmed !== "0" && trimmed.toLowerCase() !== "false";
 }
 
 /** 常用时段预设：点一下就能填好。 */

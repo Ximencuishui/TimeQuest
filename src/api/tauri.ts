@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   ActualLog,
+  ApplyPresetDurationChangesInput,
+  ApplyPresetTimeChangesInput,
   AvgRatingRow,
   CompleteSessionInput,
   CompleteSessionResult,
@@ -8,6 +10,7 @@ import type {
   DownloadedTextbook,
   ExamRecord,
   CompletionRate,
+  EnsureTodayScheduleResult,
   MethodShareRow,
   Note,
   DailyUnitsRow,
@@ -24,6 +27,8 @@ import type {
   PlanVsActualRow,
   PluginInfo,
   PluginOptionValue,
+  PresetDurationShiftResult,
+  PresetShiftResult,
   PrerequisiteConflict,
   PrerequisiteResult,
   RescheduleInput,
@@ -130,6 +135,9 @@ export const api = {
   deleteSession: (sessionId: number) => invoke<void>("delete_session", { sessionId }),
   generateWeekPlan: (input: GenerateWeekPlanInput) =>
     invoke<GenerateWeekPlanResult>("generate_week_plan", { input }),
+  /** 启动时补排今天；今天已经有安排就什么都不做（幂等）。 */
+  ensureTodaySchedule: () =>
+    invoke<EnsureTodayScheduleResult>("ensure_today_schedule"),
   completeSession: (input: CompleteSessionInput) =>
     invoke<CompleteSessionResult>("complete_session", { input }),
   rescheduleSession: (input: RescheduleInput) =>
@@ -141,6 +149,12 @@ export const api = {
       endTime,
       excludeId: excludeId ?? null,
     }),
+  /** 常用时段改时间后，把已排的场次批量挪到新时段。 */
+  applyPresetTimeChanges: (input: ApplyPresetTimeChangesInput) =>
+    invoke<PresetShiftResult>("apply_preset_time_changes", { input }),
+  /** 常用时长改分钟数后，把已排的场次批量改到新时长。 */
+  applyPresetDurationChanges: (input: ApplyPresetDurationChangesInput) =>
+    invoke<PresetDurationShiftResult>("apply_preset_duration_changes", { input }),
 
   // logs
   createLog: (payload: {

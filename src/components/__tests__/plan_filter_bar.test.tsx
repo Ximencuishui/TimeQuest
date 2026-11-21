@@ -38,8 +38,9 @@ describe("PlanFilterBar", () => {
     expect(screen.getByTestId("plan-filter-subjects-数学")).toBeInTheDocument();
     expect(screen.getByTestId("plan-filter-subjects-物理")).toBeInTheDocument();
     expect(screen.getByTestId("plan-filter-textbooks-人教A版")).toBeInTheDocument();
-    expect(screen.getByTestId("plan-filter-rounds-1")).toHaveTextContent("第1轮");
-    expect(screen.getByTestId("plan-filter-rounds-2")).toHaveTextContent("第2轮");
+    // 轮次标签用阶段名：第 1 轮是教材学习，之后才是第一轮复习、第二轮复习。
+    expect(screen.getByTestId("plan-filter-rounds-1")).toHaveTextContent("教材学习");
+    expect(screen.getByTestId("plan-filter-rounds-2")).toHaveTextContent("第一轮复习");
     // 轮次标签不能被当成 checkbox，全局 checkbox 计数有别的测试钉着。
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
   });

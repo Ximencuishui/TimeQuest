@@ -5,6 +5,7 @@ import {
   type PlanFilter,
   type PlanTags,
 } from "../lib/planViews";
+import { roundName } from "../lib/rounds";
 
 type Props = {
   tags: PlanTags;
@@ -37,7 +38,11 @@ export function PlanFilterBar({
   const dimensions: Dimension[] = [
     { key: "subjects", label: "学科", hint: "按学科筛主线" },
     { key: "textbooks", label: "课本", hint: "按课本筛主线" },
-    { key: "rounds", label: "轮次", hint: "按第几轮复习筛" },
+    {
+      key: "rounds",
+      label: "轮次",
+      hint: "按学习阶段筛：教材学习 → 第一轮复习 → 第二轮复习…",
+    },
   ];
 
   const active = isPlanFilterActive(filter);
@@ -90,7 +95,7 @@ export function PlanFilterBar({
                           : filter.textbooks.includes(String(value));
                     const text =
                       dimension.key === "rounds"
-                        ? `第${value}轮`
+                        ? roundName(Number(value))
                         : String(value);
                     return (
                       <button

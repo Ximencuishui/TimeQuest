@@ -468,6 +468,18 @@ export type GenerateWeekPlanResult = {
   lastDate: string | null;
 };
 
+/** 启动时自动排今天的结果。 */
+export type EnsureTodayScheduleResult = {
+  /** 本次处理的日期（`YYYY-MM-DD`）。 */
+  date: string;
+  /** 实际新建的排期数。 */
+  created: number;
+  /** 因为超过每日上限而跳过的格子数。 */
+  skipped: number;
+  /** 参与排期的任务 id（去重，按出现顺序）。 */
+  taskIds: number[];
+};
+
 export type TextbookCatalogItem = {
   subject: string;
   version: string;
@@ -570,4 +582,54 @@ export type KnowledgeDownloadProgress = {
   file: string;
   downloaded: number;
   total: number;
+};
+
+/** 常用时段改动前后的对应关系：把排在旧时段上的场次挪到新时段。 */
+export type TimeShiftChange = {
+  fromStart: string;
+  fromEnd: string;
+  toStart: string;
+  toEnd: string;
+};
+
+/** 批量把常用时段改动落到已排场次上的入参。 */
+export type ApplyPresetTimeChangesInput = {
+  changes: TimeShiftChange[];
+  /** 只动这一天及以后（含当天）；不填就是今天。 */
+  fromDate?: string | null;
+};
+
+/** 批量挪动排期的结果。 */
+export type PresetShiftResult = {
+  /** 命中旧时段、理论上要挪的场次数。 */
+  matched: number;
+  /** 实际挪走的场次数。 */
+  updated: number;
+  /** 挪过去会撞车、因此保持原样的场次数。 */
+  conflicts: number;
+};
+
+/** 常用时长改动前后的对应关系：把排在旧时长上的场次改到新时长。 */
+export type DurationShiftChange = {
+  /** 原来的时长（分钟）。 */
+  fromMinutes: number;
+  /** 新的时长（分钟）。 */
+  toMinutes: number;
+};
+
+/** 批量把常用时长改动落到已排场次上的入参。 */
+export type ApplyPresetDurationChangesInput = {
+  changes: DurationShiftChange[];
+  /** 只动这一天及以后（含当天）；不填就是今天。 */
+  fromDate?: string | null;
+};
+
+/** 批量改时长的结果。 */
+export type PresetDurationShiftResult = {
+  /** 命中旧时长、理论上要改的场次数。 */
+  matched: number;
+  /** 实际改掉的场次数。 */
+  updated: number;
+  /** 改过去会撞车、因此保持原样的场次数。 */
+  conflicts: number;
 };

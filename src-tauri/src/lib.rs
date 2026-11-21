@@ -34,12 +34,19 @@ pub use commands::notes::{
     normalize_note_date, update_note_impl, COLOR_WHITELIST,
 };
 pub use commands::planner::{
-    generate_week_plan_impl, GenerateWeekPlanInput, GenerateWeekPlanResult,
+    ensure_today_schedule_impl, generate_week_plan_impl, EnsureTodayScheduleResult,
+    GenerateWeekPlanInput, GenerateWeekPlanResult,
 };
 pub use commands::plugins::{
     download_plugin_textbook, install_plugin, list_plugin_options, list_plugin_textbook_catalog,
     list_plugins, read_plugin_resource, set_plugin_option, uninstall_plugin,
     PLUGIN_OPTION_DOWNLOAD_SOURCE, PLUGIN_OPTION_GITHUB_TOKEN, TEXTBOOK_DOWNLOAD_PROGRESS_EVENT,
+};
+pub use commands::presets::{
+    apply_preset_duration_changes, apply_preset_duration_changes_impl,
+    apply_preset_time_changes, apply_preset_time_changes_impl, ApplyPresetDurationChangesInput,
+    ApplyPresetTimeChangesInput, DurationShiftChange, PresetDurationShiftResult, PresetShiftResult,
+    TimeShiftChange,
 };
 pub use commands::profile::{get_user_profile_impl, update_user_profile_impl};
 pub use commands::sessions::{
@@ -219,7 +226,10 @@ pub fn run() {
             commands::create_session,
             commands::delete_session,
             commands::generate_week_plan,
+            commands::ensure_today_schedule,
             commands::find_overlaps,
+            commands::apply_preset_time_changes,
+            commands::apply_preset_duration_changes,
             commands::complete_session,
             commands::reschedule_session,
             commands::create_log,

@@ -148,10 +148,11 @@ describe("TaskDetail history list", () => {
     expect(document.querySelectorAll("article")).toHaveLength(80);
 
     const headers = historyRoundHeadings();
-    expect(headers.some((t) => t.includes("第 1 轮"))).toBe(true);
-    expect(headers.some((t) => t.includes("第 2 轮"))).toBe(true);
-    expect(headers.some((t) => t.includes("第 3 轮"))).toBe(true);
-    expect(headers.some((t) => t.includes("第 4 轮"))).toBe(true);
+    // 轮次标题用阶段名：第 1 轮 = 教材学习，第 2 轮起依次是第 N-1 轮复习。
+    expect(headers.some((t) => t.includes("教材学习"))).toBe(true);
+    expect(headers.some((t) => t.includes("第一轮复习"))).toBe(true);
+    expect(headers.some((t) => t.includes("第二轮复习"))).toBe(true);
+    expect(headers.some((t) => t.includes("第三轮复习"))).toBe(true);
 
     // 现状无分页；未来若加「加载更多」本断言红灯，提醒同步标题来源。
     expect(screen.queryByRole("button", { name: /加载更多/ })).not.toBeInTheDocument();
@@ -181,14 +182,14 @@ describe("TaskDetail history list", () => {
       expect(screen.getByText("排期历史")).toBeInTheDocument();
     });
 
-    // 页头仍显示当前第 4 轮（读 task.current_round），与历史区标题来源不同。
-    expect(screen.getByText(/当前第\s*4\s*\/\s*4\s*轮/)).toBeInTheDocument();
+    // 页头仍显示当前轮（读 task.current_round），与历史区标题来源不同。
+    expect(screen.getByText(/当前\s*第三轮复习（第\s*4\s*\/\s*4\s*轮）/)).toBeInTheDocument();
 
     const headers = historyRoundHeadings();
-    expect(headers.some((t) => t.includes("第 1 轮"))).toBe(true);
-    expect(headers.some((t) => t.includes("第 3 轮"))).toBe(true);
-    expect(headers.some((t) => t.includes("第 2 轮"))).toBe(false);
-    expect(headers.some((t) => t.includes("第 4 轮"))).toBe(false);
+    expect(headers.some((t) => t.includes("教材学习"))).toBe(true);
+    expect(headers.some((t) => t.includes("第二轮复习"))).toBe(true);
+    expect(headers.some((t) => t.includes("第一轮复习"))).toBe(false);
+    expect(headers.some((t) => t.includes("第三轮复习"))).toBe(false);
   });
 
   it("task_detail_history_does_not_refetch_on_progress_update", async () => {

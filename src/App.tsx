@@ -6,6 +6,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ExamDateSync } from "./components/ExamDateSync";
 import { Layout } from "./components/Layout";
 import { OnboardingGate } from "./components/Onboarding";
+import { useAutoSchedule } from "./hooks/useAutoSchedule";
 import { useSessionNotifier } from "./hooks/useSessionNotifier";
 import { useMainWindowBroadcast, useWidgetEventBridge } from "./hooks/useWidgetSync";
 import { Dashboard } from "./pages/Dashboard";
@@ -81,6 +82,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <BootSync />
+        <AutoSchedule />
         <ExamDateSync />
         <SessionNotifier />
         <MainBroadcast />
@@ -108,6 +110,12 @@ export default function App() {
 
 function SessionNotifier() {
   useSessionNotifier();
+  return null;
+}
+
+/** 启动时补排今天的计划（今天已经排过就什么都不做）。 */
+function AutoSchedule() {
+  useAutoSchedule();
   return null;
 }
 

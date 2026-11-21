@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  DURATION_PRESETS,
   HOUR_CHOICES,
   MINUTE_CHOICES,
-  TIME_PRESETS,
   addMinutesToHhmm,
   formatDurationLabel,
   formatHhmm,
@@ -40,27 +38,9 @@ describe("timeField 纯逻辑", () => {
     expect(formatDurationLabel(0)).toBe("0 分钟");
   });
 
-  it("presets_cover_morning_afternoon_and_evening", () => {
-    const starts = TIME_PRESETS.map((preset) => preset.start);
-    expect(starts).toContain("07:00");
-    expect(starts).toContain("14:00");
-    expect(starts).toContain("19:00");
-    // 每个预置时段自身都是合法的（结束不早于开始）。
-    for (const preset of TIME_PRESETS) {
-      const start = parseHhmm(preset.start);
-      const end = parseHhmm(preset.end);
-      expect(start).not.toBeNull();
-      expect(end).not.toBeNull();
-      expect(end!.hour * 60 + end!.minute).toBeGreaterThan(
-        start!.hour * 60 + start!.minute,
-      );
-    }
-  });
-
   it("hour_and_minute_choices_are_in_school_day_range", () => {
     expect(HOUR_CHOICES[0]).toBe(6);
     expect(HOUR_CHOICES[HOUR_CHOICES.length - 1]).toBe(22);
     expect([...MINUTE_CHOICES]).toEqual([0, 15, 30, 45]);
-    expect([...DURATION_PRESETS]).toContain(90);
   });
 });

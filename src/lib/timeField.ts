@@ -1,9 +1,12 @@
 import { pad2 } from "./date";
 
 /**
- * 时间选择的纯逻辑：小时/分钟档位、常用时段、时长快捷。
+ * 时间选择的纯逻辑：小时/分钟档位、起止时间推算。
  *
  * 面向「不想碰原生时间控件」的自学场景：点两下就能定好一个时段。
+ *
+ * 常用时段 / 常用时长的快捷按钮不在这儿——它们是可编辑的全局设置，
+ * 分别在 `timePresets.ts` 与 `durationPresets.ts`。
  */
 
 export const HOUR_CHOICES = [
@@ -11,25 +14,6 @@ export const HOUR_CHOICES = [
 ] as const;
 
 export const MINUTE_CHOICES = [0, 15, 30, 45] as const;
-
-export type TimePreset = { label: string; start: string; end: string };
-
-/** 常用时段：一键把开始与结束一起设好。 */
-export const TIME_PRESETS: TimePreset[] = [
-  { label: "早读 07:00–08:00", start: "07:00", end: "08:00" },
-  { label: "上午 08:00–09:00", start: "08:00", end: "09:00" },
-  { label: "上午 09:00–10:00", start: "09:00", end: "10:00" },
-  { label: "上午 10:00–11:00", start: "10:00", end: "11:00" },
-  { label: "下午 14:00–15:00", start: "14:00", end: "15:00" },
-  { label: "下午 15:00–16:00", start: "15:00", end: "16:00" },
-  { label: "下午 16:00–17:00", start: "16:00", end: "17:00" },
-  { label: "晚上 19:00–20:00", start: "19:00", end: "20:00" },
-  { label: "晚自习 20:00–21:00", start: "20:00", end: "21:00" },
-  { label: "晚自习 21:00–22:00", start: "21:00", end: "22:00" },
-];
-
-/** 时长快捷：以开始时间为基准推算结束时间。 */
-export const DURATION_PRESETS = [30, 45, 60, 90, 120] as const;
 
 /** 解析 "HH:MM"，非法返回 null。 */
 export function parseHhmm(value: string): { hour: number; minute: number } | null {

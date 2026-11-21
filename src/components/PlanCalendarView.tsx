@@ -8,6 +8,7 @@ import {
   shiftMonth,
   toIsoDate,
 } from "../lib/calendar";
+import { roundName } from "../lib/rounds";
 import type { Task, TaskSession } from "../types";
 
 const DOT_FALLBACK = "#F97316";
@@ -184,7 +185,7 @@ export function PlanCalendarView({ tasks, sessions, today }: Props) {
                     {session.task_title || "未命名任务"}
                   </span>
                   <span className="ml-auto shrink-0 text-[11px] text-ink-muted">
-                    第{session.round}轮 · {session.status === "done" ? "已完成" : session.status === "missed" ? "已错过" : "待完成"}
+                    {roundName(session.round)} · {session.status === "done" ? "已完成" : session.status === "missed" ? "已错过" : "待完成"}
                   </span>
                 </li>
               ))}

@@ -22,6 +22,7 @@ import { gridRange, parseLocalDate, shiftMonth } from "../lib/calendar";
 import { sessionsOverlap } from "../lib/colors";
 import { todayStr } from "../lib/date";
 import { notesOnDate } from "../lib/notes";
+import { roundName } from "../lib/rounds";
 import { timeRangeError } from "../lib/sessionTime";
 import { unitNameOf } from "../lib/units";
 import { api } from "../api/tauri";
@@ -397,6 +398,10 @@ export function Today({ focusSessionId = null }: { focusSessionId?: number | nul
                       setForm({ ...form, round: Number(e.target.value) })
                     }
                   />
+                  {/* 轮次编号对用户没意义，直接告诉他这一场算哪一轮。 */}
+                  <span className="mt-1 block text-[11px] text-ink-muted/70">
+                    这一场算作：{roundName(form.round)}
+                  </span>
                 </label>
                 <label className="block">
                   <span className="text-ink-muted">计划{selectedUnit}数</span>

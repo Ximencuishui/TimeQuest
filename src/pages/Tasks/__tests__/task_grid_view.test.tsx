@@ -43,7 +43,8 @@ describe("TaskGridView", () => {
     expect(cells.filter((cell) => cell.className.includes("bg-zinc-800"))).toHaveLength(6);
     expect(screen.getByText("数学一轮")).toBeInTheDocument();
     expect(screen.getByText(/必修一/)).toBeInTheDocument();
-    expect(screen.getByText(/第 2 \/ 3 轮/)).toBeInTheDocument();
+    // 卡片头写阶段名：第 2 轮 = 第一轮复习，后面跟轮次位置。
+    expect(screen.getByText(/第一轮复习（2\/3 轮）/)).toBeInTheDocument();
     expect(screen.getByText(/每格 1 课/)).toBeInTheDocument();
     expect(screen.queryByTestId("side-task-icon")).not.toBeInTheDocument();
   });

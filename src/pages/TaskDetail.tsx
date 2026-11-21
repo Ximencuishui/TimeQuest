@@ -9,6 +9,7 @@ import { TaskActionBar } from "../components/TaskActionBar";
 import { useTask, useTaskKnowledgePoints, useTaskMutations, useTaskProgress } from "../hooks/useTasks";
 import { useSessionsByTask } from "../hooks/useSessions";
 import { formatMonthDay } from "../lib/date";
+import { roundName } from "../lib/rounds";
 
 export function TaskDetail() {
   const { id } = useParams();
@@ -65,8 +66,9 @@ export function TaskDetail() {
           {task.type === "main" ? (
             <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-ink-muted">
               <span>
-                当前第 {task.current_round} / {task.total_rounds} 轮 · 本轮{" "}
-                {roundDone}/{task.total_units} {task.unit_name}
+                当前 {roundName(task.current_round)}（第 {task.current_round} /{" "}
+                {task.total_rounds} 轮）· 本轮 {roundDone}/{task.total_units}{" "}
+                {task.unit_name}
               </span>
               <GlossaryHint id="progress_ring" />
             </p>
@@ -89,7 +91,7 @@ export function TaskDetail() {
                 className="rounded-lg border border-white/15 px-3 py-1.5 text-sm hover:bg-white/5"
                 onClick={() => advanceRound.mutate(task.id)}
               >
-                推进到下一轮
+                推进到{roundName(task.current_round + 1)}
               </button>
             ) : null}
             <button
@@ -159,7 +161,7 @@ export function TaskDetail() {
               return (
                 <div key={round}>
                   <h3 className="mb-2 text-sm text-ink-muted">
-                    第 {round} 轮 · {done}
+                    {roundName(round)} · {done}
                     {task.total_units ? `/${task.total_units}` : ""}{" "}
                     {task.unit_name}
                   </h3>

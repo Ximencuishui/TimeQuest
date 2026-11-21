@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
+import { roundName } from "../lib/rounds";
 import type { Task } from "../types";
 
 /** Spec name for the current-round sum. `list_tasks` sends the same number as `actual_units_sum`. */
@@ -266,7 +267,7 @@ function CardHeader({ task }: { task: GridTask }) {
       <p className="mt-1 truncate text-xs text-ink-muted">
         {task.textbook || "未填课本"}
         {task.type === "main"
-          ? ` · 第 ${task.current_round} / ${task.total_rounds} 轮`
+          ? ` · ${roundName(task.current_round)}（${task.current_round}/${task.total_rounds} 轮）`
           : ""}
       </p>
     </div>

@@ -625,6 +625,82 @@
 | recycle_bin_purge_removes_the_task_for_good | 确认后调 `purge_task { id }` | `src/pages/Tasks/__tests__/recycle_bin.test.tsx` |
 | recycle_bin_invalidates_the_plan_sessions_cache | 恢复/清除后必须失效 `sessions-range`（总计划页日历/甘特的数据源） | `src/pages/Tasks/__tests__/recycle_bin.test.tsx` |
 | recycle_bin_shows_an_error_when_the_restore_fails | 恢复失败要有可见错误（`role="alert"`），不能静默 | `src/pages/Tasks/__tests__/recycle_bin.test.tsx` |
+| ensure_today_schedule_creates_sessions_for_main_tasks | 今天空着 + 有主线：按默认三段建场次，日期是今天 | `src-tauri/tests/auto_schedule_test.rs` |
+| ensure_today_schedule_rotates_between_subjects | 两个主线轮流占时段：数学、物理、数学，两科都排上 | `src-tauri/tests/auto_schedule_test.rs` |
+| ensure_today_schedule_is_idempotent_on_second_run | 第二次跑 `created = 0`，当天总行数不变 | `src-tauri/tests/auto_schedule_test.rs` |
+| ensure_today_schedule_skips_day_that_already_has_sessions | 今天已有 planned 场次 → 一格不排 | `src-tauri/tests/auto_schedule_test.rs` |
+| ensure_today_schedule_fills_day_with_only_rescheduled_rows | 只有 rescheduled 旧记录时仍然排（那场已经挪走了） | `src-tauri/tests/auto_schedule_test.rs` |
+| ensure_today_schedule_respects_disabled_setting | `auto_schedule_today=0` → `created = 0` | `src-tauri/tests/auto_schedule_test.rs` |
+| ensure_today_schedule_ignores_archived_side_and_deleted_tasks | 搁置 / 副本 / 回收站任务不参与排期 | `src-tauri/tests/auto_schedule_test.rs` |
+| ensure_today_schedule_skips_tasks_whose_round_is_already_full | 本轮已做满的主线不排（得先推进轮次） | `src-tauri/tests/auto_schedule_test.rs` |
+| ensure_today_schedule_respects_daily_limit | 每日上限 60 分钟时只排下第一段 | `src-tauri/tests/auto_schedule_test.rs` |
+| auto_schedule_fills_today_and_refreshes_sessions | 启动调 `ensure_today_schedule`；`created>0` 时失效 `sessions` / `sessions-range` / `sessions-task` | `src/hooks/__tests__/auto_schedule.test.tsx` |
+| auto_schedule_stays_quiet_when_nothing_was_created | `created = 0` 时不失效缓存 | `src/hooks/__tests__/auto_schedule.test.tsx` |
+| auto_schedule_does_not_run_outside_tauri | 非 Tauri 环境不调后端 | `src/hooks/__tests__/auto_schedule.test.tsx` |
+| auto_schedule_swallows_backend_errors | 后端报错只写 console.warn，不打断启动 | `src/hooks/__tests__/auto_schedule.test.tsx` |
+| settings_auto_schedule_defaults_on_and_writes_zero_when_turned_off | 未设置时开关为开；关掉写 `auto_schedule_today=0` | `src/pages/Settings/__tests__/settings_auto_schedule.test.tsx` |
+| settings_auto_schedule_off_value_starts_unchecked_and_writes_one | 已存 `0` 时开关为关；打开写 `1` | `src/pages/Settings/__tests__/settings_auto_schedule.test.tsx` |
+| preset_shift_moves_future_planned_sessions | 命中旧时段的未来 planned 场次挪到新时段 | `src-tauri/tests/preset_shift_test.rs` |
+| preset_shift_leaves_history_untouched | 过去的 / done / missed 场次不动 | `src-tauri/tests/preset_shift_test.rs` |
+| preset_shift_skips_sessions_that_would_collide | 挪过去会撞车的保持原样并计入 conflicts | `src-tauri/tests/preset_shift_test.rs` |
+| preset_shift_ignores_ambiguous_duplicate_ranges | 同一旧时段被指向两个新时段：整段放弃，不挪 | `src-tauri/tests/preset_shift_test.rs` |
+| preset_shift_without_changes_is_noop | 空 changes 不写库 | `src-tauri/tests/preset_shift_test.rs` |
+| preset_shift_ignores_invalid_time_ranges | 目标时段非法（结束早于开始）直接忽略 | `src-tauri/tests/preset_shift_test.rs` |
+| time_presets_parse_falls_back_to_defaults_when_broken | 设置写坏时退回默认十段 | `src/lib/__tests__/timePresets.test.ts` |
+| time_presets_parse_keeps_empty_list_and_drops_invalid_rows | 合法空数组尊重；非法行丢弃 | `src/lib/__tests__/timePresets.test.ts` |
+| time_presets_diff_reports_only_time_changes | 只改时间才产生挪动指令 | `src/lib/__tests__/timePresets.test.ts` |
+| time_presets_diff_ignores_label_only_edits | 只改名字不动计划 | `src/lib/__tests__/timePresets.test.ts` |
+| time_presets_diff_ignores_added_and_removed_presets | 新增 / 删除不产生挪动指令 | `src/lib/__tests__/timePresets.test.ts` |
+| time_presets_diff_drops_ambiguous_duplicate_ranges | 歧义的旧时段整段放弃 | `src/lib/__tests__/timePresets.test.ts` |
+| time_range_field_shows_preset_buttons_with_a_settings_icon | 常用时段右侧有「编辑常用时段」齿轮 | `src/components/__tests__/time_preset_editor.test.tsx` |
+| time_range_field_gear_opens_the_editor | 点齿轮打开「常用时段」编辑器 | `src/components/__tests__/time_preset_editor.test.tsx` |
+| preset_editor_saves_presets_and_syncs_future_sessions | 保存先调 `apply_preset_time_changes` 再写 `time_presets` | `src/components/__tests__/time_preset_editor.test.tsx` |
+| preset_editor_label_only_edit_does_not_touch_the_plan | 只改名字不碰计划 | `src/components/__tests__/time_preset_editor.test.tsx` |
+| preset_editor_rejects_end_before_start | 结束早于开始时给出提示且不保存 | `src/components/__tests__/time_preset_editor.test.tsx` |
+| preset_editor_can_add_and_delete_presets | 能添加 / 删除预设行 | `src/components/__tests__/time_preset_editor.test.tsx` |
+| preset_duration_shift_moves_future_planned_sessions | 命中旧时长的未来 planned 场次改到新时长（只改结束时间） | `src-tauri/tests/preset_duration_shift_test.rs` |
+| preset_duration_shift_leaves_history_untouched | 过去的 / done / missed 场次不动 | `src-tauri/tests/preset_duration_shift_test.rs` |
+| preset_duration_shift_skips_sessions_that_would_collide | 改过去会撞车的保持原样并计入 conflicts | `src-tauri/tests/preset_duration_shift_test.rs` |
+| preset_duration_shift_ignores_ambiguous_duplicate_durations | 同一旧时长被指向两个新时长：整段放弃，不改 | `src-tauri/tests/preset_duration_shift_test.rs` |
+| preset_duration_shift_without_changes_is_noop | 空 changes 不写库 | `src-tauri/tests/preset_duration_shift_test.rs` |
+| preset_duration_shift_ignores_invalid_durations | 新时长非法（0 分钟）直接忽略 | `src-tauri/tests/preset_duration_shift_test.rs` |
+| preset_duration_shift_keeps_sessions_that_would_cross_midnight | 会跨过 23:59 的场次保持原样 | `src-tauri/tests/preset_duration_shift_test.rs` |
+| duration_presets_defaults_follow_the_pomodoro_algorithm | 默认时长按番茄钟算法得 25/55/85/115/130 | `src/lib/__tests__/durationPresets.test.ts` |
+| duration_presets_pomodoro_generator_honors_custom_params | 自定义番茄钟参数重新生成时长 | `src/lib/__tests__/durationPresets.test.ts` |
+| duration_presets_parse_falls_back_to_defaults_when_broken | 设置写坏时退回默认 | `src/lib/__tests__/durationPresets.test.ts` |
+| duration_presets_parse_keeps_empty_list_and_drops_invalid_rows | 合法空数组尊重；非法行丢弃 | `src/lib/__tests__/durationPresets.test.ts` |
+| duration_presets_serialize_round_trips | 写入再读回一致 | `src/lib/__tests__/durationPresets.test.ts` |
+| duration_presets_diff_reports_only_minute_changes | 只改分钟数才产生改动指令 | `src/lib/__tests__/durationPresets.test.ts` |
+| duration_presets_diff_ignores_label_only_edits | 只改名字不动计划 | `src/lib/__tests__/durationPresets.test.ts` |
+| duration_presets_diff_ignores_added_and_removed_presets | 新增 / 删除不产生改动指令 | `src/lib/__tests__/durationPresets.test.ts` |
+| duration_presets_diff_drops_ambiguous_duplicate_durations | 歧义的旧时长整段放弃 | `src/lib/__tests__/durationPresets.test.ts` |
+| duration_presets_validate_minutes_range | 分钟数要在 1~1440 之间 | `src/lib/__tests__/durationPresets.test.ts` |
+| duration_presets_new_id_does_not_collide | 新增预设 id 不重复 | `src/lib/__tests__/durationPresets.test.ts` |
+| duration_presets_format_label_reads_in_chinese | 「番茄 1 · 25 分钟」 | `src/lib/__tests__/durationPresets.test.ts` |
+| duration_presets_pomodoro_plan_round_trips_and_falls_back | 番茄钟参数往返 / 写坏退回默认 | `src/lib/__tests__/durationPresets.test.ts` |
+| time_range_field_shows_duration_buttons_with_a_settings_icon | 时长右侧有「编辑常用时长」齿轮 | `src/components/__tests__/duration_preset_editor.test.tsx` |
+| duration_gear_opens_the_editor | 点齿轮打开「常用时长」编辑器 | `src/components/__tests__/duration_preset_editor.test.tsx` |
+| duration_editor_saves_presets_and_syncs_future_sessions | 保存先调 `apply_preset_duration_changes` 再写 `duration_presets` | `src/components/__tests__/duration_preset_editor.test.tsx` |
+| duration_editor_label_only_edit_does_not_touch_the_plan | 只改名字不碰计划 | `src/components/__tests__/duration_preset_editor.test.tsx` |
+| duration_editor_rejects_invalid_minutes | 分钟数非法时给出提示且不保存 | `src/components/__tests__/duration_preset_editor.test.tsx` |
+| duration_editor_can_generate_from_the_pomodoro_algorithm | 「按番茄钟生成」按参数重算时长 | `src/components/__tests__/duration_preset_editor.test.tsx` |
+| duration_editor_can_add_and_delete_presets | 能添加 / 删除预设行 | `src/components/__tests__/duration_preset_editor.test.tsx` |
+| preset_shift_does_not_create_overlaps_when_movers_conflict | 两场都挪且会撞车时全部保持原样，不造出撞车的计划 | `src-tauri/tests/preset_shift_test.rs` |
+| preset_shift_allows_swapping_two_slots | 两场互换时段仍然不撞车，都能挪 | `src-tauri/tests/preset_shift_test.rs` |
+| preset_shift_leaves_rescheduled_sessions_untouched | `rescheduled` 属于历史，不动 | `src-tauri/tests/preset_shift_test.rs` |
+| preset_shift_defaults_to_today_when_from_date_is_missing | 不传 from_date 时只动今天及以后 | `src-tauri/tests/preset_shift_test.rs` |
+| preset_duration_shift_does_not_create_overlaps_when_growing | 两场连着的 60 分钟一起改 90：只改后面那场，不叠车 | `src-tauri/tests/preset_duration_shift_test.rs` |
+| preset_duration_shift_defaults_to_today_when_from_date_is_missing | 不传 from_date 时只动今天及以后 | `src-tauri/tests/preset_duration_shift_test.rs` |
+| duration_presets_generator_drops_durations_over_one_day | 参数过大时超 1440 分钟的段不生成 | `src/lib/__tests__/durationPresets.test.ts` |
+| duration_presets_parse_deduplicates_ids | 兜底 id 与显式 id 撞车时加后缀 | `src/lib/__tests__/durationPresets.test.ts` |
+| time_presets_parse_deduplicates_ids | 兜底 id 与显式 id 撞车时加后缀 | `src/lib/__tests__/timePresets.test.ts` |
+| preset_editor_applies_the_shift_before_saving_settings | 先调 `apply_preset_time_changes` 后调 `set_setting`（顺序断言） | `src/components/__tests__/time_preset_editor.test.tsx` |
+| preset_editor_keeps_open_when_the_shift_fails | 批量改期失败不写设置、弹窗不关 | `src/components/__tests__/time_preset_editor.test.tsx` |
+| duration_editor_applies_the_shift_before_saving_settings | 先调 `apply_preset_duration_changes` 后调 `set_setting`（顺序断言） | `src/components/__tests__/duration_preset_editor.test.tsx` |
+| duration_editor_keeps_open_when_saving_settings_fails | 排期已改但设置没存上时如实提示、不关窗 | `src/components/__tests__/duration_preset_editor.test.tsx` |
+| duration_editor_warns_when_the_pomodoro_plan_is_too_long_for_one_day | 参数排不下一天时给出提示 | `src/components/__tests__/duration_preset_editor.test.tsx` |
+| use_achievements_normalizes_null_response_to_empty_array | `list_user_achievements` 返回 null 时归一成空数组，消费方不会拿到 null | `src/hooks/__tests__/use_stats_achievements.test.tsx` |
+| settings_achievements_null_response_renders_empty_state_without_crash | 后端返回 null 时设置页显示「尚未解锁成就」，不因 `achievements.length` 抛错而白屏 | `src/pages/Settings/__tests__/settings_achievements_null.test.tsx` |
 
 ## 已知实现约束
 
@@ -1180,6 +1256,43 @@
 - **本学科包没下载也给提示**：提示「XX 的知识点包还没下载，先去工具箱下载后再挑考点。」，而不是静默空列表。
 - **只在前端收口**：后端 `add_graph_knowledge_point_impl` 不校验学科一致性，历史数据里已有的跨学科考点照常显示，只是不能再新增。
 - 由 `graph_point_picker_only_offers_packs_that_are_ready_to_use` / `graph_point_picker_matches_a_long_subject_name_to_its_pack` / `graph_point_picker_says_so_when_the_subject_pack_is_not_downloaded` / `graph_point_picker_asks_for_a_subject_when_the_task_has_none` 锁定。
+
+### 启动时自动排今天的计划
+
+- **有主线任务 ≠ 今天有安排**：`tasks` 说明「学什么、多少课、第几轮」，`task_sessions` 说明「哪天哪个时段学」。今日页只渲染 `date = 今天` 的排期，所以「任务在、当天空」是常态而不是 bug。
+- **启动即补排**：主窗口挂载后调一次 `ensure_today_schedule`（Rust command）。今天完全空着时，按「每日可用时段」把主线排进今天；需求与边界见 `docs/auto-today-schedule.md`。
+- **幂等靠「今天有没有真实场次」**：当天存在状态为 `planned` / `done` / `missed` 的排期 → 一格都不排（用户自己安排过的日子，应用不插手）。`rescheduled` 不算——那一场已经挪到别的日子了，今天确实还空着。
+- **只排主线**：`type = 'main'` 且 `archived = 0` 且 `deleted_at IS NULL`。本轮 `sum(actual_units) >= total_units`（`total_units > 0`）的主线不排——得先推进轮次才有下一轮可学。
+- **多主线轮转**：时段按顺序走，任务按 id 顺序轮流占用，保证每科都有场次（数学 08:00 → 物理 14:00 → 数学 19:00）。副本任务没有总量语义，不参与。
+- **与「一键排一周」同源**：时段与每日上限都读 `daily_slots` / `daily_limit_minutes`，解析走 `planner.rs` 的 `parse_slots` / `parse_limit`；没设置时用默认三段（08:00 / 14:00 / 19:00）与 480 分钟上限。
+- **开关在 `app_settings.auto_schedule_today`**：只有 `"0"` / `"false"` 才关，缺省 / 空串都算开。前后端同一套口径（前端 `isAutoScheduleEnabled`，后端 `auto_schedule_enabled`）；设置页「自动排期」区块可切换。
+- **前端只失效缓存，不造数据**：`useAutoSchedule` 在 `created > 0` 时失效 `sessions` / `sessions-range` / `sessions-task` 并广播给悬浮窗；后端报错只写 console.warn，不打断启动。
+- **不碰历史**：自动排出来的只是 `planned` 场次（`planned_units = 1`），不改已有排期、不动 XP / 连击 / 成就。
+- 由 `ensure_today_schedule_*` / `auto_schedule_*` 锁定。
+
+### 常用时段、常用时长与批量改期
+
+- **常用时段是全局设置**：存 `app_settings.time_presets`（JSON 数组），前端统一走 `useTimePresets()`（React Query key `["appSetting","time_presets"]`）。重新安排弹窗、今日页新建排期、设置页三处共用同一份数据，保存一次全线生效。
+- **常用时长同样是全局设置**：存 `app_settings.duration_presets`，走 `useDurationPresets()`（key `["appSetting","duration_presets"]`）。排期弹窗的「时长」快捷按钮与设置页「常用时长」区块共用同一份数据。
+- **预设靠稳定 `id` 对齐**：`TimePreset = { id, label, start, end }`、`DurationPreset = { id, label, minutes }`。`id` 是身份，时间 / 分钟数是可改属性——改名不惊动任何排期，改数值才惊动。
+- **只改数值才动计划**：前后端都按 id 比对出变更表（`diffTimePresets` / `build_shift_map`、`diffDurationPresets` / `build_duration_shift_map`）。只改名字、新增、删除都不产生挪动。
+- **批量挪场次走专用 command `apply_preset_time_changes`**（`src-tauri/src/commands/presets.rs`）。不逐场调 `reschedule_session`——那会生成 `rescheduled` 旧行 + 新行，等于伪造历史；也不删掉重排（破坏性）。一个事务里批量 `UPDATE`，只改 `start_time` / `end_time`，不动其他字段。
+- **批量改时长走 `apply_preset_duration_changes`**：只改 `end_time`（开始时间是学生自己挑的，不动），新结束时间 = 开始时间 + 新时长。其余口径与上面完全一致。
+- **读写在同一事务里**：`SELECT` 候选行和批量 `UPDATE` 都在同一个 `db.begin()` 事务内，中途出错整体回滚，不留半截数据。`UPDATE` 还额外带 `AND status = 'planned'` 守卫：万一这期间这场已被完成或改期，就不去改写它。
+- **命中口径**：只动 `status = 'planned'` 且 `date >= from_date`（默认今天）的场次。`done` / `missed` / `rescheduled` 是历史，一律不动。
+- **靠旧值配对，不靠外键**：`task_sessions` 不记录「这场来自哪个常用时段 / 常用时长」（用户手动微调过就再也对不上），所以按 `(旧 start_time, 旧 end_time)` 或「旧时长（分钟）」精确配对。
+- **同一旧值指向两个新目标 → 整段放弃**：宁可不动也不动错。`diffTimePresets` / `diffDurationPresets` 与后端两个 `build_*_map` 同一口径。
+- **冲突判定是「不许制造新的撞车」**：逐日分组，先乐观地假设所有要挪的都挪到位，再检查当天有没有新出现的重叠；有就把冲突的一方退回原时段（它本来就待在原处，除非它也是要挪的），然后重算，直到不撞车。判据是「本来就没叠在一起的两场，改完也不许叠上」——所以「A、B 互换时段」这种本来合法的组合仍然能成功，而「挪过去正好压住别人原时段」会退化成保持原样。退回的场次计入 `conflicts`。
+- **冲突时优先退更早的那一场**：晚的那场往后延，位置更空，不容易连着踩到别人。
+- **会跨过 23:59 的场次排不进去**：改时长后结束时间超过当天末尾的，保持原样并计入 `conflicts`。
+- **先改场次再存设置**：保存顺序是「批量改期 → 写入设置」，批量失败不会留下已改的设置。改完向用户报「N 场已挪 / 已改、M 场撞车保持原样」。
+- **写设置用 `mutateAsync` 等它落库**：批量改期成功、但设置没存上时，弹窗**不关**，明确提示「排期已改成功（N 场），但设置没存上，请重试」，不装作保存成功。
+- **批量改完要刷新排期缓存**：保存成功后失效 `["sessions"]` / `["sessions-range"]` / `["sessions-task"]` 并 `broadcastSessionUpdated()`，今天的排期、日历与桌面小组件立刻看到新时间。
+- **默认时长按番茄钟算法推荐**：25 分钟专注 + 5 分钟短休息，4 个番茄一轮再来 15 分钟长休息。按「墙钟」口径算（含中间的休息），默认五段 = 25 / 55 / 85 / 115 / 130 分钟。番茄钟参数存 `app_settings.pomodoro_plan`，编辑器里可改并「按番茄钟生成」。
+- **番茄钟生成不产出存不下来的时长**：超过一天（1440 分钟）的段不生成，编辑器里会提示「按当前参数只能排到 N 段」。
+- **预设 id 读回时去重**：缺 `id` 的行会拿兜底 id（`tp-<序号>` / `dp-<序号>`），与显式 id 撞车时加后缀，免得两行被当成同一行、diff 漏掉一次改动。
+- **弹窗标题与页脚固定**：`Modal` 改成固定标题 + 滚动内容 + 固定页脚，十条预设也随时点得到「保存」。
+- 由 `preset_shift_*` / `preset_duration_shift_*` / `time_presets_*` / `duration_presets_*` / `time_range_field_*` / `preset_editor_*` / `duration_editor_*` 锁定。
 
 ## 待处理技术债
 

@@ -11,7 +11,9 @@ export function useUserStats() {
 export function useAchievements() {
   return useQuery({
     queryKey: ["achievements"],
-    queryFn: () => api.listAchievements(),
+    // 后端正常返回列表；万一拿到 null 也统一成空数组，
+    // 否则消费方 achievements.length 会抛错，整棵 React 树被卸载成白屏。
+    queryFn: async () => (await api.listAchievements()) ?? [],
   });
 }
 

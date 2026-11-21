@@ -10,6 +10,11 @@ use tauri::State;
 const DAILY_SLOTS_KEY: &str = "daily_slots";
 const DAILY_LIMIT_KEY: &str = "daily_limit_minutes";
 
+/// 启动时自动排期开关在 `app_settings` 里的键。
+///
+/// 与前端 `src/lib/studyPlan.ts` 的 `AUTO_SCHEDULE_SETTING_KEY` 保持一致。
+const AUTO_SCHEDULE_KEY: &str = "auto_schedule_today";
+
 /// 没有设置过时用的默认三段（早上 / 下午 / 晚上各一小时）。
 const DEFAULT_SLOTS: [(&str, &str); 3] = [
     ("08:00", "09:00"),
@@ -262,12 +267,201 @@ pub async fn generate_week_plan_impl(
     })
 }
 
+/// 开关读回来只有明确的 `0` / `false` 才算关闭，其余（含缺省）都算开启。
+fn auto_schedule_enabled(raw: Option<&str>) -> bool {
+    let Some(raw) = raw else {
+        return true;
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+    trimmed != "0" && !trimmed.eq_ignore_ascii_case("false")
+}
+
+/// 一个可参与自动排期的主线任务。
+struct AutoScheduleCandidate {
+    id: i64,
+    round: i64,
+}
+
+/// 启动时自动排今天的结果。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct EnsureTodayScheduleResult {
+    /// 本次处理的日期（`YYYY-MM-DD`）。
+    pub date: String,
+    /// 实际新建的排期数。
+    pub created: i64,
+    /// 因为超过每日上限而跳过的格子数。
+    pub skipped: i64,
+    /// 参与排期的任务 id（去重，按出现顺序）。
+    pub task_ids: Vec<i64>,
+}
+
+/// 启动时把今天的主线排进「每日可用时段」。
+///
+/// 防呆：
+/// - 今天已经有真实场次（`planned` / `done` / `missed`）就一格都不排：
+///   用户自己安排过的日子，应用不插手；
+/// - 只排主线，搁置的和回收站里的不排；
+/// - 本轮已经做满的主线不排（得先推进轮次才有下一轮可学）；
+/// - 时段与每日上限取自设置页，和「一键排一周」同一套解析；
+/// - 多个主线轮流占用时段，保证每科都有场次；
+/// - 全部写在一个事务里。
+pub async fn ensure_today_schedule_impl(
+    db: &SqlitePool,
+    date: Option<String>,
+) -> Result<EnsureTodayScheduleResult, SessionError> {
+    let date_str = match date.as_deref() {
+        Some(raw) if !raw.trim().is_empty() => NaiveDate::parse_from_str(raw.trim(), "%Y-%m-%d")
+            .map_err(|_| SessionError::Message(format!("日期格式不对：{raw}，请用 YYYY-MM-DD")))?
+            .format("%Y-%m-%d")
+            .to_string(),
+        _ => Local::now().date_naive().format("%Y-%m-%d").to_string(),
+    };
+
+    // 开关关掉就什么都不做：自动排期不能反过来关掉用户的意愿。
+    if !auto_schedule_enabled(read_setting(db, AUTO_SCHEDULE_KEY).await?.as_deref()) {
+        return Ok(EnsureTodayScheduleResult {
+            date: date_str,
+            created: 0,
+            skipped: 0,
+            task_ids: Vec::new(),
+        });
+    }
+
+    let slots = parse_slots(read_setting(db, DAILY_SLOTS_KEY).await?.as_deref());
+    let limit = parse_limit(read_setting(db, DAILY_LIMIT_KEY).await?.as_deref());
+
+    let mut tx = db.begin().await?;
+
+    // 今天已经有安排就不自动插手。`rescheduled` 不算：那一场已经挪走了。
+    let existing: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM task_sessions
+         WHERE date = ?1 AND status IN ('planned', 'done', 'missed')",
+    )
+    .bind(&date_str)
+    .fetch_one(&mut *tx)
+    .await?;
+    if existing > 0 {
+        tx.commit().await?;
+        return Ok(EnsureTodayScheduleResult {
+            date: date_str,
+            created: 0,
+            skipped: 0,
+            task_ids: Vec::new(),
+        });
+    }
+
+    // 候选：未归档、未删除的主线，按 id 顺序轮流占用时段。
+    let rows: Vec<(i64, i64, Option<i64>)> = sqlx::query_as(
+        "SELECT id, current_round, total_units FROM tasks
+         WHERE type = 'main' AND archived = 0 AND deleted_at IS NULL
+         ORDER BY id ASC",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let mut candidates: Vec<AutoScheduleCandidate> = Vec::new();
+    for (id, current_round, total_units) in rows {
+        let round_units: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(actual_units), 0) FROM task_sessions
+             WHERE task_id = ?1 AND round = ?2 AND status = 'done'",
+        )
+        .bind(id)
+        .bind(current_round)
+        .fetch_one(&mut *tx)
+        .await?;
+        // 本轮做满的主线不再排：先推进轮次才有下一轮可学。
+        let round_finished = match total_units {
+            Some(total) if total > 0 => round_units >= total,
+            _ => false,
+        };
+        if round_finished {
+            continue;
+        }
+        candidates.push(AutoScheduleCandidate {
+            id,
+            round: current_round,
+        });
+    }
+
+    if candidates.is_empty() || slots.is_empty() {
+        tx.commit().await?;
+        return Ok(EnsureTodayScheduleResult {
+            date: date_str,
+            created: 0,
+            skipped: 0,
+            task_ids: Vec::new(),
+        });
+    }
+
+    let mut created = 0i64;
+    let mut skipped = 0i64;
+    let mut day_minutes = 0i64;
+    let mut task_ids: Vec<i64> = Vec::new();
+    let mut cursor = 0usize;
+
+    for slot in &slots {
+        let Some(slot_len) = slot_minutes(&slot.start, &slot.end) else {
+            skipped += 1;
+            continue;
+        };
+        if day_minutes + slot_len > limit {
+            skipped += 1;
+            continue;
+        }
+        let candidate = &candidates[cursor % candidates.len()];
+        cursor += 1;
+
+        sqlx::query(
+            r#"INSERT INTO task_sessions (
+                   task_id, date, start_time, end_time, round, status,
+                   planned_units, actual_units, xp_awarded
+               ) VALUES (?1, ?2, ?3, ?4, ?5, 'planned', 1, 0, 0)"#,
+        )
+        .bind(candidate.id)
+        .bind(&date_str)
+        .bind(&slot.start)
+        .bind(&slot.end)
+        .bind(candidate.round)
+        .execute(&mut *tx)
+        .await?;
+
+        created += 1;
+        day_minutes += slot_len;
+        if !task_ids.contains(&candidate.id) {
+            task_ids.push(candidate.id);
+        }
+    }
+
+    tx.commit().await?;
+
+    Ok(EnsureTodayScheduleResult {
+        date: date_str,
+        created,
+        skipped,
+        task_ids,
+    })
+}
+
 #[tauri::command]
 pub async fn generate_week_plan(
     pool: State<'_, SqlitePool>,
     input: GenerateWeekPlanInput,
 ) -> Result<GenerateWeekPlanResult, String> {
     generate_week_plan_impl(pool.inner(), input)
+        .await
+        .map_err(Into::into)
+}
+
+/// 启动时补排今天的计划（幂等：今天已经有安排就什么都不做）。
+#[tauri::command]
+pub async fn ensure_today_schedule(
+    pool: State<'_, SqlitePool>,
+) -> Result<EnsureTodayScheduleResult, String> {
+    ensure_today_schedule_impl(pool.inner(), None)
         .await
         .map_err(Into::into)
 }

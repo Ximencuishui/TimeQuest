@@ -15,8 +15,18 @@ import { dailyMotivation } from "../lib/motivation";
 import { format } from "date-fns";
 import { ProfileSetting } from "../components/ProfileSetting";
 import { DailyPlanSetting } from "../components/DailyPlanSetting";
+import { TimePresetEditor } from "../components/TimePresetEditor";
+import { DurationPresetEditor } from "../components/DurationPresetEditor";
 import { GlossaryList } from "../components/GlossaryList";
 import { useHasMockData } from "../hooks/useMockData";
+import { useTimePresets } from "../hooks/useTimePresets";
+import { formatTimePresetLabel } from "../lib/timePresets";
+import { useDurationPresets } from "../hooks/useDurationPresets";
+import { formatDurationPresetLabel } from "../lib/durationPresets";
+import {
+  AUTO_SCHEDULE_SETTING_KEY,
+  isAutoScheduleEnabled,
+} from "../lib/studyPlan";
 import {
   CELEBRATIONS_SETTING_KEY,
   isCelebrationsEnabled,
@@ -113,6 +123,140 @@ function CelebrationsSetting() {
   );
 }
 
+/**
+ * 常用时段：排期时点一下就能填好一整块时间。
+ *
+ * 与「每日可用时段」的区别：那边是给自动排期用的整段窗口，
+ * 这边是学生手动排期时的快捷按钮，两边互不干扰。
+ */
+function TimePresetsSetting() {
+  const { presets } = useTimePresets();
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+
+  return (
+    <section className="space-y-3 rounded-2xl border border-white/5 bg-surface-2/80 p-4">
+      <h2 className="font-display text-lg">常用时段</h2>
+      <p className="text-xs text-ink-muted">
+        排期时点一下就能填好一整块时间。改完保存后全局生效：今天及以后排在这个旧时段上的场次会一起挪到新时段，已完成的历史不动。
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {presets.length === 0 ? (
+          <span className="text-sm text-ink-muted">还没有常用时段。</span>
+        ) : null}
+        {presets.map((preset) => (
+          <span
+            key={preset.id}
+            className="rounded-lg border border-white/10 bg-surface-3 px-2 py-1 text-xs text-ink-muted"
+          >
+            {formatTimePresetLabel(preset)}
+          </span>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="rounded-lg border border-white/15 px-3 py-2 text-sm"
+        onClick={() => setEditorOpen(true)}
+      >
+        编辑常用时段
+      </button>
+      {summary ? <p className="text-xs text-ink-muted">{summary}</p> : null}
+      <TimePresetEditor
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        onSaved={(result) => {
+          setSummary(
+            result.updated > 0
+              ? `已保存，${result.updated} 场排期已挪到新的常用时段。`
+              : "已保存。",
+          );
+        }}
+      />
+    </section>
+  );
+}
+
+/**
+ * 常用时长：排期时点一下就能定好「这一场学多久」。
+ *
+ * 默认值按番茄钟算法生成（25 分钟专注 + 5 分钟短休息，4 个番茄一轮），
+ * 可以改成自己的节奏；改完保存后全局生效。
+ */
+function DurationPresetsSetting() {
+  const { presets } = useDurationPresets();
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+
+  return (
+    <section className="space-y-3 rounded-2xl border border-white/5 bg-surface-2/80 p-4">
+      <h2 className="font-display text-lg">常用时长</h2>
+      <p className="text-xs text-ink-muted">
+        默认按番茄钟算法推荐（25 分钟专注 + 5 分钟短休息，4 个番茄一轮）。
+        改完保存后全局生效：今天及以后排在这个旧时长上的场次会一起改成新时长，已完成的历史不动。
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {presets.length === 0 ? (
+          <span className="text-sm text-ink-muted">还没有常用时长。</span>
+        ) : null}
+        {presets.map((preset) => (
+          <span
+            key={preset.id}
+            className="rounded-lg border border-white/10 bg-surface-3 px-2 py-1 text-xs text-ink-muted"
+          >
+            {formatDurationPresetLabel(preset)}
+          </span>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="rounded-lg border border-white/15 px-3 py-2 text-sm"
+        onClick={() => setEditorOpen(true)}
+      >
+        编辑常用时长
+      </button>
+      {summary ? <p className="text-xs text-ink-muted">{summary}</p> : null}
+      <DurationPresetEditor
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        onSaved={(result) => {
+          setSummary(
+            result.updated > 0
+              ? `已保存，${result.updated} 场排期已改成新的常用时长。`
+              : "已保存。",
+          );
+        }}
+      />
+    </section>
+  );
+}
+
+function AutoScheduleSetting() {
+  const { data, isFetched } = useAppSetting(AUTO_SCHEDULE_SETTING_KEY);
+  const setSetting = useSetSetting(AUTO_SCHEDULE_SETTING_KEY);
+  const enabled = isAutoScheduleEnabled(isFetched ? data : null);
+
+  return (
+    <section className="space-y-3 rounded-2xl border border-white/5 bg-surface-2/80 p-4">
+      <h2 className="font-display text-lg">自动排期</h2>
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={!isFetched}
+          onChange={(event) => {
+            setSetting.mutate(event.target.checked ? "1" : "0");
+          }}
+        />
+        启动时自动排今天的计划
+      </label>
+      <p className="text-xs text-ink-muted">
+        今天还没有任何安排时，按上面的「每日可用时段」把主线任务排进今天。
+        今天已经排过了就不动它。默认开启。
+      </p>
+    </section>
+  );
+}
+
 /** 本地日历日，不含时刻。`yyyy-MM-dd` 字符串可直接比较。 */
 function isPastLocalDate(value: string, now = new Date()): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -135,7 +279,9 @@ export function Settings() {
   const notificationsEnabled = useUiStore((s) => s.notificationsEnabled);
   const setNotificationsEnabled = useUiStore((s) => s.setNotificationsEnabled);
   const { data: stats } = useUserStats();
-  const { data: achievements = [] } = useAchievements();
+  const { data: achievementsData } = useAchievements();
+  // 防御后端异常返回 null：achievements.length 抛错会让整棵树卸载白屏。
+  const achievements = achievementsData ?? [];
   const { data: hasMock } = useHasMockData();
   const queryClient = useQueryClient();
   const mockHighlighted = hasMock === true;
@@ -351,6 +497,12 @@ export function Settings() {
       <MotivationSetting />
 
       <DailyPlanSetting />
+
+      <TimePresetsSetting />
+
+      <DurationPresetsSetting />
+
+      <AutoScheduleSetting />
 
       <GlossaryList />
 

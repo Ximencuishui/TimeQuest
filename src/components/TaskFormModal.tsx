@@ -3,6 +3,7 @@ import { Modal } from "./Modal";
 import { TextbookCombobox } from "./TextbookCombobox";
 import { SUBJECTS } from "../lib/constants";
 import { TASK_PALETTE } from "../lib/colors";
+import { roundSequence } from "../lib/rounds";
 import type { Task, TaskType } from "../types";
 
 /** 新建任务时的默认总课数。 */
@@ -211,6 +212,10 @@ export function TaskFormModal({
                 />
               </label>
             </div>
+            {/* 轮次编号对用户没意义，给出看得懂的阶段顺序：教材学习排在第一轮复习前面。 */}
+            <p className="text-[11px] text-ink-muted/70">
+              阶段顺序：{roundSequence(form.total_rounds).join(" → ")}
+            </p>
           </>
         ) : null}
         <div>

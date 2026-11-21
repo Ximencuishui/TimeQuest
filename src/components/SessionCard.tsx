@@ -1,5 +1,6 @@
 import type { TaskSession } from "../types";
 import type { SessionTimePhase } from "../lib/sessionTime";
+import { roundName } from "../lib/rounds";
 import { unitNameOf, unitsLabel } from "../lib/units";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -103,7 +104,7 @@ export function SessionCard({
             {session.start_time} – {session.end_time}
             {session.subject ? ` · ${session.subject}` : ""}
             {session.task_type === "main"
-              ? ` · 第${session.round}轮 · 计划 ${unitsLabel(session.planned_units, unit)}`
+              ? ` · ${roundName(session.round)} · 计划 ${unitsLabel(session.planned_units, unit)}`
               : ""}
           </div>
           {sectionTitle ? (

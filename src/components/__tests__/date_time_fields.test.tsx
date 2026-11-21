@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -68,6 +69,18 @@ function TimeRangeHarness({
         onChange?.(nextStart, nextEnd);
       }}
     />
+  );
+}
+
+/** 常用时段来自全局设置（React Query），渲染时要带上 Provider。 */
+function renderTimeRange(onChange?: (start: string, end: string) => void) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <TimeRangeHarness onChange={onChange} />
+    </QueryClientProvider>,
   );
 }
 
@@ -151,7 +164,7 @@ describe("TimeField 自绘时间", () => {
 describe("TimeRangeField 时段快捷", () => {
   it("time_range_field_applies_preset_slot_in_one_click", () => {
     const onChange = vi.fn();
-    render(<TimeRangeHarness onChange={onChange} />);
+    renderTimeRange(onChange);
 
     fireEvent.click(screen.getByRole("button", { name: "晚上 19:00–20:00" }));
 
@@ -162,10 +175,11 @@ describe("TimeRangeField 时段快捷", () => {
 
   it("time_range_field_extends_end_by_duration", () => {
     const onChange = vi.fn();
-    render(<TimeRangeHarness onChange={onChange} />);
+    renderTimeRange(onChange);
 
-    fireEvent.click(screen.getByRole("button", { name: "1 小时 30 分钟" }));
+    // 默认时长按番茄钟算法推荐：「番茄 3」= 25 + 5 + 25 + 5 + 25 = 85 分钟。
+    fireEvent.click(screen.getByRole("button", { name: "番茄 3 · 1 小时 25 分钟" }));
 
-    expect(onChange).toHaveBeenCalledWith("09:00", "10:30");
+    expect(onChange).toHaveBeenCalledWith("09:00", "10:25");
   });
 });
