@@ -701,6 +701,12 @@
 | duration_editor_warns_when_the_pomodoro_plan_is_too_long_for_one_day | 参数排不下一天时给出提示 | `src/components/__tests__/duration_preset_editor.test.tsx` |
 | use_achievements_normalizes_null_response_to_empty_array | `list_user_achievements` 返回 null 时归一成空数组，消费方不会拿到 null | `src/hooks/__tests__/use_stats_achievements.test.tsx` |
 | settings_achievements_null_response_renders_empty_state_without_crash | 后端返回 null 时设置页显示「尚未解锁成就」，不因 `achievements.length` 抛错而白屏 | `src/pages/Settings/__tests__/settings_achievements_null.test.tsx` |
+| textbook_combobox_closes_when_clicking_outside | 点组件外收起课本下拉，浮层不再压住「课数 / 轮次」 | `src/components/__tests__/textbook_combobox.test.tsx` |
+| textbook_combobox_closes_on_blur | 失焦（Tab 离开）即收起下拉 | `src/components/__tests__/textbook_combobox.test.tsx` |
+| textbook_combobox_closes_on_escape | ESC 收起下拉面板 | `src/components/__tests__/textbook_combobox.test.tsx` |
+| textbook_combobox_still_picks_a_suggestion_after_blur_guard | 失焦守卫不误伤：点选项仍能选中并回调 `onPick` | `src/components/__tests__/textbook_combobox.test.tsx` |
+| textbook_combobox_reopens_when_the_subject_changes | 换科目后书目列表按新科目重新展开（收起只是浮层副作用，不是放弃选择） | `src/components/__tests__/textbook_combobox.test.tsx` |
+| textbook_combobox_stays_closed_after_escape_even_if_the_subject_changes | ESC 是明确放弃选择：之后换科目不再自动弹出 | `src/components/__tests__/textbook_combobox.test.tsx` |
 
 ## 已知实现约束
 

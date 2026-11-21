@@ -22,6 +22,9 @@ export function TextbookCombobox({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  // 用户主动打开过（聚焦或输入）才允许「换科目」时保持展开；
+  // ESC 和选中是明确放弃选择，之后再换科目不再自动弹出。
+  const userOpenedRef = useRef(false);
   const suggestions = useMemo(
     () => textbookSuggestions(
       books.filter((book) => book.subject === subject),
@@ -49,7 +52,36 @@ export function TextbookCombobox({
     setActive(0);
   }, [value, open]);
 
+  // 换了科目就按新科目重新列书目：先前关掉的只是浮层，不是用户的选择意愿。
+  const prevSubjectRef = useRef(subject);
+  useEffect(() => {
+    if (prevSubjectRef.current === subject) return;
+    prevSubjectRef.current = subject;
+    if (userOpenedRef.current) setOpen(true);
+  }, [subject]);
+
+  // 下拉是浮层，盖在下方字段上；点组件外必须收起，否则面板会一直挡住
+  // 「课数 / 轮次」输入框，而且除了 ESC 之外没有任何关闭入口。
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const root = rootRef.current;
+      if (root && !root.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    // 捕获阶段监听：Modal 内层的 stopPropagation 只挡冒泡，挡不住这里。
+    document.addEventListener("mousedown", onPointerDown, true);
+    return () => document.removeEventListener("mousedown", onPointerDown, true);
+  }, [open]);
+
+  const openList = () => {
+    userOpenedRef.current = true;
+    setOpen(true);
+  };
+
   const pick = (book: AvailableTextbook) => {
+    userOpenedRef.current = false;
     setOpen(false);
     onChange(book.volume);
     void api
@@ -78,12 +110,15 @@ export function TextbookCombobox({
         value={value}
         onChange={(event) => {
           onChange(event.target.value);
-          setOpen(true);
+          openList();
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={openList}
+        // 失焦即收起：点别处后浮层还开着，就会一直压在后面的字段上。
+        onBlur={() => setOpen(false)}
         onKeyDown={(event) => {
           if (event.key === "Escape" && open) {
             event.stopPropagation();
+            userOpenedRef.current = false;
             setOpen(false);
             return;
           }
