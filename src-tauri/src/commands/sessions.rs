@@ -91,7 +91,7 @@ SELECT s.id, s.task_id, s.date, s.start_time, s.end_time, s.round, s.status,
        s.xp_awarded, s.created_at,
        t.title, t.type AS task_type, t.color, t.subject, t.unit_name AS task_unit_name
 FROM task_sessions s
-JOIN tasks t ON t.id = s.task_id
+JOIN tasks t ON t.id = s.task_id AND t.deleted_at IS NULL
 "#;
 
 fn map_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskSession> {
@@ -124,7 +124,7 @@ SELECT s.id, s.task_id, s.date, s.start_time, s.end_time, s.round, s.status,
        s.xp_awarded, s.created_at,
        t.title, t.type, t.color, t.subject, t.unit_name
 FROM task_sessions s
-JOIN tasks t ON t.id = s.task_id
+JOIN tasks t ON t.id = s.task_id AND t.deleted_at IS NULL
 "#;
 
 /// Pad a parseable `H:MM` / `HH:MM` string to `HH:MM` (`"9:00"` → `"09:00"`).
@@ -545,15 +545,19 @@ pub async fn create_session_impl(
     round: Option<i64>,
     planned_units: Option<i64>,
 ) -> Result<TaskSession, SessionError> {
-    let row: Option<(i64, i64)> =
-        sqlx::query_as("SELECT current_round, archived FROM tasks WHERE id = ?1")
+    let row: Option<(i64, i64, Option<String>)> =
+        sqlx::query_as("SELECT current_round, archived, deleted_at FROM tasks WHERE id = ?1")
             .bind(task_id)
             .fetch_optional(db)
             .await?;
 
-    let Some((current_round, archived)) = row else {
+    let Some((current_round, archived, deleted_at)) = row else {
         return Err(SessionError::TaskNotFound { task_id });
     };
+    // 回收站里的任务不排期：先恢复才能继续推进。
+    if deleted_at.is_some() {
+        return Err(SessionError::TaskDeleted { task_id });
+    }
     if archived != 0 {
         return Err(SessionError::TaskArchived { task_id });
     }

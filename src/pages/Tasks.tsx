@@ -1,39 +1,51 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { KnowledgePointDrawer, type KnowledgeTask } from "../components/KnowledgePointDrawer";
+import { PlanCalendarView } from "../components/PlanCalendarView";
+import { PlanFishboneView } from "../components/PlanFishboneView";
+import { PlanFilterBar } from "../components/PlanFilterBar";
+import { PlanGanttView } from "../components/PlanGanttView";
+import { RecycleBin } from "../components/RecycleBin";
 import { TaskGridView } from "../components/TaskGridView";
 import { TaskListView } from "../components/TaskListView";
-import { Modal } from "../components/Modal";
-import { TextbookCombobox } from "../components/TextbookCombobox";
+import { TaskFormModal, type TaskFormValues } from "../components/TaskFormModal";
 import { TextbookImportWizard } from "../components/TextbookImportWizard";
+import { useCurrentTime } from "../hooks/useCurrentTime";
+import { useSessionsInRange } from "../hooks/useSessions";
 import { useTaskMutations, useTasks } from "../hooks/useTasks";
-import { SUBJECTS } from "../lib/constants";
+import { toIsoDate } from "../lib/calendar";
 import { formatMonthDay } from "../lib/date";
-import { TASK_PALETTE } from "../lib/colors";
+import {
+  collectPlanTags,
+  emptyPlanFilter,
+  filterPlanTasks,
+  sessionsOfTasks,
+  type PlanFilter,
+} from "../lib/planViews";
 import { useUiStore } from "../store/ui";
-import type { TaskType } from "../types";
+import type { Task } from "../types";
 
-const DEFAULT_TOTAL_UNITS = 40;
+/** 排期一次拉全量：总计划要看过去也看未来。 */
+const SESSIONS_START = "2000-01-01";
+const SESSIONS_END = "2099-12-31";
 
 export function Tasks() {
-  const { data: tasks = [], isLoading } = useTasks(false);
+  const [showArchived, setShowArchived] = useState(false);
+  // 回收站开关：删掉的任务先放到这儿，随时能找回来。
+  const [showTrash, setShowTrash] = useState(false);
+  // 开关打开时连归档任务一起拉，归档的才看得见、才取消得了搁置。
+  const { data: tasks = [], isLoading } = useTasks(showArchived);
+  const { data: allSessions } = useSessionsInRange(SESSIONS_START, SESSIONS_END);
+  const sessions = allSessions ?? [];
+  const now = useCurrentTime();
+  const today = toIsoDate(now);
   const taskView = useUiStore((s) => s.taskView);
   const setTaskView = useUiStore((s) => s.setTaskView);
-  const { create } = useTaskMutations();
+  const { create, archive } = useTaskMutations();
   const [open, setOpen] = useState(false);
   const [knowledgeTask, setKnowledgeTask] = useState<KnowledgeTask | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [titleError, setTitleError] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    title: "",
-    type: "main" as TaskType,
-    subject: "数学",
-    textbook: "",
-    unit_name: "课",
-    total_units: DEFAULT_TOTAL_UNITS,
-    total_rounds: 2,
-    color: TASK_PALETTE[0],
-  });
+  const [filter, setFilter] = useState<PlanFilter>(emptyPlanFilter());
 
   useEffect(() => {
     if (!toast) return;
@@ -41,32 +53,55 @@ export function Tasks() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const submit = async () => {
-    const title = form.title.trim();
-    // 防呆：空标题直接拦下并说清楚，而不是点了没反应。
-    if (!title) {
-      setTitleError("请给任务起个名字，例如「物理必修二 第一轮」");
-      return;
-    }
-    setTitleError(null);
+  // 标签来自全部任务，筛选只影响显示，不影响标签本身。
+  const tags = useMemo(
+    () => collectPlanTags(tasks, sessions),
+    [tasks, sessions],
+  );
+  const filteredTasks = useMemo(
+    () => filterPlanTasks(tasks, sessions, filter),
+    [tasks, sessions, filter],
+  );
+  const filteredSessions = useMemo(
+    () => sessionsOfTasks(sessions, filteredTasks),
+    [sessions, filteredTasks],
+  );
+  // 计划类视图只画还在用的任务，归档的留在归档分组里。
+  const planTasks = useMemo(
+    () => filteredTasks.filter((task) => !task.archived),
+    [filteredTasks],
+  );
+
+  const submit = async (values: TaskFormValues) => {
     await create.mutateAsync({
-      title,
-      type: form.type,
-      subject: form.type === "main" ? form.subject : null,
-      textbook: form.type === "main" ? form.textbook || null : null,
-      unit_name: form.unit_name,
-      total_units: form.type === "main" ? form.total_units : null,
-      total_rounds: form.type === "main" ? form.total_rounds : 1,
-      color: form.color,
+      title: values.title,
+      type: values.type,
+      subject: values.type === "main" ? values.subject : null,
+      textbook: values.type === "main" ? values.textbook || null : null,
+      unit_name: values.unit_name,
+      total_units: values.type === "main" ? values.total_units : null,
+      total_rounds: values.type === "main" ? values.total_rounds : 1,
+      color: values.color,
     });
     setOpen(false);
-    setForm((f) => ({ ...f, title: "", textbook: "" }));
   };
 
+  const unarchive = (task: Task) => {
+    archive.mutate({ id: task.id, archived: false });
+  };
+
+  const isPlanView =
+    taskView === "calendar" || taskView === "gantt" || taskView === "fishbone";
+
   return (
-    <div className="mx-auto max-w-4xl">
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <h1 className="font-display text-2xl">任务</h1>
+    <div className="mx-auto max-w-5xl">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl">总计划</h1>
+          <p className="mt-1 text-xs text-ink-muted">
+            主线学科长期进度与考点规划，先定计划，再看今天。
+          </p>
+        </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <div className="flex rounded-lg border border-white/10 p-0.5">
             <ViewButton
@@ -82,6 +117,27 @@ export function Tasks() {
               onClick={() => setTaskView("grid")}
             >
               <GridIcon />
+            </ViewButton>
+            <ViewButton
+              label="日历视图"
+              active={taskView === "calendar"}
+              onClick={() => setTaskView("calendar")}
+            >
+              <CalendarIcon />
+            </ViewButton>
+            <ViewButton
+              label="甘特视图"
+              active={taskView === "gantt"}
+              onClick={() => setTaskView("gantt")}
+            >
+              <GanttIcon />
+            </ViewButton>
+            <ViewButton
+              label="鱼骨视图"
+              active={taskView === "fishbone"}
+              onClick={() => setTaskView("fishbone")}
+            >
+              <FishboneIcon />
             </ViewButton>
           </div>
           <button
@@ -101,160 +157,90 @@ export function Tasks() {
         </div>
       </div>
 
+      <PlanFilterBar
+        tags={tags}
+        filter={filter}
+        onChange={setFilter}
+        matchedCount={filteredTasks.length}
+        totalCount={tasks.length}
+      />
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {!isPlanView ? (
+          <button
+            type="button"
+            aria-pressed={showArchived}
+            onClick={() => setShowArchived((value) => !value)}
+            className={`rounded-lg border px-3 py-1.5 text-xs ${
+              showArchived
+                ? "border-accent/60 bg-accent/10 text-accent"
+                : "border-white/10 text-ink-muted hover:text-ink"
+            }`}
+          >
+            显示已归档任务
+          </button>
+        ) : null}
+        <button
+          type="button"
+          aria-pressed={showTrash}
+          onClick={() => setShowTrash((value) => !value)}
+          className={`rounded-lg border px-3 py-1.5 text-xs ${
+            showTrash
+              ? "border-accent/60 bg-accent/10 text-accent"
+              : "border-white/10 text-ink-muted hover:text-ink"
+          }`}
+        >
+          回收站
+        </button>
+      </div>
+
       {isLoading ? (
         <p className="text-ink-muted">加载中…</p>
       ) : taskView === "list" ? (
-        <TaskListView tasks={tasks} onOpenKnowledge={setKnowledgeTask} />
+        <TaskListView
+          tasks={filteredTasks}
+          onOpenKnowledge={setKnowledgeTask}
+          onUnarchive={unarchive}
+        />
+      ) : taskView === "grid" ? (
+        <TaskGridView
+          tasks={filteredTasks}
+          onOpenKnowledge={setKnowledgeTask}
+          onUnarchive={unarchive}
+        />
+      ) : taskView === "calendar" ? (
+        <PlanCalendarView
+          tasks={planTasks}
+          sessions={filteredSessions}
+          today={today}
+        />
+      ) : taskView === "gantt" ? (
+        <PlanGanttView
+          tasks={planTasks}
+          sessions={filteredSessions}
+          today={today}
+        />
       ) : (
-        <TaskGridView tasks={tasks} onOpenKnowledge={setKnowledgeTask} />
+        <PlanFishboneView tasks={planTasks} />
       )}
+
+      {showTrash ? (
+        <RecycleBin
+          onRestored={(task) => setToast(`「${task.title}」已找回来了。`)}
+        />
+      ) : null}
 
       <KnowledgePointDrawer task={knowledgeTask} onClose={() => setKnowledgeTask(null)} />
 
-      <Modal
-        open={open}
-        title="新建任务"
-        onClose={() => setOpen(false)}
-        footer={
-          <>
-            <button
-              type="button"
-              className="rounded-lg px-3 py-2 text-ink-muted"
-              onClick={() => setOpen(false)}
-            >
-              取消
-            </button>
-            <button
-              type="button"
-              className="rounded-lg bg-accent px-4 py-2 text-white disabled:opacity-50"
-              onClick={submit}
-              disabled={create.isPending}
-            >
-              创建
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-3 text-sm">
-          <label className="block">
-            <span className="text-ink-muted">标题</span>
-            <input
-              className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-ink outline-none hover:border-white/20 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-              value={form.title}
-              aria-invalid={titleError != null}
-              onChange={(e) => {
-                setForm({ ...form, title: e.target.value });
-                if (titleError) setTitleError(null);
-              }}
-            />
-          </label>
-          {titleError ? (
-            <p className="mt-1 text-sm text-amber-200" role="alert">
-              {titleError}
-            </p>
-          ) : null}
-          <div className="flex gap-2">
-            {(["main", "side"] as TaskType[]).map((t) => (
-              <button
-                key={t}
-                type="button"
-                className={`rounded-lg px-3 py-1.5 ${
-                  form.type === t ? "bg-accent text-white" : "bg-white/5"
-                }`}
-                onClick={() => setForm({ ...form, type: t })}
-              >
-                {t === "main" ? "主线" : "副本"}
-              </button>
-            ))}
-          </div>
-          {form.type === "main" ? (
-            <>
-              <label className="block">
-                <span className="text-ink-muted">科目</span>
-                <select
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-ink outline-none hover:border-white/20 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                  value={form.subject}
-                  onChange={(e) =>
-                    setForm((current) => ({
-                      ...current,
-                      subject: e.target.value,
-                      textbook: "",
-                      total_units: DEFAULT_TOTAL_UNITS,
-                    }))
-                  }
-                >
-                  {SUBJECTS.map((s) => (
-                    <option key={s}>{s}</option>
-                  ))}
-                </select>
-              </label>
-              <TextbookCombobox
-                subject={form.subject}
-                value={form.textbook}
-                onChange={(textbook) => setForm((current) => ({ ...current, textbook }))}
-                onPick={(book, totalUnits) =>
-                  setForm((current) => ({
-                    ...current,
-                    textbook: book.volume,
-                    subject: book.subject,
-                    ...(totalUnits != null ? { total_units: totalUnits } : {}),
-                  }))
-                }
-              />
-              <div className="grid grid-cols-3 gap-2">
-                <label className="block">
-                  <span className="text-ink-muted">单位</span>
-                  <input
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-2 py-2 text-ink outline-none hover:border-white/20 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                    value={form.unit_name}
-                    onChange={(e) =>
-                      setForm({ ...form, unit_name: e.target.value })
-                    }
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-ink-muted">总课数</span>
-                  <input
-                    type="number"
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-2 py-2 text-ink outline-none hover:border-white/20 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                    value={form.total_units}
-                    onChange={(e) =>
-                      setForm({ ...form, total_units: Number(e.target.value) })
-                    }
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-ink-muted">总轮次</span>
-                  <input
-                    type="number"
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-2 py-2 text-ink outline-none hover:border-white/20 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                    value={form.total_rounds}
-                    onChange={(e) =>
-                      setForm({ ...form, total_rounds: Number(e.target.value) })
-                    }
-                  />
-                </label>
-              </div>
-            </>
-          ) : null}
-          <div>
-            <span className="text-ink-muted">颜色</span>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {TASK_PALETTE.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  className={`h-7 w-7 rounded-full ${
-                    form.color === c ? "ring-2 ring-white" : ""
-                  }`}
-                  style={{ background: c }}
-                  onClick={() => setForm({ ...form, color: c })}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </Modal>
+      {open ? (
+        <TaskFormModal
+          mode="create"
+          onClose={() => setOpen(false)}
+          onSubmit={submit}
+          submitting={create.isPending}
+        />
+      ) : null}
+
       {toast ? (
         <p
           role="status"
@@ -333,6 +319,49 @@ function GridIcon() {
         stroke="currentColor"
         strokeWidth="1.8"
         d="M5 5h5.5v5.5H5zM13.5 5H19v5.5h-5.5zM5 13.5h5.5V19H5zM13.5 13.5H19V19h-5.5z"
+      />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4.5 6.5h15v13h-15zM4.5 10.5h15M8.5 4v4M15.5 4v4"
+      />
+    </svg>
+  );
+}
+
+function GanttIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        d="M4 7h9M4 12h13M4 17h6"
+      />
+    </svg>
+  );
+}
+
+function FishboneIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        d="M4 12h13M7 12 12 6M11 12l5 6"
       />
     </svg>
   );

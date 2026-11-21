@@ -50,7 +50,11 @@ pub use commands::stats::{
     stats_completion_rate_impl, stats_daily_units_impl, stats_method_share_impl,
     stats_plan_vs_actual_impl, stats_tag_type_totals_impl,
 };
-pub use commands::tasks::{advance_round_impl, task_progress_impl};
+pub use commands::tasks::{
+    advance_round_impl, archive_task_impl, delete_task_impl, fetch_task_impl,
+    list_deleted_tasks_impl, list_tasks_impl, purge_task_impl, restore_task_impl,
+    task_progress_impl, update_task_impl,
+};
 pub use commands::textbook::{
     add_custom_knowledge_point_impl, add_graph_knowledge_point_impl, delete_knowledge_point_impl,
     generate_tasks_from_outline_impl, get_task_knowledge_points_impl, import_textbook_json_impl,
@@ -71,7 +75,7 @@ pub use models::{
     CompleteSessionResult, CompletionRate, CreateExamRecordPayload, CreateLogPayload,
     CreateMistakePayload, DailyUnitsRow, ExamRecord, MethodShareRow, Mistake, PlanVsActualRow,
     RemainderSchedule, SubjectTargets, TagTypeRow, Task, TaskProgress, TaskSession, TopicMistake,
-    TopicMistakes, UpdateMistakePayload, UpdateNotePayload, UserProfile,
+    TopicMistakes, UpdateMistakePayload, UpdateNotePayload, UpdateTaskPayload, UserProfile,
 };
 pub use pdf_outline::{
     extract_outline, extract_outline_lines, inspect_pdf_pages, outline_to_textbook,
@@ -193,6 +197,10 @@ pub fn run() {
             commands::create_task,
             commands::update_task,
             commands::archive_task,
+            commands::delete_task,
+            commands::list_deleted_tasks,
+            commands::restore_task,
+            commands::purge_task,
             commands::advance_round,
             commands::task_progress,
             commands::get_textbook_outline,

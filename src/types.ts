@@ -15,6 +15,8 @@ export type Task = {
   color: string | null;
   archived: number;
   created_at: string;
+  /** 移入回收站的时间戳；非空表示任务已被删除，可在回收站里找回。 */
+  deleted_at?: string | null;
   actual_units_sum?: number;
 };
 

@@ -10,6 +10,7 @@ import {
 } from "../hooks/useTasks";
 import { KNOWLEDGE_POINT_DISCLAIMER } from "../lib/constants";
 import { GraphPointPicker } from "./GraphPointPicker";
+import { TaskActionBar } from "./TaskActionBar";
 import {
   SECTION_EXISTS_MESSAGE,
   filterSectionOptions,
@@ -396,6 +397,11 @@ export function KnowledgePointDrawer({
             ✕
           </button>
         </div>
+        {loadedTask.data ? (
+          <div className="mb-3 shrink-0">
+            <TaskActionBar task={loadedTask.data} compact onDeleted={onClose} />
+          </div>
+        ) : null}
         <div className="mb-3 shrink-0">
           {addingSection ? (
             <form
@@ -573,7 +579,7 @@ export function KnowledgePointDrawer({
           className="mt-4 text-sm text-accent-soft hover:underline"
           onClick={onClose}
         >
-          查看排期
+          打开任务详情
         </Link>
         <p className="mt-3 text-xs text-zinc-500">{KNOWLEDGE_POINT_DISCLAIMER}</p>
       </aside>

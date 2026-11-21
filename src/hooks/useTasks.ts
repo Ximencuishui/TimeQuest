@@ -24,6 +24,15 @@ export function useTask(id: number | null) {
   });
 }
 
+/** 回收站：被删掉的任务，随时可以找回来。 */
+export function useDeletedTasks(enabled = true) {
+  return useQuery({
+    queryKey: ["tasks", "deleted"],
+    queryFn: () => api.listDeletedTasks(),
+    enabled,
+  });
+}
+
 export type TextbookSectionCatalog = {
   sections: string[];
   pointsBySection: Record<string, string[]>;
@@ -90,6 +99,15 @@ export function useTaskMutations() {
     qc.invalidateQueries({ queryKey: ["task-progress"] });
     qc.invalidateQueries({ queryKey: ["task-knowledge-points"] });
   };
+  // 排期相关的三个缓存都得失效。
+  // `sessions-range` 是总计划页日历/甘特视图的数据源，而 React Query 的前缀
+  // 匹配要求第 0 个元素严格相等——`["sessions"]` 命中不了 `["sessions-range"]`，
+  // 漏了它恢复/清除后排期就会停在旧数据上。
+  const invalidateSessions = () => {
+    qc.invalidateQueries({ queryKey: ["sessions"] });
+    qc.invalidateQueries({ queryKey: ["sessions-range"] });
+    qc.invalidateQueries({ queryKey: ["sessions-task"] });
+  };
 
   const create = useMutation({
     mutationFn: (payload: Partial<Task> & { title: string; type: string }) =>
@@ -106,6 +124,36 @@ export function useTaskMutations() {
       api.archiveTask(id, archived),
     onSuccess: invalidate,
   });
+  // 删除任务 = 移入回收站：排期与流水都留着，只是从计划里收起来。
+  const remove = useMutation({
+    mutationFn: (id: number) => api.deleteTask(id),
+    onSuccess: () => {
+      invalidate();
+      invalidateSessions();
+      qc.invalidateQueries({ queryKey: ["stats"] });
+      broadcastSessionUpdated();
+    },
+  });
+  // 从回收站找回来：任务回到原来的位置，排期与记录原样回来。
+  const restoreFromTrash = useMutation({
+    mutationFn: (id: number) => api.restoreTask(id),
+    onSuccess: () => {
+      invalidate();
+      invalidateSessions();
+      qc.invalidateQueries({ queryKey: ["stats"] });
+      broadcastSessionUpdated();
+    },
+  });
+  // 彻底清除：物理删除回收站里的任务，排期与记录真没了，统计要重新算。
+  const purge = useMutation({
+    mutationFn: (id: number) => api.purgeTask(id),
+    onSuccess: () => {
+      invalidate();
+      invalidateSessions();
+      qc.invalidateQueries({ queryKey: ["stats"] });
+      broadcastSessionUpdated();
+    },
+  });
   const advanceRound = useMutation({
     mutationFn: (id: number) => api.advanceRound(id),
     onSuccess: invalidate,
@@ -115,8 +163,7 @@ export function useTaskMutations() {
       api.generateTasksFromOutline(input),
     onSuccess: () => {
       invalidate();
-      qc.invalidateQueries({ queryKey: ["sessions"] });
-      qc.invalidateQueries({ queryKey: ["sessions-task"] });
+      invalidateSessions();
       qc.invalidateQueries({ queryKey: ["stats"] });
       broadcastSessionUpdated();
     },
@@ -126,14 +173,23 @@ export function useTaskMutations() {
     mutationFn: (input: GenerateWeekPlanInput) => api.generateWeekPlan(input),
     onSuccess: () => {
       invalidate();
-      qc.invalidateQueries({ queryKey: ["sessions"] });
-      qc.invalidateQueries({ queryKey: ["sessions-task"] });
+      invalidateSessions();
       qc.invalidateQueries({ queryKey: ["stats"] });
       broadcastSessionUpdated();
     },
   });
 
-  return { create, update, archive, advanceRound, generateFromOutline, generateWeekPlan };
+  return {
+    create,
+    update,
+    archive,
+    remove,
+    restoreFromTrash,
+    purge,
+    advanceRound,
+    generateFromOutline,
+    generateWeekPlan,
+  };
 }
 
 export function useToggleKnowledgePoint() {

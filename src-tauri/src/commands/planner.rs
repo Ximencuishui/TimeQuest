@@ -160,14 +160,18 @@ pub async fn generate_week_plan_impl(
     input: GenerateWeekPlanInput,
 ) -> Result<GenerateWeekPlanResult, SessionError> {
     let task_id = input.task_id;
-    let row: Option<(i64, i64)> =
-        sqlx::query_as("SELECT current_round, archived FROM tasks WHERE id = ?1")
+    let row: Option<(i64, i64, Option<String>)> =
+        sqlx::query_as("SELECT current_round, archived, deleted_at FROM tasks WHERE id = ?1")
             .bind(task_id)
             .fetch_optional(db)
             .await?;
-    let Some((current_round, archived)) = row else {
+    let Some((current_round, archived, deleted_at)) = row else {
         return Err(SessionError::TaskNotFound { task_id });
     };
+    // 回收站里的任务不排期：先恢复才能继续推进。
+    if deleted_at.is_some() {
+        return Err(SessionError::TaskDeleted { task_id });
+    }
     if archived != 0 {
         return Err(SessionError::TaskArchived { task_id });
     }

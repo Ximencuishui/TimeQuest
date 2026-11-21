@@ -52,6 +52,10 @@ export const api = {
     invoke<Task>("update_task", { id, payload }),
   archiveTask: (id: number, archived: boolean) =>
     invoke<void>("archive_task", { id, archived }),
+  deleteTask: (id: number) => invoke<void>("delete_task", { id }),
+  listDeletedTasks: () => invoke<Task[]>("list_deleted_tasks"),
+  restoreTask: (id: number) => invoke<void>("restore_task", { id }),
+  purgeTask: (id: number) => invoke<void>("purge_task", { id }),
   advanceRound: (id: number) => invoke<Task>("advance_round", { id }),
   taskProgress: (id: number) =>
     invoke<{ round_units: number; total_units_done: number }>("task_progress", {

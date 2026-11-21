@@ -27,6 +27,11 @@ pub enum SessionError {
     #[error("task {task_id} is archived and cannot be scheduled")]
     TaskArchived { task_id: i64 },
 
+    /// The task sits in the recycle bin (`tasks.deleted_at` is set).
+    /// It has to be restored before it can be scheduled again.
+    #[error("任务 {task_id} 已在回收站里，先恢复才能排期")]
+    TaskDeleted { task_id: i64 },
+
     #[error("task {task_id} not found")]
     TaskNotFound { task_id: i64 },
 

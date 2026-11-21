@@ -24,7 +24,8 @@ function loadExams(): ExamTarget[] {
   ];
 }
 
-export type TaskViewMode = "list" | "grid";
+/** 总计划页的视图：列表 / 网格 / 日历 / 甘特 / 鱼骨。 */
+export type TaskViewMode = "list" | "grid" | "calendar" | "gantt" | "fishbone";
 
 type UiState = {
   exams: ExamTarget[];

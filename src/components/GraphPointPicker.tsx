@@ -49,13 +49,27 @@ export function GraphPointPicker({
     [packsData],
   );
 
-  // 任务科目对得上就落在那个学科包上，对不上就落第一个能用的包。
+  // 只给任务本学科的学科包。数学任务不该能往里加物理考点：
+  // 先按学科名精确匹配，对不上再退一步做包含匹配（“数学必修” → “数学”）。
+  // 任务没有科目时不给图谱考点，先让用户把科目标上。
+  const wanted = (taskSubject ?? "").trim();
+  const scopedPacks = useMemo(() => {
+    if (!wanted) return [];
+    const exact = usablePacks.filter((pack) => pack.name.trim() === wanted);
+    if (exact.length > 0) return exact;
+    return usablePacks.filter(
+      (pack) =>
+        pack.name.trim().includes(wanted) || wanted.includes(pack.name.trim()),
+    );
+  }, [usablePacks, wanted]);
+
+  // 当前选中的学科必须还在范围内；换任务或换科目后自动落回本学科。
   useEffect(() => {
-    if (subject || usablePacks.length === 0) return;
-    const wanted = (taskSubject ?? "").trim();
-    const matched = usablePacks.find((pack) => pack.name.trim() === wanted);
-    setSubject((matched ?? usablePacks[0]).subject);
-  }, [usablePacks, subject, taskSubject]);
+    if (scopedPacks.length === 0) return;
+    if (scopedPacks.some((pack) => pack.subject === subject)) return;
+    const matched = scopedPacks.find((pack) => pack.name.trim() === wanted);
+    setSubject((matched ?? scopedPacks[0]).subject);
+  }, [scopedPacks, subject, wanted]);
 
   useEffect(() => {
     const timer = window.setTimeout(
@@ -73,8 +87,8 @@ export function GraphPointPicker({
   );
   const topics = useMemo(() => points.data ?? [], [points.data]);
   const pack = useMemo(
-    () => usablePacks.find((item) => item.subject === subject) ?? null,
-    [usablePacks, subject],
+    () => scopedPacks.find((item) => item.subject === subject) ?? null,
+    [scopedPacks, subject],
   );
   const taken = useMemo(() => new Set(takenTopicIds), [takenTopicIds]);
 
@@ -108,10 +122,20 @@ export function GraphPointPicker({
     );
   }
 
+  if (scopedPacks.length === 0) {
+    return (
+      <p className="text-xs text-ink-muted">
+        {wanted
+          ? `${wanted} 的知识点包还没下载，先去工具箱下载后再挑考点。`
+          : "这个任务没有科目，先给任务选个科目再挑考点。"}
+      </p>
+    );
+  }
+
   return (
     <div className="rounded-xl border border-white/10 bg-surface-3 p-2">
       <ul className="flex flex-wrap gap-1.5">
-        {usablePacks.map((item) => {
+        {scopedPacks.map((item) => {
           const active = item.subject === subject;
           return (
             <li key={item.subject}>

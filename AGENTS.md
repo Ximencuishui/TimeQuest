@@ -54,6 +54,10 @@
 | complete_allows_actual_units_above_planned_and_awards_full_xp | planned=3、actual=5：Ok 且 actual 不封顶为 3；XP 按 5 单位（72 而非 43）；不生成负数剩余场次；duration_min 按时段 60 | `src-tauri/tests/sessions_test.rs` |
 | zero_units_after_reschedule_does_not_unlock_comeback | 改期后 0 单位+高自评不解锁 comeback | `src-tauri/tests/achievements_test.rs` |
 | create_session_rejects_archived_task | 归档任务不可排期；非归档可创建 | `src-tauri/tests/sessions_test.rs` |
+| update_task_changes_only_the_given_fields | 只传标题时，科目/课本/总课数/总轮次保持原值 | `src-tauri/tests/task_update_test.rs` |
+| update_task_can_switch_subject | 换科目后 subject 写新值，课本不被顺带清掉 | `src-tauri/tests/task_update_test.rs` |
+| update_task_empty_textbook_clears_the_column | 课本传空串 → 库里落 NULL（清空课本），不是空串 | `src-tauri/tests/task_update_test.rs` |
+| update_task_trims_textbook_whitespace | 课本首尾空白 trim 后入库 | `src-tauri/tests/task_update_test.rs` |
 | create_session_defaults_round_to_task_current_round | 未传 round 跟 current_round；显式 round 不回退任务轮次 | `src-tauri/tests/sessions_test.rs` |
 | advance_round_increments_and_respects_total_rounds | 轮次 +1；达 total_rounds 后仍递增（无封顶） | `src-tauri/tests/sessions_test.rs` |
 | reschedule_done_session_fails | status=done 不可改期 | `src-tauri/tests/sessions_test.rs` |
@@ -189,6 +193,12 @@
 | task_grid_view_lights_four_of_ten_cells | `total_units=10`、`current_round_units=4`：10 个格子，4 个 `bg-orange-500`，其余 `bg-zinc-800`；头部有课本和轮次 | `src/pages/Tasks/__tests__/task_grid_view.test.tsx` |
 | task_grid_view_side_task_shows_icon_without_micro_grid | `type=side` 不渲染微观点阵，渲染 `side-task-icon` 和累计完成课数 | `src/pages/Tasks/__tests__/task_grid_view.test.tsx` |
 | task_grid_view_caps_cells_at_50 | `total_units=200` 只渲染 50 格，文案标明每格 4 课、已完成 8/200 | `src/pages/Tasks/__tests__/task_grid_view.test.tsx` |
+| task_detail_edit_prefills_the_form_and_saves_changed_fields | 详情页「编辑」预填原值；保存时 `update_task` 带 id + payload（标题/科目/课本/单位/总课数/总轮次） | `src/pages/Tasks/__tests__/task_edit.test.tsx` |
+| task_detail_edit_rejects_an_empty_title | 标题留空不提交：不调 `update_task`，弹窗不关，给必填提示 | `src/pages/Tasks/__tests__/task_edit.test.tsx` |
+| task_detail_edit_does_not_offer_the_main_side_switch | 编辑时不出现主线 / 副本切换（后端 update_task 不接受类型字段） | `src/pages/Tasks/__tests__/task_edit.test.tsx` |
+| archived_task_is_hidden_until_the_switch_is_on | 归档任务默认不显示；打开「显示已归档任务」才出现「已归档」分组 | `src/pages/Tasks/__tests__/task_archived_list.test.tsx` |
+| archived_task_can_be_restored_from_the_archived_group | 归档分组里点「恢复」调 `archive_task { archived: false }`；归档任务不进知识点抽屉 | `src/pages/Tasks/__tests__/task_archived_list.test.tsx` |
+| archived_task_is_listed_only_when_include_archived_is_requested | `list_tasks` 的 `includeArchived` 随开关切换：关 false / 开 true | `src/pages/Tasks/__tests__/task_archived_list.test.tsx` |
 | daily_units_sum_done_sessions_and_ignore_logs | 同日多场 `done` 的 `actual_units` 相加；planned / missed 与 `actual_logs` 不进合计；区间外不计 | `src-tauri/tests/stats_test.rs` |
 | accumulation_wall_colors_match_unit_buckets | 7 天单位 0/1/3/4/6/7/12 分别是 zinc-800、orange-900、orange-900、orange-600、orange-600、orange-400、orange-400；title 含日期和完成数；今天 `data-today="true"` 且 `ring-orange-500`；左侧有 Mon/Wed/Fri | `src/components/__tests__/accumulation_wall.test.tsx` |
 | accumulation_wall_zero_units_is_zinc_800 | 显式 0 与窗口内缺记录的日期都是 `bg-zinc-800`，title 为「完成 0」；今天边框 `ring-zinc-500`；最近 7 天为 0 时出现「开始第一课」链接 | `src/components/__tests__/accumulation_wall.test.tsx` |
@@ -511,11 +521,14 @@
 | graph_points_survive_export_import | 导出再导入，图谱 id 不丢 | `src-tauri/tests/task_graph_points_test.rs` |
 | old_backup_without_graph_fields_imports_as_null | 老备份没图谱字段，导入后留空且不报错 | `src-tauri/tests/task_graph_points_test.rs` |
 | graph_point_picker_lands_on_the_subject_matching_the_task | 选择器按任务科目落到对应学科包 | `src/components/__tests__/graph_point_picker.test.tsx` |
-| graph_point_picker_only_offers_packs_that_are_ready_to_use | 没下载的学科包不进选择器 | `src/components/__tests__/graph_point_picker.test.tsx` |
+| graph_point_picker_only_offers_packs_that_are_ready_to_use | 没下载的学科包不进选择器；数学任务里不出现物理的学科包 | `src/components/__tests__/graph_point_picker.test.tsx` |
 | graph_point_picker_adds_a_topic_with_the_upstream_id | 选中的考点带着上游 id 入库 | `src/components/__tests__/graph_point_picker.test.tsx` |
 | graph_point_picker_marks_a_topic_that_is_already_added | 已加过的考点显示「已添加」且不可点 | `src/components/__tests__/graph_point_picker.test.tsx` |
 | graph_point_picker_reports_a_failed_add | 加入失败只报错误 | `src/components/__tests__/graph_point_picker.test.tsx` |
 | graph_point_badge_marks_only_the_points_came_from_the_graph | 只有图谱考点带「图谱」徽标 | `src/components/__tests__/graph_point_picker.test.tsx` |
+| graph_point_picker_matches_a_long_subject_name_to_its_pack | 科目名比学科包名更长（数学必修）也能落到数学包 | `src/components/__tests__/graph_point_picker.test.tsx` |
+| graph_point_picker_says_so_when_the_subject_pack_is_not_downloaded | 本学科包没下载时给「先去工具箱下载」的空态文案 | `src/components/__tests__/graph_point_picker.test.tsx` |
+| graph_point_picker_asks_for_a_subject_when_the_task_has_none | 任务没有科目时不给任何学科包，并提示先给任务选科目 | `src/components/__tests__/graph_point_picker.test.tsx` |
 | order_swapped_conflict_is_reported | 同任务内先修考点排在后面要报出来 | `src-tauri/tests/prerequisite_conflicts_test.rs` |
 | prerequisite_before_dependent_is_not_a_conflict | 先修排在前面就不报 | `src-tauri/tests/prerequisite_conflicts_test.rs` |
 | incomplete_prerequisite_task_is_reported | 先修在另一个任务没学完、这边先开课要报 | `src-tauri/tests/prerequisite_conflicts_test.rs` |
@@ -559,6 +572,59 @@
 | envelope_topics_keep_mastery_criteria_and_diagnostic_question | 内置包 / 下载缓存的信封格式（camelCase 字段）同样不丢掌握标准与诊断题 | `src-tauri/tests/knowledge_graph_test.rs` |
 | a_pack_needs_both_files_to_count_as_downloaded | 学科包缓存两个文件齐了才算「已下载」，缺一个不算 | `src-tauri/tests/knowledge_graph_test.rs` |
 | slicing_the_builtin_pack_matches_the_manifest_count | 切片结果与清单承诺的点数对得上 | `src-tauri/tests/knowledge_graph_test.rs` |
+| layout_groups_navigation_into_plan_review_tools_and_settings | 侧边栏四个分组标题可见：计划 / 复盘 / 工具 / 设置 | `src/components/__tests__/layout_nav_groups.test.tsx` |
+| layout_renames_and_reorders_the_navigation_entries | 8 个入口顺序与文案为 总计划 / 今日任务 / 统计 / 成绩 / 看板 / 便签 / 工具箱 / 设置；href 全部不变；旧文案「任务」消失 | `src/components/__tests__/layout_nav_groups.test.tsx` |
+| layout_marks_the_current_page_in_the_navigation | 当前页项带 `bg-accent/15` 选中态，且只有一个 | `src/components/__tests__/layout_nav_groups.test.tsx` |
+| plan_filter_bar_shows_subject_textbook_and_round_tags | 学科 / 课本 / 轮次标签都渲染，轮次文案「第N轮」；组件里不出现 checkbox | `src/components/__tests__/plan_filter_bar.test.tsx` |
+| plan_filter_bar_toggles_a_tag_on_and_off | 点标签回调带上该维度的值 | `src/components/__tests__/plan_filter_bar.test.tsx` |
+| plan_filter_bar_marks_the_selected_tags | 选中标签 `aria-pressed="true"`，未选中为 `false` | `src/components/__tests__/plan_filter_bar.test.tsx` |
+| plan_filter_bar_reports_the_hit_count_and_clears | 显示「命中 N / M 个任务」；「清空筛选」回调空筛选 | `src/components/__tests__/plan_filter_bar.test.tsx` |
+| plan_tags_collect_subject_textbook_and_rounds | 标签取任务的学科 / 课本；轮次取 max(任务总轮次, 排期里出现过的最大轮次) | `src/lib/__tests__/planViews.test.ts` |
+| plan_round_matches_a_session_or_the_current_round | `current_round` 命中，或该轮有排期，都算命中 | `src/lib/__tests__/planViews.test.ts` |
+| plan_filter_combines_dimensions_with_and_semantics | 同一维度多选取并集，跨维度取交集 | `src/lib/__tests__/planViews.test.ts` |
+| plan_toggle_filter_value_adds_then_removes | 再点一次取消该值 | `src/lib/__tests__/planViews.test.ts` |
+| plan_sessions_of_tasks_keeps_only_the_kept_tasks | 只留下属于命中任务的排期 | `src/lib/__tests__/planViews.test.ts` |
+| plan_gantt_merges_consecutive_days_and_splits_gaps | 同日合并、相邻日接成一段、中间断档就断开 | `src/lib/__tests__/planViews.test.ts` |
+| plan_gantt_bounds_cover_today_and_every_session | 横轴范围覆盖今天与所有排期，前后各留 3 天 | `src/lib/__tests__/planViews.test.ts` |
+| plan_fishbone_groups_by_subject_then_textbook | 学科 → 课本 → 任务三级分组，任务多的学科排前面 | `src/lib/__tests__/planViews.test.ts` |
+| plan_fishbone_falls_back_to_unlabeled_groups | 无学科 / 课本时落「未分科」「未指定课本」 | `src/lib/__tests__/planViews.test.ts` |
+| tasks_page_switches_between_the_five_plan_views | 列表 / 网格 / 日历 / 甘特 / 鱼骨五视图互切，标题为「总计划」 | `src/pages/Tasks/__tests__/plan_views.test.tsx` |
+| tasks_page_filter_narrows_the_task_list | 点学科标签后列表只剩该学科，并显示命中数 | `src/pages/Tasks/__tests__/plan_views.test.tsx` |
+| tasks_page_round_filter_keeps_only_the_matching_tasks | 选轮次后只留该轮任务 | `src/pages/Tasks/__tests__/plan_views.test.tsx` |
+| delete_task_marks_the_task_deleted_and_keeps_everything_else | 删除只写 deleted_at；任务 / 排期 / 流水 / 考点一行不少 | `src-tauri/tests/task_delete_test.rs` |
+| deleted_task_is_hidden_from_the_plan_list_but_shown_in_the_trash | 回收站里的任务不进 list_tasks（含归档视图），但 list_deleted_tasks 能拿到 | `src-tauri/tests/task_delete_test.rs` |
+| deleted_task_sessions_are_hidden_from_the_day_view | 删掉的任务排期不出现在日期区间查询里，库里的数据仍在 | `src-tauri/tests/task_delete_test.rs` |
+| restore_task_brings_the_task_and_its_sessions_back | 恢复后任务回计划、排期原样回来、回收站清空 | `src-tauri/tests/task_delete_test.rs` |
+| restore_task_keeps_the_archived_flag_it_had | 恢复的是删除前的状态：原本搁置的仍然搁置 | `src-tauri/tests/task_delete_test.rs` |
+| delete_task_keeps_other_tasks_untouched | 删 A 不动 B：别的任务、排期、流水一行不少 | `src-tauri/tests/task_delete_test.rs` |
+| delete_task_rejects_an_unknown_id | 删不存在的 id 返回含「不存在」的 Err，库一行没动 | `src-tauri/tests/task_delete_test.rs` |
+| delete_task_rejects_a_task_that_is_already_in_the_trash | 重复删除返回含「回收站」的 Err | `src-tauri/tests/task_delete_test.rs` |
+| restore_task_rejects_a_task_that_is_not_in_the_trash | 没删过的任务不能恢复，返回含「回收站」的 Err | `src-tauri/tests/task_delete_test.rs` |
+| delete_task_does_not_roll_back_xp | 删除不动 user_stats.total_xp（历史不回退） | `src-tauri/tests/task_delete_test.rs` |
+| deleted_task_cannot_be_scheduled | 回收站里的任务排期被拒（TaskDeleted），且不落库 | `src-tauri/tests/task_delete_test.rs` |
+| export_round_trip_preserves_the_recycle_bin_state | 导出再导入：deleted_at 原样带回，回收站任务不会「活」 | `src-tauri/tests/export_import_test.rs` |
+| purge_task_removes_the_task_and_everything_hanging_off_it | 彻底清除后任务 / 排期 / 流水 / 考点一行不剩 | `src-tauri/tests/task_delete_test.rs` |
+| purge_task_rejects_a_task_that_is_not_in_the_trash | 计划里的任务不能直接清除，返回含「回收站」的 Err | `src-tauri/tests/task_delete_test.rs` |
+| purge_task_rejects_an_unknown_id | 清除不存在的 id 返回含「不存在」的 Err | `src-tauri/tests/task_delete_test.rs` |
+| purge_task_keeps_other_tasks_untouched | 清除 A 不动 B：别的任务、排期、流水一行不少 | `src-tauri/tests/task_delete_test.rs` |
+| purge_task_unlinks_rescheduled_sessions_before_removing_them | 自引用排期先断 rescheduled_to 再删，不会被外键拦下 | `src-tauri/tests/task_delete_test.rs` |
+| purge_task_unlinks_other_tasks_sessions_that_point_into_it | 跨任务引用必须断开：去掉断开语句这个用例会 FK failed（变异测试验证过） | `src-tauri/tests/task_delete_test.rs` |
+| purge_task_does_not_roll_back_xp_or_streak | 彻底清除也不回退 XP / 连击 / 最长连击（历史不回退） | `src-tauri/tests/task_delete_test.rs` |
+| deleted_task_cannot_be_fetched_by_id | 回收站里的任务按 id 查不到（详情页不可达） | `src-tauri/tests/task_delete_test.rs` |
+| deleted_task_cannot_be_archived | 回收站里的任务不能改归档位 | `src-tauri/tests/task_delete_test.rs` |
+| deleted_task_cannot_advance_its_round | 回收站里的任务不能推进轮次（TaskDeleted） | `src-tauri/tests/task_delete_test.rs` |
+| task_detail_offers_edit_shelve_and_delete | 详情页动作区有「编辑」「搁置」「删除」三个入口 | `src/pages/Tasks/__tests__/task_delete.test.tsx` |
+| task_detail_shelve_archives_the_task | 点「搁置」调 `archive_task { archived: true }` | `src/pages/Tasks/__tests__/task_delete.test.tsx` |
+| task_detail_delete_asks_for_confirmation_first | 点「删除」先弹确认框（写明能找回），取消则不调 delete_task | `src/pages/Tasks/__tests__/task_delete.test.tsx` |
+| task_detail_delete_moves_the_task_to_the_trash_and_returns_to_the_list | 确认后调 `delete_task { id }` 并跳回总计划列表 | `src/pages/Tasks/__tests__/task_delete.test.tsx` |
+| knowledge_drawer_also_offers_shelve_and_delete | 知识点抽屉里同样有「搁置」「删除」和「打开任务详情」 | `src/pages/Tasks/__tests__/task_delete.test.tsx` |
+| recycle_bin_stays_closed_until_the_toggle_is_opened | 「回收站」开关关着时不渲染；打开后列出已删除任务和删除时间 | `src/pages/Tasks/__tests__/recycle_bin.test.tsx` |
+| recycle_bin_restores_a_deleted_task | 点「恢复」调 `restore_task { id }` 并提示已找回 | `src/pages/Tasks/__tests__/recycle_bin.test.tsx` |
+| recycle_bin_shows_an_empty_state_when_nothing_was_deleted | 回收站空时显示空态文案，没有「恢复」按钮 | `src/pages/Tasks/__tests__/recycle_bin.test.tsx` |
+| recycle_bin_asks_for_confirmation_before_purging | 点「彻底清除」先弹确认框（写明无法恢复），取消则不调 purge_task | `src/pages/Tasks/__tests__/recycle_bin.test.tsx` |
+| recycle_bin_purge_removes_the_task_for_good | 确认后调 `purge_task { id }` | `src/pages/Tasks/__tests__/recycle_bin.test.tsx` |
+| recycle_bin_invalidates_the_plan_sessions_cache | 恢复/清除后必须失效 `sessions-range`（总计划页日历/甘特的数据源） | `src/pages/Tasks/__tests__/recycle_bin.test.tsx` |
+| recycle_bin_shows_an_error_when_the_restore_fails | 恢复失败要有可见错误（`role="alert"`），不能静默 | `src/pages/Tasks/__tests__/recycle_bin.test.tsx` |
 
 ## 已知实现约束
 
@@ -768,12 +834,25 @@
 - **TaskCard（列表）**：读 `list_tasks` 内嵌 SQL 的 `actual_units_sum`（与 `task_progress.round_units` 同过滤口径，一次查询无 N+1），不是对 sessions 客户端求和；未另写 `task_list_card_reads_task_progress_not_raw_sessions`。
 - **与 `first_round`**：环看 `tasks.current_round`；成就看完成当场 `session.round`——口径差异保持不变。
 
-### 任务页视图
+### 侧边栏分组导航
 
-- **模式**：`useUiStore.taskView` 为 `"list" | "grid"`，默认 `"list"`。只放在内存里，不写 `localStorage`。顶部是列表 / 网格两个图标按钮（`aria-label` 为「列表视图」「网格视图」）。
+- **分组顺序就是核心流程心智**：📌 计划（总计划 / 今日任务）→ 📊 复盘（统计 / 成绩）→ 🧩 工具（看板 / 便签 / 工具箱）→ ⚙️ 设置（设置）。看板不再当第一入口，落在工具组首位，路由 `/` 不变。
+- **路由零改动**：分组只改展示结构、文字名称与排序，`/tasks`、`/today`、`/stats`、`/scores`、`/`、`/notes`、`/toolbox`、`/settings` 全部保留，`App.tsx` 不动。
+- **分组标题弱化**：`text-[11px] text-ink-muted/70` 加一个 emoji，不抢子项的视线。子项沿用 `bg-accent/15 text-accent-soft` 选中态，额外画一条 2px accent 竖条（`absolute left-0`），当前页一眼可见。
+- **图标**：新增 8 个线性描边 SVG（`viewBox 0 0 24 24`、`stroke="currentColor"`、`strokeWidth 1.8`），和 `Tasks` 页原有的列表 / 网格图标同一画法，深色主题下与全局统一。
+- **窄屏**：底部 `MOBILE_NAV` 压平成同一套顺序（总计划 / 今日 / 统计 / 成绩 / 看板 / 便签 / 工具箱 / 设置）。
+- 由 `layout_groups_navigation_into_plan_review_tools_and_settings` / `layout_renames_and_reorders_the_navigation_entries` / `layout_marks_the_current_page_in_the_navigation` 锁定。
+
+### 总计划页视图与筛选
+
+- **模式**：`useUiStore.taskView` 为 `"list" | "grid" | "calendar" | "gantt" | "fishbone"`，默认 `"list"`。只放在内存里，不写 `localStorage`。顶部是五个图标按钮（`aria-label` 为「列表视图」「网格视图」「日历视图」「甘特视图」「鱼骨视图」）。
 - **列表**：`TaskListView` 承接原来的主线 / 副本分组和卡片，类名与空态文案不变。
 - **网格**：`TaskGridView` 接收页面已经拿到的 `tasks`，自己不再调用 `useTasks`。主线按 `total_units` 画微观点阵，点亮数读 `current_round_units`，没有该字段时用 `list_tasks` 的 `actual_units_sum`（当前轮 `sum(actual_units)`）。超过 50 课时时格子数封顶 50，每格代表 `ceil(total/50)` 课，末格不足时文案写明。副本不画点阵，用无限符号图标，旁边是累计完成的课数。卡片 hover 上浮。点亮格统一 `bg-orange-500`，任务色留在卡片左边。
-- **请求**：`useTasks(false)` 留在 `Tasks` 页面。切换只换子组件，查询观察者不卸载，所以不会再打 `list_tasks`。由 `task_view_toggle_unmounts_list_and_skips_refetch` / `task_grid_view_lights_four_of_ten_cells` / `task_grid_view_side_task_shows_icon_without_micro_grid` / `task_grid_view_caps_cells_at_50` 锁定。
+- **日历 / 甘特 / 鱼骨**：三个新视图只读，不提供新建排期。排期用 `useSessionsInRange("2000-01-01", "2099-12-31")` 一次拉全量，再按筛选后的任务 id 过滤，避免 N+1。归档任务不进这三个视图（列表 / 网格仍保留「已归档」分组与恢复入口）。
+- **筛选**：`PlanFilterBar` 给学科 / 课本 / 轮次三个维度，每个维度内部多选（并集），跨维度取交集。轮次标签文案「第N轮」，命中条件是 `current_round === round` 或该任务有 `round === round` 的排期（只看 `current_round` 会漏掉「上一轮排完、下一轮没排」的空档期）。
+- **筛选控件用 `button[aria-pressed]`，不是 checkbox**：全局 checkbox 数量被 `textbook_import.test.tsx` 钉着，多一个 checkbox 就会打破既有契约。
+- **布局算法下沉**：`src/lib/planViews.ts` 是纯函数（标签收集、轮次匹配、过滤、甘特分段与坐标比例、鱼骨布局坐标），组件只负责画，和 `lib/roadmap.ts`、`lib/prerequisiteGraph.ts` 同一范式。
+- **请求**：`useTasks(false)` 留在 `Tasks` 页面。切换只换子组件，查询观察者不卸载，所以不会再打 `list_tasks`。由 `task_view_toggle_unmounts_list_and_skips_refetch` / `task_grid_view_lights_four_of_ten_cells` / `task_grid_view_side_task_shows_icon_without_micro_grid` / `task_grid_view_caps_cells_at_50` / `tasks_page_switches_between_the_five_plan_views` / `tasks_page_filter_narrows_the_task_list` / `tasks_page_round_filter_keeps_only_the_matching_tasks` 锁定。
 
 ### 积累墙
 
@@ -1059,6 +1138,48 @@
 - **接口多了两个可选参数**：`add_custom_knowledge_point` 收 `graphTopicId` / `graphSubject`，前端没给图谱来源时传 `null`（不是空串）。Rust 侧保留 4 参数的 `add_custom_knowledge_point_impl` 不动，图谱那条走 `add_graph_knowledge_point_impl`。
 - **图谱考点的节名用学科名**（如「数学」），和教材的「第一章 有理数」这类节各占各的，互不干扰。
 - 由 `graph_point_carries_the_upstream_topic_id` / `custom_point_has_no_graph_topic_id` / `graph_topic_cannot_be_added_twice_to_one_task` / `same_graph_topic_can_join_another_task` / `graph_points_survive_export_import` / `old_backup_without_graph_fields_imports_as_null` / `graph_point_picker_*` 锁定。
+
+### 任务编辑与归档闭环
+
+- **编辑入口在任务详情页**：动作区第一个按钮是「编辑」，打开共用的 `TaskFormModal`（`mode="edit"`）。新建与编辑共用一套表单组件，任务页不再内联第二份表单。
+- **编辑时不能改任务类型**：主线 / 副本切换在编辑模式里隐藏，后端 `UpdateTaskPayload` 也没有 `type` 字段。
+- **编辑时换科目只清课本**：换科目会把课本清空（`textbook` 置空串 → 落库 NULL），但不顺带改总课数，避免冲掉已跑的进度。总课数 / 总轮次本身在编辑里可改并写库。
+- **「搁置」= 归档**：走 `archive_task { archived: true }`，可逆。归档后任务默认不在 `list_tasks` 结果里（`include_archived=false`）。**删除**是另一条命令 `delete_task`，它是「移入回收站」，见「任务删除 = 回收站」。
+- **归档任务的可见性靠开关**：任务页顶部是「显示已归档任务」按钮，用 `aria-pressed` 而不是 checkbox——全局 checkbox 计数被别的测试当契约钉着。打开后 `list_tasks` 带 `includeArchived: true`，列表 / 网格都多一个「已归档」分组，里面只留「查看详情」和「恢复」。
+- **恢复 = 反向归档**：`archive_task { archived: false }`。
+- **归档任务不能排期**，也不能打开知识点抽屉；`create_session` 拒绝归档任务。
+- **空串 = 清空**：`subject` / `textbook` 传空串表示清空该列（落库 NULL），非空值先 trim 再存。
+- 由 `task_detail_edit_*` / `archived_task_*` / `update_task_changes_only_the_given_fields` / `update_task_can_switch_subject` / `update_task_empty_textbook_clears_the_column` / `update_task_trims_textbook_whitespace` 锁定。
+
+### 任务删除 = 回收站（可找回）+ 彻底清除
+
+- **四个词各管一件事**：**编辑** = 改任务内容；**搁置**（冻结 / 暂停）= `archive_task`，任务留在原位、可逆；**删除** = 移入回收站，用户随时能找回来；**彻底清除** = 在回收站里物理抹掉。旧文档里「删除 = 归档」的说法同样废止。
+- **删除 = 打标记，不删数据**：`tasks.deleted_at` 写上本地时间戳即算删除。任务、排期、流水、考点一行不动，靠查询侧过滤掉。迁移文件 `20261121100000_add_task_deleted_at.sql`；旧库由 `db.rs` 的 bootstrap 幂等补列。
+- **过滤点只有两处**：`list_tasks`（两个分支都加 `deleted_at IS NULL`，连归档视图也不返回回收站任务）与会话查询的 JOIN 条件（`SESSION_JOIN_SQL` / `SESSION_SELECT` 加 `AND t.deleted_at IS NULL`）→ 删掉的任务不再出现在今天的安排里。统计 SQL 不带这个条件，历史时长、连击、成就不受影响。
+- **恢复 = 清标记**：`restore_task` 把 `deleted_at` 置 NULL。任务回到删除前的位置（原本是搁置状态就仍然是搁置状态），排期原样回来。
+- **回收站入口在总计划页**：「回收站」开关（`aria-pressed`）→ `src/components/RecycleBin.tsx` 列出 `list_deleted_tasks` 的结果，每行一个「恢复」按钮，恢复后 toast 提示「已找回来了」。
+- **入口在同一处**：详情页和知识点抽屉共用 `src/components/TaskActionBar.tsx`，三个按钮「编辑」「搁置」「删除」。抽屉底部链接文案是「打开任务详情」。
+- **确认框要讲清能找回**：标题「把任务移到回收站？」，正文写明「排期和学习记录都留着，之后可以在总计划页的「回收站」里随时找回来」，确认按钮写「移到回收站」而不是「确认删除」；取消不写库，失败时弹窗不关，错误写在 `role="alert"` 里。
+- **回收站里的任务不能排期**：`create_session` / `generate_week_plan` 查 `deleted_at`，非空返回 `SessionError::TaskDeleted`。
+- **导出/导入带上回收站状态**：`export_json` 的 tasks 里含 `deleted_at`，导入时原样写回（旧备份没有这个字段按 NULL 处理）。
+- **历史不回退**：删除不动 `user_stats` 的 XP / 连击 / 成就。学过的就是学过的，删任务不改写历史。
+- **删除后前端要失效的缓存**：`tasks` / `task` / `task-progress` / `task-knowledge-points` / `sessions` / `sessions-range` / `sessions-task` / `stats`，并广播 `broadcastSessionUpdated()` 给桌面悬浮窗。`sessions-range` 不能漏：总计划页的日历/甘特视图靠它，而 React Query 的前缀匹配要求第 0 个元素严格相等，`["sessions"]` 命中不了 `["sessions-range"]`，漏了恢复/清除后排期会停在旧数据上。
+- **回收站里的任务一律当不存在**：`get_task` / `task_progress` 查不到（当作不存在）；`archive_task` 加 `AND deleted_at IS NULL`；`advance_round` 返回 `SessionError::TaskDeleted`；`create_session` / `generate_week_plan` 同样返回 `TaskDeleted`。知识点面板的「下一场排期」也按 `deleted_at IS NULL` 过滤。
+- **两个「恢复」不能叫一个名字**：回收站里的是「恢复」（把任务找回来），归档里的是「取消搁置」（把搁置的任务放回计划）。两个入口在同一个页面上，名字必须区分。
+- **统计口径有意不同**：统计 SQL 刻意不过滤 `deleted_at`（历史不回退），所以「计划 vs 实际」里的计划分钟仍含回收站任务的排期，与总计划页的可见性口径不一致——这是有意的取舍，不是漏过滤。
+- **彻底清除 = 物理删除**：命令 `purge_task`，只接受回收站里的任务；按外键顺序删——先把指向本任务排期的 `rescheduled_to` 置 NULL（自引用，含别的任务指向本任务的），再删 `actual_logs`，再删 `task_sessions`，最后删 `tasks`；`task_knowledge_points` 是 `ON DELETE CASCADE`，跟着任务走。整个过程在一个事务里。
+- **不在回收站就不能清除**：计划里的任务调 `purge_task` 返回含「回收站」的 Err，一行不删。要清除必须先 `delete_task`。
+- **彻底清除不动 XP**：`user_stats` 的 XP / 连击 / 成就不动（它们是全局的，不属于某个任务）；但学习流水被删了，统计里的时长会跟着变少。
+- **前端要二次确认**：回收站每行一个「彻底清除」按钮 → 弹窗标题「彻底删除这个任务？」，正文写明「排期、学习记录和考点都会一起删掉，无法恢复」，并提醒「只是想从计划里消失的话，用「恢复」就够」；确认按钮写「彻底删除」，取消不写库，失败时弹窗不关、错误写在 `role="alert"` 里。
+- 由 `delete_task_*` / `restore_task_*` / `purge_task_*` / `deleted_task_*` / `task_detail_*` / `recycle_bin_*` / `knowledge_drawer_also_offers_shelve_and_delete` 锁定。
+
+### 图谱考点的学科收口
+
+- **考点选择器只给任务本学科的学科包**：`GraphPointPicker` 用 `taskSubject` 在可用学科包里匹配（先全等，再互相包含），只渲染命中的一组 tab。数学任务里不再出现「物理 269」的切换按钮——那几个胶囊是**知识图谱的学科包切换器**，不是任务的分类。
+- **任务没有科目就不给图谱考点**：科目为空时学科包列表为空，并提示「这个任务没有科目，先给任务选个科目再挑考点」。
+- **本学科包没下载也给提示**：提示「XX 的知识点包还没下载，先去工具箱下载后再挑考点。」，而不是静默空列表。
+- **只在前端收口**：后端 `add_graph_knowledge_point_impl` 不校验学科一致性，历史数据里已有的跨学科考点照常显示，只是不能再新增。
+- 由 `graph_point_picker_only_offers_packs_that_are_ready_to_use` / `graph_point_picker_matches_a_long_subject_name_to_its_pack` / `graph_point_picker_says_so_when_the_subject_pack_is_not_downloaded` / `graph_point_picker_asks_for_a_subject_when_the_task_has_none` 锁定。
 
 ## 待处理技术债
 

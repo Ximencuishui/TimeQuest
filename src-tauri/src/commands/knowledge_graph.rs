@@ -960,6 +960,7 @@ async fn task_progress_rows(db: &SqlitePool) -> Result<HashMap<i64, TaskProgress
                 MIN(CASE WHEN s.status = 'planned' THEN s.date END) AS next_session_date
          FROM tasks t
          LEFT JOIN task_sessions s ON s.task_id = t.id
+         WHERE t.deleted_at IS NULL
          GROUP BY t.id",
     )
     .fetch_all(db)

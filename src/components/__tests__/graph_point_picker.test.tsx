@@ -71,7 +71,7 @@ function renderPicker(props: { taskSubject?: string | null; takenTopicIds?: stri
     <QueryClientProvider client={client}>
       <GraphPointPicker
         taskId={4}
-        taskSubject={props.taskSubject ?? "数学"}
+        taskSubject={props.taskSubject === undefined ? "数学" : props.taskSubject}
         takenTopicIds={props.takenTopicIds ?? []}
       />
     </QueryClientProvider>,
@@ -115,9 +115,34 @@ describe("GraphPointPicker", () => {
     renderPicker();
 
     expect(await screen.findByRole("button", { name: /数学 870/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /物理 269/ })).toBeInTheDocument();
     // 英语还没下载，里面没有数据，不该出现在选择器里。
     expect(screen.queryByRole("button", { name: /英语 791/ })).not.toBeInTheDocument();
+    // 只给任务本学科的包：数学任务里不该出现物理的学科包。
+    expect(screen.queryByRole("button", { name: /物理 269/ })).not.toBeInTheDocument();
+  });
+
+  it("graph_point_picker_matches_a_long_subject_name_to_its_pack", async () => {
+    renderPicker({ taskSubject: "数学必修" });
+
+    expect(await screen.findByRole("button", { name: /数学 870/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /物理 269/ })).not.toBeInTheDocument();
+  });
+
+  it("graph_point_picker_says_so_when_the_subject_pack_is_not_downloaded", async () => {
+    renderPicker({ taskSubject: "英语" });
+
+    expect(
+      await screen.findByText("英语 的知识点包还没下载，先去工具箱下载后再挑考点。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /英语 791/ })).not.toBeInTheDocument();
+  });
+
+  it("graph_point_picker_asks_for_a_subject_when_the_task_has_none", async () => {
+    renderPicker({ taskSubject: null });
+
+    expect(
+      await screen.findByText("这个任务没有科目，先给任务选个科目再挑考点。"),
+    ).toBeInTheDocument();
   });
 
   it("graph_point_picker_adds_a_topic_with_the_upstream_id", async () => {

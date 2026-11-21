@@ -221,6 +221,10 @@ fn migrate(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
 
+    // 旧库补 deleted_at：sqlx 迁移已经加过列时这条会报「duplicate column」，
+    // 忽略即可（列本来就存在，bootstrap 幂等）。
+    let _ = conn.execute("ALTER TABLE tasks ADD COLUMN deleted_at TEXT", []);
+
     conn.execute_batch(
         r#"
         INSERT OR IGNORE INTO user_stats (id) VALUES (1);

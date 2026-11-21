@@ -53,17 +53,25 @@ function scaleLabel(layout: MicroGridLayout, unitName: string): string {
 export function TaskGridView({
   tasks,
   onOpenKnowledge,
+  onUnarchive
 }: {
   tasks: GridTask[];
   onOpenKnowledge?: (task: GridTask) => void;
+  /** 归档任务上的「取消搁置」入口。 */
+  onUnarchive?: (task: GridTask) => void;
 }) {
-  const main = useMemo(() => tasks.filter((t) => t.type === "main"), [tasks]);
-  const side = useMemo(() => tasks.filter((t) => t.type === "side"), [tasks]);
+  const active = useMemo(() => tasks.filter((t) => !t.archived), [tasks]);
+  const archived = useMemo(() => tasks.filter((t) => t.archived), [tasks]);
+  const main = useMemo(() => active.filter((t) => t.type === "main"), [active]);
+  const side = useMemo(() => active.filter((t) => t.type === "side"), [active]);
 
   return (
     <div data-testid="task-grid-view" className="space-y-8">
       <TaskGroup title="主线" items={main} empty="暂无主线任务" onOpenKnowledge={onOpenKnowledge} />
       <TaskGroup title="副本" items={side} empty="暂无副本任务" />
+      {archived.length > 0 ? (
+        <TaskGroup title="已归档" items={archived} empty="暂无已归档任务" onUnarchive={onUnarchive} />
+      ) : null}
     </div>
   );
 }
@@ -73,11 +81,13 @@ function TaskGroup({
   items,
   empty,
   onOpenKnowledge,
+  onUnarchive
 }: {
   title: string;
   items: GridTask[];
   empty: string;
   onOpenKnowledge?: (task: GridTask) => void;
+  onUnarchive?: (task: GridTask) => void;
 }) {
   return (
     <section>
@@ -87,7 +97,9 @@ function TaskGroup({
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
           {items.map((task) =>
-            task.type === "side" ? (
+            task.archived ? (
+              <ArchivedCard key={task.id} task={task} onUnarchive={onUnarchive} />
+            ) : task.type === "side" ? (
               <SideCard key={task.id} task={task} />
             ) : (
               <MainCard key={task.id} task={task} onOpenKnowledge={onOpenKnowledge} />
@@ -96,6 +108,39 @@ function TaskGroup({
         </div>
       )}
     </section>
+  );
+}
+
+/** 归档任务：只留查看详情和取消搁置两个动作，不进知识点抽屉。 */
+function ArchivedCard({
+  task,
+  onUnarchive
+}: {
+  task: GridTask;
+  onUnarchive?: (task: GridTask) => void;
+}) {
+  return (
+    <div
+      className="rounded-xl border border-white/5 bg-surface-2/90 p-4"
+      style={{ borderLeftWidth: 3, borderLeftColor: task.color || "#F97316" }}
+    >
+      <CardHeader task={task} />
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <Link to={`/tasks/${task.id}`} className="text-xs text-accent-soft hover:underline">
+          查看详情
+        </Link>
+        {onUnarchive ? (
+          <button
+            type="button"
+            aria-label={`取消搁置 ${task.title}`}
+            className="rounded-lg border border-white/15 px-2.5 py-1 text-xs text-ink-muted hover:bg-white/5"
+            onClick={() => onUnarchive(task)}
+          >
+            取消搁置
+          </button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

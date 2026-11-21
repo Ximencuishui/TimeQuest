@@ -15,6 +15,9 @@ pub struct Task {
     pub color: Option<String>,
     pub archived: i64,
     pub created_at: String,
+    /// 移入回收站的时间戳。`None` = 任务还在计划里；
+    /// `Some` = 已删除，用户可以在回收站里随时找回。
+    pub deleted_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actual_units_sum: Option<i64>,
 }

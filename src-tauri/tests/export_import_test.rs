@@ -1998,3 +1998,40 @@ async fn export_import_round_trip_preserves_task_knowledge_points() {
 
     let _ = std::fs::remove_file(&path);
 }
+
+#[tokio::test]
+async fn export_round_trip_preserves_the_recycle_bin_state() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    conn.execute(
+        "INSERT INTO tasks (id, title, type, unit_name, total_rounds, current_round)
+         VALUES (1, '数学必修一', 'main', '课', 1, 1)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO tasks (id, title, type, unit_name, total_rounds, current_round, deleted_at)
+         VALUES (2, '化学选修二', 'main', '课', 1, 1, '2026-11-20 21:30:00')",
+        [],
+    )
+    .unwrap();
+
+    let json = export_json_impl(&conn).expect("export");
+    import_json_impl(&conn, &json).expect("import");
+
+    let alive: Option<String> = conn
+        .query_row("SELECT deleted_at FROM tasks WHERE id = 1", [], |r| r.get(0))
+        .unwrap();
+    assert!(alive.is_none(), "没删过的任务导入后仍然在计划里");
+
+    let trashed: Option<String> = conn
+        .query_row("SELECT deleted_at FROM tasks WHERE id = 2", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(
+        trashed.as_deref(),
+        Some("2026-11-20 21:30:00"),
+        "回收站状态要跟着备份走，否则导入后任务就「活」了"
+    );
+
+    let _ = std::fs::remove_file(&path);
+}

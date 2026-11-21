@@ -1,16 +1,18 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { TaskProgressRing } from "../components/ProgressRing";
 import { GlossaryHint } from "../components/GlossaryHint";
 import { SessionCard } from "../components/SessionCard";
 import { KnowledgePointList } from "../components/KnowledgePointDrawer";
 import { PrerequisiteAdvice } from "../components/PrerequisiteAdvice";
+import { TaskActionBar } from "../components/TaskActionBar";
 import { useTask, useTaskKnowledgePoints, useTaskMutations, useTaskProgress } from "../hooks/useTasks";
 import { useSessionsByTask } from "../hooks/useSessions";
 import { formatMonthDay } from "../lib/date";
 
 export function TaskDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const taskId = Number(id);
   const idOrNull = Number.isFinite(taskId) ? taskId : null;
   const { data: task, isLoading } = useTask(idOrNull);
@@ -18,7 +20,7 @@ export function TaskDetail() {
   const { data: sessions = [] } = useSessionsByTask(idOrNull);
   const { data: knowledgePoints } = useTaskKnowledgePoints(idOrNull);
   const points = Array.isArray(knowledgePoints) ? knowledgePoints : [];
-  const { archive, advanceRound, generateWeekPlan } = useTaskMutations();
+  const { advanceRound, generateWeekPlan } = useTaskMutations();
   const [planMessage, setPlanMessage] = useState<string | null>(null);
 
   const byRound = useMemo(() => {
@@ -41,7 +43,7 @@ export function TaskDetail() {
   return (
     <div className="mx-auto max-w-3xl">
       <Link to="/tasks" className="text-sm text-accent-soft hover:underline">
-        ← 返回任务
+        ← 返回总计划
       </Link>
       <div className="mt-4 flex flex-wrap items-start gap-6">
         {task.type === "main" && task.total_units ? (
@@ -74,7 +76,13 @@ export function TaskDetail() {
               {sessions.filter((s) => s.status === "done").length}
             </p>
           )}
+          {task.archived ? (
+            <p className="mt-3 rounded-lg border border-white/10 bg-surface-2/60 px-3 py-2 text-xs text-ink-muted">
+              这个任务已搁置，不进今日安排。回到总计划页打开「显示已归档任务」可以把它放回来。
+            </p>
+          ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
+            <TaskActionBar task={task} onDeleted={() => navigate("/tasks")} />
             {task.type === "main" ? (
               <button
                 type="button"
@@ -119,15 +127,6 @@ export function TaskDetail() {
               }}
             >
               一键排一周
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-ink-muted hover:bg-white/5"
-              onClick={() =>
-                archive.mutate({ id: task.id, archived: !task.archived })
-              }
-            >
-              {task.archived ? "取消归档" : "归档"}
             </button>
           </div>
           {planMessage ? (

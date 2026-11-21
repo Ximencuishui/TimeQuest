@@ -90,7 +90,7 @@ pub fn set_close_to_tray(prefs: State<'_, AppPrefs>, enabled: bool) -> Result<()
 pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
     let tasks: Vec<Value> = {
         let mut stmt = conn
-            .prepare("SELECT id, title, type, subject, textbook, unit_name, total_units, total_rounds, current_round, color, archived, created_at, is_mock FROM tasks")
+            .prepare("SELECT id, title, type, subject, textbook, unit_name, total_units, total_rounds, current_round, color, archived, created_at, deleted_at, is_mock FROM tasks")
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |r| {
@@ -107,7 +107,8 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
                     "color": r.get::<_, Option<String>>(9)?,
                     "archived": r.get::<_, i64>(10)?,
                     "created_at": r.get::<_, String>(11)?,
-                    "is_mock": r.get::<_, i64>(12)?,
+                    "deleted_at": r.get::<_, Option<String>>(12)?,
+                    "is_mock": r.get::<_, i64>(13)?,
                 }))
             })
             .map_err(|e| e.to_string())?
@@ -453,8 +454,8 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
     if let Some(arr) = data.get("tasks").and_then(|v| v.as_array()) {
         for t in arr {
             tx.execute(
-                r#"INSERT INTO tasks (id, title, type, subject, textbook, unit_name, total_units, total_rounds, current_round, color, archived, created_at, is_mock)
-                       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,COALESCE(?12, datetime('now','localtime')),?13)"#,
+                r#"INSERT INTO tasks (id, title, type, subject, textbook, unit_name, total_units, total_rounds, current_round, color, archived, created_at, deleted_at, is_mock)
+                       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,COALESCE(?12, datetime('now','localtime')),?13,?14)"#,
                 params![
                     t.get("id").and_then(|v| v.as_i64()),
                     t.get("title").and_then(|v| v.as_str()).unwrap_or(""),
@@ -468,6 +469,8 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
                     t.get("color").and_then(|v| v.as_str()),
                     t.get("archived").and_then(|v| v.as_i64()).unwrap_or(0),
                     t.get("created_at").and_then(|v| v.as_str()),
+                    // 回收站状态要跟着备份走，否则导入后任务就「活」了。
+                    t.get("deleted_at").and_then(|v| v.as_str()),
                     t.get("is_mock").and_then(|v| v.as_i64()).unwrap_or(0),
                 ],
             )
