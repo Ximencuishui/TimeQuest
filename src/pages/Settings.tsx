@@ -20,9 +20,9 @@ import { DurationPresetEditor } from "../components/DurationPresetEditor";
 import { GlossaryList } from "../components/GlossaryList";
 import { useHasMockData } from "../hooks/useMockData";
 import { useTimePresets } from "../hooks/useTimePresets";
-import { formatTimePresetLabel } from "../lib/timePresets";
+import { formatTimePresetLabel, summarizeTimeShift } from "../lib/timePresets";
 import { useDurationPresets } from "../hooks/useDurationPresets";
-import { formatDurationPresetLabel } from "../lib/durationPresets";
+import { formatDurationPresetLabel, summarizeDurationShift } from "../lib/durationPresets";
 import {
   AUTO_SCHEDULE_SETTING_KEY,
   isAutoScheduleEnabled,
@@ -165,11 +165,7 @@ function TimePresetsSetting() {
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
         onSaved={(result) => {
-          setSummary(
-            result.updated > 0
-              ? `已保存，${result.updated} 场排期已挪到新的常用时段。`
-              : "已保存。",
-          );
+          setSummary(summarizeTimeShift(result));
         }}
       />
     </section>
@@ -219,11 +215,7 @@ function DurationPresetsSetting() {
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
         onSaved={(result) => {
-          setSummary(
-            result.updated > 0
-              ? `已保存，${result.updated} 场排期已改成新的常用时长。`
-              : "已保存。",
-          );
+          setSummary(summarizeDurationShift(result));
         }}
       />
     </section>

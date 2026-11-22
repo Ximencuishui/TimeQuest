@@ -11,6 +11,7 @@ import {
   parsePomodoroPlan,
   serializeDurationPresets,
   serializePomodoroPlan,
+  summarizeDurationShift,
   type DurationPreset,
 } from "../durationPresets";
 
@@ -160,5 +161,19 @@ describe("durationPresets 纯逻辑", () => {
       ]),
     );
     expect(parsed.map((preset) => preset.id)).toEqual(["dp-1", "dp-1-2"]);
+  });
+
+  it("summarize_duration_shift_reports_changed_and_conflicting_counts", () => {
+    expect(summarizeDurationShift({ matched: 4, updated: 4, conflicts: 0 })).toBe(
+      "已保存，4 场排期已改成新的常用时长。",
+    );
+    // 撞车保持原样的那几场也要说出来，不能只报改掉的。
+    expect(summarizeDurationShift({ matched: 6, updated: 4, conflicts: 2 })).toBe(
+      "已保存，4 场排期已改成新的常用时长；2 场撞车保持原样。",
+    );
+    expect(summarizeDurationShift({ matched: 3, updated: 0, conflicts: 3 })).toBe(
+      "已保存；3 场排期改过去会撞车，保持原样。",
+    );
+    expect(summarizeDurationShift({ matched: 0, updated: 0, conflicts: 0 })).toBe("已保存。");
   });
 });

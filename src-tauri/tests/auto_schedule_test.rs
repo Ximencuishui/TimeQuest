@@ -277,3 +277,45 @@ async fn ensure_today_schedule_respects_daily_limit() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].1, "08:00");
 }
+
+/// 回收站里的任务，它的排期在日视图里看不见，
+/// 所以不算「今天已有安排」，不该把当天的自动排期永久卡住。
+#[tokio::test]
+async fn ensure_today_schedule_ignores_sessions_of_deleted_tasks() {
+    let pool = common::setup().await;
+    // 回收站里的主线：排期行还留着，但日视图按 `deleted_at IS NULL` 藏起来了。
+    let deleted_task = insert_task(&pool, "main", Some(40), 0, true).await;
+    insert_session(
+        &pool,
+        deleted_task,
+        &today(),
+        "07:00",
+        "08:00",
+        "planned",
+        0,
+    )
+    .await;
+    // 今天还有一个能排的主线任务。
+    let alive_task = insert_task(&pool, "main", Some(40), 0, false).await;
+
+    let result = ensure_today_schedule_impl(&pool, None)
+        .await
+        .expect("ensure today schedule");
+
+    // 回收站那一场不阻塞：自动排期照常排进来。
+    assert_eq!(result.created, 3);
+    assert_eq!(result.task_ids, vec![alive_task]);
+
+    let rows = sessions_on(&pool, &today()).await;
+    assert_eq!(rows.len(), 4);
+    assert_eq!(
+        rows.iter().filter(|row| row.0 == alive_task).count(),
+        3,
+        "新排的三场都归活着的主线任务"
+    );
+    assert_eq!(
+        rows.iter().filter(|row| row.0 == deleted_task).count(),
+        1,
+        "回收站任务原来那一场原样留着"
+    );
+}

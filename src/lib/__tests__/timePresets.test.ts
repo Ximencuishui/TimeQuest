@@ -7,6 +7,7 @@ import {
   newTimePresetId,
   parseTimePresets,
   serializeTimePresets,
+  summarizeTimeShift,
   type TimePreset,
 } from "../timePresets";
 
@@ -140,5 +141,19 @@ describe("timePresets 常用时段", () => {
       ]),
     );
     expect(parsed.map((preset) => preset.id)).toEqual(["tp-1", "tp-1-2"]);
+  });
+
+  it("summarize_time_shift_reports_moved_and_conflicting_counts", () => {
+    expect(summarizeTimeShift({ matched: 3, updated: 3, conflicts: 0 })).toBe(
+      "已保存，3 场排期已挪到新的常用时段。",
+    );
+    // 撞车保持原样的那几场也要说出来，不能只报挪走的。
+    expect(summarizeTimeShift({ matched: 5, updated: 3, conflicts: 2 })).toBe(
+      "已保存，3 场排期已挪到新的常用时段；2 场撞车保持原样。",
+    );
+    expect(summarizeTimeShift({ matched: 2, updated: 0, conflicts: 2 })).toBe(
+      "已保存；2 场排期挪过去会撞车，保持原样。",
+    );
+    expect(summarizeTimeShift({ matched: 0, updated: 0, conflicts: 0 })).toBe("已保存。");
   });
 });

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useDurationPresets } from "../hooks/useDurationPresets";
 import { useTimePresets } from "../hooks/useTimePresets";
 import { addMinutesToHhmm } from "../lib/timeField";
-import { formatDurationPresetLabel } from "../lib/durationPresets";
-import { formatTimePresetLabel } from "../lib/timePresets";
+import { formatDurationPresetLabel, summarizeDurationShift } from "../lib/durationPresets";
+import { formatTimePresetLabel, summarizeTimeShift } from "../lib/timePresets";
 import type { PresetDurationShiftResult, PresetShiftResult } from "../types";
 import { DurationPresetEditor } from "./DurationPresetEditor";
 import { TimeField } from "./TimeField";
@@ -33,35 +33,11 @@ export function TimeRangeField({ start, end, onChange }: Props) {
   const [durationSummary, setDurationSummary] = useState<string | null>(null);
 
   const onSaved = (result: PresetShiftResult) => {
-    if (result.updated > 0) {
-      setSummary(
-        `已保存，${result.updated} 场排期已挪到新的常用时段${
-          result.conflicts > 0 ? `；${result.conflicts} 场撞车保持原样` : ""
-        }。`,
-      );
-      return;
-    }
-    if (result.conflicts > 0) {
-      setSummary(`已保存；${result.conflicts} 场排期挪过去会撞车，保持原样。`);
-      return;
-    }
-    setSummary("已保存。");
+    setSummary(summarizeTimeShift(result));
   };
 
   const onDurationSaved = (result: PresetDurationShiftResult) => {
-    if (result.updated > 0) {
-      setDurationSummary(
-        `已保存，${result.updated} 场排期已改成新的常用时长${
-          result.conflicts > 0 ? `；${result.conflicts} 场撞车保持原样` : ""
-        }。`,
-      );
-      return;
-    }
-    if (result.conflicts > 0) {
-      setDurationSummary(`已保存；${result.conflicts} 场排期改过去会撞车，保持原样。`);
-      return;
-    }
-    setDurationSummary("已保存。");
+    setDurationSummary(summarizeDurationShift(result));
   };
 
   return (

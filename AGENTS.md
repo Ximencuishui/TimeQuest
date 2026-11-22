@@ -26,7 +26,7 @@
 - 窗口标题：`TimeQuest`
 - 数据库：`timequest.db`
 - 导出：`timequest-backup-YYYYMMDD.json`
-- Tauri identifier：`com.timequest.app`
+- Tauri identifier：`com.timequest.desktop`（权威在 `src-tauri/tauri.conf.json`；它决定应用数据目录路径，改它会换目录、丢用户旧数据）
 
 ## 版本规范
 
@@ -634,6 +634,7 @@
 | ensure_today_schedule_ignores_archived_side_and_deleted_tasks | 搁置 / 副本 / 回收站任务不参与排期 | `src-tauri/tests/auto_schedule_test.rs` |
 | ensure_today_schedule_skips_tasks_whose_round_is_already_full | 本轮已做满的主线不排（得先推进轮次） | `src-tauri/tests/auto_schedule_test.rs` |
 | ensure_today_schedule_respects_daily_limit | 每日上限 60 分钟时只排下第一段 | `src-tauri/tests/auto_schedule_test.rs` |
+| ensure_today_schedule_ignores_sessions_of_deleted_tasks | 回收站任务的当天排期不算「今天有安排」，不阻塞自动排期 | `src-tauri/tests/auto_schedule_test.rs` |
 | auto_schedule_fills_today_and_refreshes_sessions | 启动调 `ensure_today_schedule`；`created>0` 时失效 `sessions` / `sessions-range` / `sessions-task` | `src/hooks/__tests__/auto_schedule.test.tsx` |
 | auto_schedule_stays_quiet_when_nothing_was_created | `created = 0` 时不失效缓存 | `src/hooks/__tests__/auto_schedule.test.tsx` |
 | auto_schedule_does_not_run_outside_tauri | 非 Tauri 环境不调后端 | `src/hooks/__tests__/auto_schedule.test.tsx` |
@@ -699,6 +700,12 @@
 | duration_editor_applies_the_shift_before_saving_settings | 先调 `apply_preset_duration_changes` 后调 `set_setting`（顺序断言） | `src/components/__tests__/duration_preset_editor.test.tsx` |
 | duration_editor_keeps_open_when_saving_settings_fails | 排期已改但设置没存上时如实提示、不关窗 | `src/components/__tests__/duration_preset_editor.test.tsx` |
 | duration_editor_warns_when_the_pomodoro_plan_is_too_long_for_one_day | 参数排不下一天时给出提示 | `src/components/__tests__/duration_preset_editor.test.tsx` |
+| summarize_time_shift_reports_moved_and_conflicting_counts | 反馈文案同时报「挪走了几场」和「撞车保持原样几场」 | `src/lib/__tests__/timePresets.test.ts` |
+| summarize_duration_shift_reports_changed_and_conflicting_counts | 同上，时长口径 | `src/lib/__tests__/durationPresets.test.ts` |
+| backend_error_detail_passes_chinese_errors_through | 后端中文业务错误原样透出 | `src/lib/__tests__/backendError.test.ts` |
+| backend_error_detail_replaces_english_errors_with_fallback | 英文技术错误换成中文兜底，原文只进控制台 | `src/lib/__tests__/backendError.test.ts` |
+| backend_error_detail_falls_back_for_empty_errors | 空错误用兜底文案 | `src/lib/__tests__/backendError.test.ts` |
+| backend_error_detail_reads_message_and_error_shapes | 兼容 Error / message / error 三种形态 | `src/lib/__tests__/backendError.test.ts` |
 | use_achievements_normalizes_null_response_to_empty_array | `list_user_achievements` 返回 null 时归一成空数组，消费方不会拿到 null | `src/hooks/__tests__/use_stats_achievements.test.tsx` |
 | settings_achievements_null_response_renders_empty_state_without_crash | 后端返回 null 时设置页显示「尚未解锁成就」，不因 `achievements.length` 抛错而白屏 | `src/pages/Settings/__tests__/settings_achievements_null.test.tsx` |
 | textbook_combobox_closes_when_clicking_outside | 点组件外收起课本下拉，浮层不再压住「课数 / 轮次」 | `src/components/__tests__/textbook_combobox.test.tsx` |
@@ -1268,6 +1275,7 @@
 - **有主线任务 ≠ 今天有安排**：`tasks` 说明「学什么、多少课、第几轮」，`task_sessions` 说明「哪天哪个时段学」。今日页只渲染 `date = 今天` 的排期，所以「任务在、当天空」是常态而不是 bug。
 - **启动即补排**：主窗口挂载后调一次 `ensure_today_schedule`（Rust command）。今天完全空着时，按「每日可用时段」把主线排进今天；需求与边界见 `docs/auto-today-schedule.md`。
 - **幂等靠「今天有没有真实场次」**：当天存在状态为 `planned` / `done` / `missed` 的排期 → 一格都不排（用户自己安排过的日子，应用不插手）。`rescheduled` 不算——那一场已经挪到别的日子了，今天确实还空着。
+- **口径必须和日视图一致**：回收站里的任务，它的排期在今日页是看不见的（`list_sessions_by_date` 按 `deleted_at IS NULL` 过滤），因此也不算「今天有安排」。否则把任务删进回收站，当天会被那一场永久卡住，自动排期再也排不进来。由 `ensure_today_schedule_ignores_sessions_of_deleted_tasks` 锁定。
 - **只排主线**：`type = 'main'` 且 `archived = 0` 且 `deleted_at IS NULL`。本轮 `sum(actual_units) >= total_units`（`total_units > 0`）的主线不排——得先推进轮次才有下一轮可学。
 - **多主线轮转**：时段按顺序走，任务按 id 顺序轮流占用，保证每科都有场次（数学 08:00 → 物理 14:00 → 数学 19:00）。副本任务没有总量语义，不参与。
 - **与「一键排一周」同源**：时段与每日上限都读 `daily_slots` / `daily_limit_minutes`，解析走 `planner.rs` 的 `parse_slots` / `parse_limit`；没设置时用默认三段（08:00 / 14:00 / 19:00）与 480 分钟上限。
@@ -1292,15 +1300,35 @@
 - **冲突时优先退更早的那一场**：晚的那场往后延，位置更空，不容易连着踩到别人。
 - **会跨过 23:59 的场次排不进去**：改时长后结束时间超过当天末尾的，保持原样并计入 `conflicts`。
 - **先改场次再存设置**：保存顺序是「批量改期 → 写入设置」，批量失败不会留下已改的设置。改完向用户报「N 场已挪 / 已改、M 场撞车保持原样」。
+- **反馈文案只有一份**：统一走 `summarizeTimeShift` / `summarizeDurationShift`（`src/lib/timePresets.ts` / `src/lib/durationPresets.ts`）。排期弹窗与设置页共用同一个函数，不各写一套——各写一套就会出现「提示说都挪了、其实有几场没挪」。
 - **写设置用 `mutateAsync` 等它落库**：批量改期成功、但设置没存上时，弹窗**不关**，明确提示「排期已改成功（N 场），但设置没存上，请重试」，不装作保存成功。
 - **批量改完要刷新排期缓存**：保存成功后失效 `["sessions"]` / `["sessions-range"]` / `["sessions-task"]` 并 `broadcastSessionUpdated()`，今天的排期、日历与桌面小组件立刻看到新时间。
 - **默认时长按番茄钟算法推荐**：25 分钟专注 + 5 分钟短休息，4 个番茄一轮再来 15 分钟长休息。按「墙钟」口径算（含中间的休息），默认五段 = 25 / 55 / 85 / 115 / 130 分钟。番茄钟参数存 `app_settings.pomodoro_plan`，编辑器里可改并「按番茄钟生成」。
 - **番茄钟生成不产出存不下来的时长**：超过一天（1440 分钟）的段不生成，编辑器里会提示「按当前参数只能排到 N 段」。
 - **预设 id 读回时去重**：缺 `id` 的行会拿兜底 id（`tp-<序号>` / `dp-<序号>`），与显式 id 撞车时加后缀，免得两行被当成同一行、diff 漏掉一次改动。
 - **弹窗标题与页脚固定**：`Modal` 改成固定标题 + 滚动内容 + 固定页脚，十条预设也随时点得到「保存」。
+- **后端错误不直接甩给用户**：中文业务错误原样透出；英文技术错误（数据库一类）换成中文兜底，原文只写控制台。统一走 `backendErrorDetail`（`src/lib/backendError.ts`）。
 - 由 `preset_shift_*` / `preset_duration_shift_*` / `time_presets_*` / `duration_presets_*` / `time_range_field_*` / `preset_editor_*` / `duration_editor_*` 锁定。
 
 ## 待处理技术债
+
+### 预设歧义改动被静默丢弃
+
+- **描述**：两个预设从同一个旧时段（同一个旧时长）改到不同新值时，`diffTimePresets` / `diffDurationPresets` 整段放弃（后端 `build_shift_map` / `build_duration_shift_map` 同一口径）。放弃的结果既不传给后端、也不告诉前端：编辑器拿到的 `changes` 里没有这一项，用户最后只看到「已保存。」，不知道这些旧时段上的排期一行都没挪。
+- **触发**：新建两个起点相同的常用时段，又分别改到不同结束时间；或在同一起点建两个相同时长预设后改不同分钟数。
+- **决定：不阻塞当前版本。** 修法是让 diff 把被放弃的旧值一并返回（会改 `diff*` 的返回形状，两个编辑器与后端映射都要跟着改），下次动预设编辑器时一并做。
+
+### 预设编辑器草稿可能被默认值污染
+
+- **描述**：草稿只在「打开的那一刻」灌一次（`wasOpen.current` 守卫，本意是不覆盖用户正在改的内容），而 `useAppSetting` 没有 `staleTime`，查询未完成时 `query.data === undefined`；`parseTimePresets(undefined)` 返回**默认十段**，与「用户没设过」无法区分。在设置读回来之前打开编辑器，草稿会被灌成默认十段；随后点保存会把用户自定义的预设整体重置为默认，并把已排的场次挪回默认时段。
+- **触发**：冷启动后首次进入设置页或新建排期弹窗后立刻点 ⚙（或磁盘较慢时）。
+- **决定：不阻塞当前版本，但优先级高于上一条。** 修法是区分「还没读回来」与「没设置过」：查询未 `isFetched` 时禁用保存按钮，或在 `isFetched` 之后才灌草稿。修时必须同时动 `TimePresetEditor` 与 `DurationPresetEditor`。
+
+### clippy 的四条历史告警
+
+- **描述**：`cargo clippy --all-targets -- -D warnings` 会因 4 条告警失败：`too_many_arguments`（`complete_session_impl`，8/7）、`unnecessary_cast`（`pdf_outline.rs`）、`manual_is_multiple_of`（`pdf_text.rs`）、`collapsible_match`（`lib.rs` 的 `WindowEvent::Destroyed`）。
+- **现状**：项目实际门禁是 `-D dead_code`（见 `src-tauri/tests/dead_code_guard_test.rs`），该门禁全绿。这 4 条均非新增功能引入：`sessions.rs` / `pdf_outline.rs` / `pdf_text.rs` 不在 v3.9.0 之后的改动文件里，`lib.rs` 的改动只涉及 export 与 `generate_handler!` 注册，均不碰第 192 行。
+- **决定：当前不处理。** 若将来把 CI 门禁收紧到 `-D warnings`，先修这 4 处。
 
 ### 考试目标日的时区锚点
 

@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/tauri";
+import { backendErrorDetail } from "../lib/backendError";
 import { useTimePresets } from "../hooks/useTimePresets";
 import { todayStr } from "../lib/date";
 import { formatHhmm } from "../lib/timeField";
@@ -99,13 +100,18 @@ export function TimePresetEditor({ open, onClose, onSaved }: Props) {
         await savePresets(draft);
       } catch (e) {
         // 排期已经挪了、设置没存上：两边对不上，必须说清楚，不能悄悄关窗。
-        setError(`排期已挪成功（${result.updated} 场），但设置没存上，请重试：${String(e)}`);
+        setError(
+          `排期已挪成功（${result.updated} 场），但设置没存上，请重试：${backendErrorDetail(
+            e,
+            "请稍后再试。",
+          )}`,
+        );
         return;
       }
       onSaved?.(result);
       onClose();
     } catch (e) {
-      setError(`保存失败：${String(e)}`);
+      setError(`保存失败：${backendErrorDetail(e, "请稍后再试。")}`);
     } finally {
       setBusy(false);
     }

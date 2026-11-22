@@ -337,9 +337,14 @@ pub async fn ensure_today_schedule_impl(
     let mut tx = db.begin().await?;
 
     // 今天已经有安排就不自动插手。`rescheduled` 不算：那一场已经挪走了。
+    //
+    // 口径必须和日视图（`list_sessions_by_date`）一致：回收站里的任务，它的排期
+    // 在日视图里是看不见的，也不该算「今天有安排」。
+    // 否则把任务删进回收站，当天就被这一场永久卡住，自动排期再也排不进来。
     let existing: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM task_sessions
-         WHERE date = ?1 AND status IN ('planned', 'done', 'missed')",
+        "SELECT COUNT(*) FROM task_sessions s
+         JOIN tasks t ON t.id = s.task_id AND t.deleted_at IS NULL
+         WHERE s.date = ?1 AND s.status IN ('planned', 'done', 'missed')",
     )
     .bind(&date_str)
     .fetch_one(&mut *tx)

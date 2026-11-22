@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/tauri";
+import { backendErrorDetail } from "../lib/backendError";
 import { useDurationPresets, usePomodoroPlan } from "../hooks/useDurationPresets";
 import { todayStr } from "../lib/date";
 import {
@@ -101,13 +102,18 @@ export function DurationPresetEditor({ open, onClose, onSaved }: Props) {
         await savePlan(plan);
       } catch (e) {
         // 排期已经改了、设置没存上：两边对不上，必须说清楚，不能悄悄关窗。
-        setError(`排期已改成功（${result.updated} 场），但设置没存上，请重试：${String(e)}`);
+        setError(
+          `排期已改成功（${result.updated} 场），但设置没存上，请重试：${backendErrorDetail(
+            e,
+            "请稍后再试。",
+          )}`,
+        );
         return;
       }
       onSaved?.(result);
       onClose();
     } catch (e) {
-      setError(`保存失败：${String(e)}`);
+      setError(`保存失败：${backendErrorDetail(e, "请稍后再试。")}`);
     } finally {
       setBusy(false);
     }

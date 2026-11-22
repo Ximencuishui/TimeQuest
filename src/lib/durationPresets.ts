@@ -1,5 +1,5 @@
 import { formatDurationLabel } from "./timeField";
-import type { DurationShiftChange } from "../types";
+import type { DurationShiftChange, PresetDurationShiftResult } from "../types";
 
 /**
  * 常用时长：点一下就能定好「这一场学多久」。
@@ -303,4 +303,22 @@ export function newDurationPresetId(existing: DurationPreset[]): string {
 /** 按钮上的文案：名字 + 时长，例如「番茄 1 · 25 分钟」。 */
 export function formatDurationPresetLabel(preset: DurationPreset): string {
   return `${preset.label} · ${formatDurationLabel(preset.minutes)}`;
+}
+
+/**
+ * 改完常用时长后的反馈文案。
+ *
+ * 改掉的和撞车保持原样的都要说清楚：只报「已改 N 场」会让人以为全部生效，
+ * 实际上撞车的那几场还停在旧时长上。
+ */
+export function summarizeDurationShift(result: PresetDurationShiftResult): string {
+  if (result.updated > 0) {
+    return `已保存，${result.updated} 场排期已改成新的常用时长${
+      result.conflicts > 0 ? `；${result.conflicts} 场撞车保持原样` : ""
+    }。`;
+  }
+  if (result.conflicts > 0) {
+    return `已保存；${result.conflicts} 场排期改过去会撞车，保持原样。`;
+  }
+  return "已保存。";
 }
