@@ -572,9 +572,10 @@
 | envelope_topics_keep_mastery_criteria_and_diagnostic_question | 内置包 / 下载缓存的信封格式（camelCase 字段）同样不丢掌握标准与诊断题 | `src-tauri/tests/knowledge_graph_test.rs` |
 | a_pack_needs_both_files_to_count_as_downloaded | 学科包缓存两个文件齐了才算「已下载」，缺一个不算 | `src-tauri/tests/knowledge_graph_test.rs` |
 | slicing_the_builtin_pack_matches_the_manifest_count | 切片结果与清单承诺的点数对得上 | `src-tauri/tests/knowledge_graph_test.rs` |
-| layout_groups_navigation_into_plan_review_tools_and_settings | 侧边栏四个分组标题可见：计划 / 复盘 / 工具 / 设置 | `src/components/__tests__/layout_nav_groups.test.tsx` |
-| layout_renames_and_reorders_the_navigation_entries | 8 个入口顺序与文案为 总计划 / 今日任务 / 统计 / 成绩 / 看板 / 便签 / 工具箱 / 设置；href 全部不变；旧文案「任务」消失 | `src/components/__tests__/layout_nav_groups.test.tsx` |
+| layout_groups_navigation_into_plan_review_and_tools | 侧边栏三个分组标题可见：计划 / 复盘 / 工具；不再有「设置」分组 | `src/components/__tests__/layout_nav_groups.test.tsx` |
+| layout_renames_and_reorders_the_navigation_entries | 导航区 7 个入口顺序与文案为 总计划 / 今日任务 / 统计 / 成绩 / 看板 / 便签 / 工具箱；href 全部不变；旧文案「任务」消失 | `src/components/__tests__/layout_nav_groups.test.tsx` |
 | layout_marks_the_current_page_in_the_navigation | 当前页项带 `bg-accent/15` 选中态，且只有一个 | `src/components/__tests__/layout_nav_groups.test.tsx` |
+| layout_opens_settings_from_the_profile_avatar | 设置入口改为侧边栏底部头像（`/settings`）；导航区与窄屏底栏都没有「设置」项，全局只有桌面头像 + 窄屏顶栏头像两个入口 | `src/components/__tests__/layout_nav_groups.test.tsx` |
 | plan_filter_bar_shows_subject_textbook_and_round_tags | 学科 / 课本 / 轮次标签都渲染，轮次文案「第N轮」；组件里不出现 checkbox | `src/components/__tests__/plan_filter_bar.test.tsx` |
 | plan_filter_bar_toggles_a_tag_on_and_off | 点标签回调带上该维度的值 | `src/components/__tests__/plan_filter_bar.test.tsx` |
 | plan_filter_bar_marks_the_selected_tags | 选中标签 `aria-pressed="true"`，未选中为 `false` | `src/components/__tests__/plan_filter_bar.test.tsx` |

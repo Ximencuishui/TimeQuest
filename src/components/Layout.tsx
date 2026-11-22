@@ -22,10 +22,12 @@ type NavGroup = {
 };
 
 /**
- * 侧边栏按「计划 → 复盘 → 工具 → 设置」分组。
+ * 侧边栏按「计划 → 复盘 → 工具」分组。
  *
  * 分组顺序就是产品的核心流程心智：先看总计划，再看今天做什么，
- * 然后复盘，最后才是工具和设置。分组标题弱化，子项保持高亮选中态。
+ * 然后复盘，最后才是工具。分组标题弱化，子项保持高亮选中态。
+ *
+ * 设置不占导航位：点头像（`ProfileChip`）直接进 `/settings`。
  */
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -56,15 +58,9 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/toolbox", label: "工具箱", icon: <ToolboxIcon /> },
     ],
   },
-  {
-    key: "settings",
-    title: "设置",
-    emoji: "⚙️",
-    items: [{ to: "/settings", label: "设置", icon: <SettingsIcon /> }],
-  },
 ];
 
-/** 窄屏底部导航：跟侧边栏同一套顺序，只是压平。 */
+/** 窄屏底部导航：跟侧边栏同一套顺序，只是压平。设置走头像，不占底栏。 */
 const MOBILE_NAV = [
   { to: "/tasks", label: "总计划" },
   { to: "/today", label: "今日" },
@@ -73,7 +69,6 @@ const MOBILE_NAV = [
   { to: "/", label: "看板", end: true },
   { to: "/notes", label: "便签" },
   { to: "/toolbox", label: "工具箱" },
-  { to: "/settings", label: "设置" },
 ];
 
 const linkClass = (isActive: boolean) =>
@@ -135,19 +130,15 @@ export function Layout() {
             </div>
           ))}
         </nav>
-        {profile ? (
-          <div className="mt-auto border-t border-white/5 pt-4">
-            <ProfileChip profile={profile} />
-          </div>
-        ) : null}
+        <div className="mt-auto border-t border-white/5 pt-4">
+          <ProfileChip profile={profile} />
+        </div>
       </aside>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {profile ? (
-          <div className="border-b border-white/5 px-4 py-2 md:hidden">
-            <ProfileChip profile={profile} />
-          </div>
-        ) : null}
+        <div className="border-b border-white/5 px-4 py-2 md:hidden">
+          <ProfileChip profile={profile} />
+        </div>
         <main className="min-h-0 flex-1 overflow-auto p-4 md:p-6">
           <Outlet />
         </main>
@@ -249,15 +240,6 @@ function ToolboxIcon() {
     <svg {...ICON_PROPS}>
       <rect x="3.5" y="8" width="17" height="11.5" rx="2" />
       <path d="M9 8V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v2M3.5 13h17" />
-    </svg>
-  );
-}
-
-function SettingsIcon() {
-  return (
-    <svg {...ICON_PROPS}>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4 6 18M18 18l-1.6-1.6M7.6 7.6 6 6" />
     </svg>
   );
 }
