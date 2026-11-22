@@ -56,6 +56,12 @@
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
+      },
+      "wix": {
+        "language": "zh-CN"
+      },
+      "nsis": {
+        "languages": ["SimpChinese"]
       }
     },
     "shortDescription": "高考倒计时 · 自习推进器",
