@@ -5,7 +5,7 @@ import { Children, cloneElement, isValidElement, type ReactElement, type ReactNo
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_USER_PROFILE } from "../../lib/profile";
 import { SUBJECT_FIXTURES, examSession } from "../../test/subjectFixtures";
-import type { CreateExamSessionPayload, ExamSession, UserProfile } from "../../types";
+import type { CreateExamSessionPayload, ExamSession, Subject, Track, UserProfile } from "../../types";
 import { Scores } from "../Scores";
 
 vi.mock("recharts", async (importOriginal) => {
@@ -35,6 +35,23 @@ const PROFILE: UserProfile = {
 
 const EXAM_NAME = "2026届高三上期中考";
 
+/** 另一条赛道的科目：换赛道后成绩页只认这一套。 */
+const KAOYAN_SUBJECTS: Subject[] = [
+  { id: 21, key: "politics", label: "政治", fullMark: 100, goal: 70, unit: "分", orderIndex: 0, trackId: 2 },
+  { id: 22, key: "english", label: "英语", fullMark: 100, goal: 65, unit: "分", orderIndex: 1, trackId: 2 },
+  { id: 23, key: "math", label: "数学", fullMark: 150, goal: 120, unit: "分", orderIndex: 2, trackId: 2 },
+];
+
+const KAOYAN_TRACK: Track = {
+  id: 2,
+  name: "考研",
+  kind: "exam",
+  scoreMode: "total",
+  isPrimary: true,
+  color: null,
+  createdAt: "2026-11-06 12:00:00",
+};
+
 function renderScores() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -48,15 +65,23 @@ function renderScores() {
 
 describe("Scores entry", () => {
   let sessions: ExamSession[];
+  let tracks: Track[];
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 10, 6, 12, 0, 0));
     sessions = [];
+    tracks = [];
     mockedInvoke.mockReset();
     mockedInvoke.mockImplementation(async (cmd: string, args?: unknown) => {
       if (cmd === "get_user_profile") return PROFILE;
-      if (cmd === "list_subjects") return SUBJECT_FIXTURES;
+      if (cmd === "list_tracks") return tracks;
+      if (cmd === "list_subjects") {
+        // 科目按赛道筛：给了赛道 id 就只回这条赛道的科目。
+        const trackId = (args as { trackId?: number | null } | undefined)?.trackId ?? null;
+        if (trackId == null) return SUBJECT_FIXTURES;
+        return KAOYAN_SUBJECTS.filter((subject) => subject.trackId === trackId);
+      }
       if (cmd === "list_exam_sessions") return sessions;
       if (cmd === "create_exam_session") {
         const payload = (args as { payload: CreateExamSessionPayload }).payload;
@@ -170,6 +195,25 @@ describe("Scores entry", () => {
     }
     expect(screen.getByText(/已填合计 910，高于常见总分上限 750/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "保存成绩" })).toBeEnabled();
+  });
+
+  it("renders_only_the_subjects_of_the_active_track", async () => {
+    // 主赛道换成「考研」：成绩页的科目清单跟着换，不再是高考六科。
+    tracks = [KAOYAN_TRACK];
+
+    renderScores();
+    fireEvent.click(await screen.findByRole("button", { name: "录入新成绩" }));
+
+    // 赛道数据到位后科目集合才会换成这一套：等它，别抢在前一版。
+    await waitFor(() => {
+      expect(screen.getByText(/按你的档案（高三 · 湖南）录入这 3 科/)).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("政治")).toBeInTheDocument();
+    expect(screen.getByLabelText("英语")).toBeInTheDocument();
+    expect(screen.getByLabelText("数学")).toBeInTheDocument();
+    // 高考那几科不在这条赛道里，不该出现。
+    expect(screen.queryByLabelText("语文")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("物理")).not.toBeInTheDocument();
   });
 
   it("deleting_the_last_record_returns_to_the_empty_state", async () => {

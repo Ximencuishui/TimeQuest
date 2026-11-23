@@ -15,6 +15,7 @@ import { todayStr } from "../lib/date";
 import { dailyMotivation } from "../lib/motivation";
 import { format } from "date-fns";
 import { ProfileSetting } from "../components/ProfileSetting";
+import { TrackSetting } from "../components/TrackSetting";
 import { DailyPlanSetting } from "../components/DailyPlanSetting";
 import { TimePresetEditor } from "../components/TimePresetEditor";
 import { DurationPresetEditor } from "../components/DurationPresetEditor";
@@ -414,6 +415,8 @@ export function Settings() {
         <h1 className="font-display text-2xl">设置</h1>
         <p className="mt-1 text-sm text-ink-muted">{APP_FULL_NAME}</p>
       </div>
+
+      <TrackSetting />
 
       <ProfileSetting />
 

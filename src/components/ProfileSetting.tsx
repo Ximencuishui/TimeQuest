@@ -196,8 +196,9 @@ export function ProfileSetting() {
   /**
    * 写主目标。
    *
-   * 总分目标的权威源是主目标的 `target_score`：档案里的 `total_target`
-   * 只是 3.x 留下来的兼容列。两边一起写，成绩页的目标线才跟得上这里的改动。
+   * 4.0 的成绩页只认主目标的 `target_score`：它才是目标线的唯一权威源。
+   * 档案里的 `total_target` 降级成兼容列，这里把两者一起写，
+   * 档案就相当于主目标的编辑入口；读的一侧（成绩页）不回头读档案。
    */
   const writePrimaryGoal = (options: {
     examDate: string | null;

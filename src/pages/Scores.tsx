@@ -4,6 +4,7 @@ import { ScoreTrendChart } from "../components/ScoreTrendChart";
 import { useExamSessionMutations, useExamSessions } from "../hooks/useExamSessions";
 import { useGoals } from "../hooks/useGoals";
 import { useSubjects } from "../hooks/useSubjects";
+import { useActiveTrack } from "../hooks/useTracks";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { todayStr } from "../lib/date";
 import {
@@ -187,23 +188,24 @@ function RecordCard({
 
 export function Scores() {
   const { data: sessions = [], isLoading, isError } = useExamSessions();
-  const { data: subjects = [] } = useSubjects();
+  // 科目跟着当前赛道走：换赛道就是换一套科目，成绩页按新科目集合渲染。
+  const { trackId: activeTrackId } = useActiveTrack();
+  const { data: subjects = [] } = useSubjects(activeTrackId);
   const { data: profile } = useUserProfile();
   const { data: goals = [] } = useGoals();
   const { remove } = useExamSessionMutations();
   const [open, setOpen] = useState(false);
   const line = profile ? profileLine(profile.grade, profile.region) : "";
 
-  // 总分目标的权威源是主目标的 `target_score`（4.0 起目标落在 `goals` 表）。
-  // 旧库还没回填时退回档案的 `total_target`，别让目标线凭空消失。
+  // 总分目标跟着主目标走：它落在 `goals.target_score`，不再从旧档案读。
   const primaryGoal = resolvePrimaryGoal(goals);
   const targets = useMemo<ScoreTargets>(() => {
     const next: ScoreTargets = {
-      total: primaryGoal?.targetScore ?? profile?.total_target ?? null,
+      total: primaryGoal?.targetScore ?? null,
     };
     for (const subject of subjects) next[subject.key] = subject.goal;
     return next;
-  }, [primaryGoal, profile, subjects]);
+  }, [primaryGoal, subjects]);
 
   const onDelete = (session: ExamSession) => {
     if (window.confirm(`确认删除「${session.name}」？`)) {

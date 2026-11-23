@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useExamSessions } from "../hooks/useExamSessions";
 import { useGoals } from "../hooks/useGoals";
 import { useSubjects } from "../hooks/useSubjects";
-import { useUserProfile } from "../hooks/useUserProfile";
+import { useActiveTrack } from "../hooks/useTracks";
 import { resolvePrimaryGoal } from "../lib/goals";
 import { buildScoreOverview, type ScoreOverview } from "../lib/scoreOverview";
 import type { ExamSession, Subject } from "../types";
@@ -77,13 +77,13 @@ function CapsuleBody({ overview }: { overview: ScoreOverview }) {
 
 export function DashboardScoreOverview() {
   const { data: sessions } = useExamSessions();
-  const { data: subjects } = useSubjects();
-  const { data: profile } = useUserProfile();
+  // 科目跟着当前赛道走：换赛道就是换一套科目。
+  const { trackId: activeTrackId } = useActiveTrack();
+  const { data: subjects } = useSubjects(activeTrackId);
   const { data: goals = [] } = useGoals();
-  // 总分目标的权威源是主目标的 `target_score`（4.0 起目标落在 `goals` 表）。
-  // 旧库还没回填时退回档案的 `total_target`，别让目标线凭空消失。
+  // 总分目标跟着主目标走：它落在 `goals.target_score`，不再从旧档案读。
   const primaryGoal = resolvePrimaryGoal(goals);
-  const totalTarget = primaryGoal?.targetScore ?? profile?.total_target ?? null;
+  const totalTarget = primaryGoal?.targetScore ?? null;
   return (
     <ScoreOverviewCapsule
       sessions={sessions ?? []}

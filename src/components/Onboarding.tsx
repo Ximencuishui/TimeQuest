@@ -2,17 +2,22 @@ import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/tauri";
 import { useAppSetting, useSetSetting } from "../hooks/useAppSetting";
+import { useSubjects } from "../hooks/useSubjects";
+import { useActiveTrack } from "../hooks/useTracks";
 import { useUpdateUserProfile, useUserProfile } from "../hooks/useUserProfile";
 import { RegionSelect } from "./RegionSelect";
 import { gaokaoDateForGrade } from "../lib/examDate";
 import {
   DEFAULT_USER_PROFILE,
   GRADES,
-  TRACK_TEMPLATES,
   canonicalProvince,
+} from "../lib/profile";
+import {
+  TRACK_TEMPLATES,
+  mergeTemplateSubjects,
   trackTemplateById,
   type TrackTemplateId,
-} from "../lib/profile";
+} from "../lib/track";
 import type { UserProfile } from "../types";
 
 export const ONBOARDING_KEY = "onboarding_completed";
@@ -56,6 +61,15 @@ function Onboarding({ initial }: { initial: UserProfile }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [templateId, setTemplateId] = useState<TrackTemplateId>("gaokao");
   const template = trackTemplateById(templateId);
+  // 科目清单 = 模板给的 + 库里已有的（库里改过的目标优先）。
+  // 引导时不带出库里多出来的科目：用户还没选定赛道。
+  const { data: storedSubjects = [] } = useSubjects();
+  // 播种的科目与目标都归当前主赛道：否则成绩页按赛道筛选时看不到它们。
+  const { trackId: activeTrackId } = useActiveTrack();
+  const subjectRows = useMemo(
+    () => mergeTemplateSubjects(template, storedSubjects, false),
+    [template, storedSubjects],
+  );
   const [grade, setGrade] = useState(
     (GRADES as readonly string[]).includes(initial.grade) ? initial.grade : "高三",
   );
@@ -65,9 +79,7 @@ function Onboarding({ initial }: { initial: UserProfile }) {
     template.requiresGaokaoContext ? String(initial.total_target || "") : "",
   );
   const [subjectGoals, setSubjectGoals] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      template.subjects.map((subject) => [subject.key, String(subject.goal)]),
-    ),
+    Object.fromEntries(subjectRows.map((subject) => [subject.key, String(subject.goal)])),
   );
   // 用户手动改过日期之后，就不再跟着年级自动算了。
   const [dateOverride, setDateOverride] = useState<string | null>(null);
@@ -84,8 +96,6 @@ function Onboarding({ initial }: { initial: UserProfile }) {
   const scoreOk = !target.trim() || score != null;
   const stepTwoOk = nameOk && scoreOk && goalDate.length > 0 && (!needsRegion || regionOk);
 
-  const subjectRows = useMemo(() => template.subjects, [template]);
-
   const pickTemplate = (id: TrackTemplateId) => {
     const next = trackTemplateById(id);
     // 占位模板（考研 / 语言 / 技能）还没落地，先走自定义分支。
@@ -98,7 +108,10 @@ function Onboarding({ initial }: { initial: UserProfile }) {
     setDateOverride(null);
     setSubjectGoals(
       Object.fromEntries(
-        effective.subjects.map((subject) => [subject.key, String(subject.goal)]),
+        mergeTemplateSubjects(effective, storedSubjects, false).map((subject) => [
+          subject.key,
+          String(subject.goal),
+        ]),
       ),
     );
   };
@@ -115,30 +128,30 @@ function Onboarding({ initial }: { initial: UserProfile }) {
           region: canonicalProvince(region) ?? region.trim(),
           total_target: score ?? initial.total_target,
         });
-        // 各科目标落在 `subjects` 表，不再塞进档案。库里已有的按 key 找出来改目标分。
-        const stored = (await api.listSubjects()) ?? [];
-        for (const subject of subjectRows) {
-          const raw = subjectGoals[subject.key]?.trim() ?? "";
-          if (!/^\d+$/.test(raw)) continue;
-          const goal = Number(raw);
-          const existing = stored.find((item) => item.key === subject.key);
-          if (!existing) continue;
-          await api.upsertSubject({
-            id: existing.id,
-            trackId: existing.trackId,
-            key: existing.key,
-            label: existing.label,
-            fullMark: existing.fullMark,
-            goal,
-            unit: existing.unit,
-          });
-        }
+      }
+      // 各科目标落在科目字典，不跟档案一起存。每条赛道都要播种自己的科目。
+      // 科目标识全库唯一：已存在的带上 id 改，不存在的才新建。
+      const existingSubjects = (await api.listSubjects()) ?? [];
+      const subjectIds = new Map(existingSubjects.map((item) => [item.key, item.id]));
+      for (const subject of subjectRows) {
+        const raw = subjectGoals[subject.key]?.trim() ?? "";
+        const goal = /^\d+$/.test(raw) ? Number(raw) : subject.goal;
+        await api.upsertSubject({
+          id: subjectIds.get(subject.key) ?? null,
+          trackId: activeTrackId,
+          key: subject.key,
+          label: subject.label,
+          fullMark: subject.fullMark,
+          goal,
+          unit: subject.unit,
+        });
       }
 
       const goals = await api.listGoals();
       const primary = goals.find((item) => item.isPrimary) ?? goals[0];
       await api.upsertGoal({
         id: primary?.id,
+        trackId: activeTrackId,
         name: goalName.trim(),
         date: goalDate,
         kind: primary?.kind ?? "exam",

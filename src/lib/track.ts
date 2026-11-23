@@ -1,6 +1,194 @@
 import type { Goal, Subject, Track } from "../types";
+import { DEFAULT_SUBJECT_TARGETS, SUBJECT_FIELDS } from "./profile";
 
 export { subjectsByKey } from "./subjects";
+
+/**
+ * 赛道模板。
+ *
+ * 4.0 起「高考」只是其中一条赛道，不再是产品唯一的形态。
+ * 模板描述一条赛道长什么样：叫什么、满分多少、有哪些科目、要不要年级/地区。
+ *
+ * 内置模板是「配置缺失时的兜底」；P2-1 之后赛道包（插件）会覆盖它们。
+ */
+export type TrackTemplateId =
+  | "gaokao"
+  | "kaoyan"
+  | "language"
+  | "skill"
+  | "custom";
+
+/** 模板里的一科。 */
+export type TrackSubjectTemplate = {
+  /**
+   * 科目标识。全库唯一，所以不同赛道的科目不能重名——
+   * 别的赛道由赛道包（P2-1）提供自己的 key。
+   */
+  key: string;
+  label: string;
+  /** 该科满分。 */
+  fullMark: number;
+  /** 该科默认目标分。 */
+  goal: number;
+  /** 单位。默认「分」。 */
+  unit?: string;
+};
+
+export type TrackTemplate = {
+  id: TrackTemplateId;
+  /** 卡片标题。 */
+  name: string;
+  /** 卡片副标题：一句话说清这条赛道要追什么。 */
+  tagline: string;
+  /** 是否已经落地。false 表示占位，选中后走「自定义」分支。 */
+  available: boolean;
+  /** 默认目标名称。 */
+  goalName: string;
+  /** 科目清单。没有科目就是纯倒计时赛道。 */
+  subjects: TrackSubjectTemplate[];
+  /** 总分满分。0 表示这条赛道不计总分。 */
+  maxScore: number;
+  /** 是否需要年级 / 地区这类上下文（高考需要）。 */
+  requiresGaokaoContext: boolean;
+  /** 赛道类型，对应 `tracks.kind`。 */
+  kind: "exam" | "skill" | "course";
+};
+
+/** 高考的六科：科目清单沿用档案里的默认目标。 */
+const GAOKAO_SUBJECTS: TrackSubjectTemplate[] = SUBJECT_FIELDS.map((field) => ({
+  key: field.key,
+  label: field.label,
+  fullMark: DEFAULT_SUBJECT_TARGETS[field.key],
+  goal: DEFAULT_SUBJECT_TARGETS[field.key],
+  unit: "分",
+}));
+
+/**
+ * 内置赛道模板。
+ *
+ * 只有「高考」与「自定义」是已经落地的形态；考研 / 语言学习 / 技能习得
+ * 先占位，字段位留好，等 P2-1 的赛道包把各自的科目与语料送进来。
+ */
+export const TRACK_TEMPLATES: TrackTemplate[] = [
+  {
+    id: "gaokao",
+    name: "高考",
+    tagline: "按年级倒计时到考试日，六科都有满分和目标分。",
+    available: true,
+    goalName: "高考",
+    subjects: GAOKAO_SUBJECTS,
+    maxScore: 750,
+    requiresGaokaoContext: true,
+    kind: "exam",
+  },
+  {
+    id: "kaoyan",
+    name: "考研",
+    tagline: "初试到复试的长线倒计时，分数制。",
+    available: false,
+    goalName: "考研",
+    subjects: [],
+    maxScore: 500,
+    requiresGaokaoContext: false,
+    kind: "exam",
+  },
+  {
+    id: "language",
+    name: "语言学习",
+    tagline: "雅思、托福或者日常语言，按考试日倒计时。",
+    available: false,
+    goalName: "语言学习",
+    subjects: [],
+    maxScore: 100,
+    requiresGaokaoContext: false,
+    kind: "exam",
+  },
+  {
+    id: "skill",
+    name: "技能习得",
+    tagline: "编程、乐器、健身这类以周为单位的目标。",
+    available: false,
+    goalName: "技能习得",
+    subjects: [],
+    maxScore: 0,
+    requiresGaokaoContext: false,
+    kind: "skill",
+  },
+  {
+    id: "custom",
+    name: "自定义",
+    tagline: "自己起个名字，定个日期，想追分就填科目。",
+    available: true,
+    goalName: "我的目标",
+    subjects: [],
+    maxScore: 0,
+    requiresGaokaoContext: false,
+    kind: "exam",
+  },
+];
+
+/** 取一条赛道模板；认不出来时回落到最后一条（自定义）。 */
+export function trackTemplateById(id: TrackTemplateId): TrackTemplate {
+  return (
+    TRACK_TEMPLATES.find((template) => template.id === id) ??
+    (TRACK_TEMPLATES[TRACK_TEMPLATES.length - 1] as TrackTemplate)
+  );
+}
+
+/** 模板的科目满分合计。没有科目就是 0。 */
+export function templateFullMarks(subjects: TrackSubjectTemplate[]): number {
+  return subjects.reduce((sum, subject) => sum + subject.fullMark, 0);
+}
+
+/** 模板的科目目标合计。 */
+export function templateGoalSum(subjects: TrackSubjectTemplate[]): number {
+  return subjects.reduce((sum, subject) => sum + subject.goal, 0);
+}
+
+/** 引导 / 设置流程里一行科目的样子。 */
+export type TemplateSubjectRow = {
+  key: string;
+  label: string;
+  fullMark: number;
+  goal: number;
+  unit: string;
+};
+
+/**
+ * 把「模板给的科目」与「库里已有的科目」合成一份清单。
+ *
+ * 模板定义这条赛道应该有哪些科、满分多少；库里存着用户实际改过的目标分。
+ * 同名以库里的目标为准，库里多出来的科目（用户自己加的）也带上。
+ *
+ * `includeExtra` 关掉时只保留模板里的科目：引导流程用这个——
+ * 引导时用户还没选定赛道，不该看到上一条赛道多出来的科目。
+ */
+export function mergeTemplateSubjects(
+  template: TrackTemplate,
+  stored: Pick<Subject, "key" | "label" | "fullMark" | "goal" | "unit">[],
+  includeExtra = true,
+): TemplateSubjectRow[] {
+  const byKey = new Map(stored.map((item) => [item.key, item]));
+  const rows: TemplateSubjectRow[] = template.subjects.map((subject) => ({
+    key: subject.key,
+    label: subject.label,
+    fullMark: subject.fullMark,
+    goal: byKey.get(subject.key)?.goal ?? subject.goal,
+    unit: subject.unit ?? "分",
+  }));
+  if (!includeExtra) return rows;
+  for (const item of stored) {
+    if (rows.some((row) => row.key === item.key)) continue;
+    rows.push({
+      key: item.key,
+      label: item.label,
+      fullMark: item.fullMark ?? 0,
+      goal: item.goal ?? 0,
+      unit: item.unit ?? "分",
+    });
+  }
+  return rows;
+}
 
 /**
  * 一条赛道的完整画像：赛道本身 + 它下面的科目 + 它的目标。
