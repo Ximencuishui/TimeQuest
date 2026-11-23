@@ -6,6 +6,9 @@ export const DB_FILE = "timequest.db";
 /** Default next Gaokao: June 7 */
 export const DEFAULT_EXAM_DATE = "2027-06-07";
 
+/** 启动时补的默认目标名称。 */
+export const DEFAULT_GOAL_NAME = "高考";
+
 export const ACCENT = "#F97316"; // sprint orange
 
 /** Built-in outlines are AI-generated and may lag the latest exam syllabus. */

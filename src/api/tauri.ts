@@ -11,6 +11,7 @@ import type {
   ExamRecord,
   CompletionRate,
   EnsureTodayScheduleResult,
+  Goal,
   MethodShareRow,
   Note,
   DailyUnitsRow,
@@ -41,6 +42,7 @@ import type {
   TextbookOutline,
   TopicMistakes,
   UpdateMistakePayload,
+  UpsertGoalPayload,
   UserAchievement,
   UserProfile,
   UserStats,
@@ -275,6 +277,13 @@ export const api = {
   createExamRecord: (payload: CreateExamRecordPayload) =>
     invoke<ExamRecord>("create_exam_record", { payload }),
   deleteExamRecord: (id: number) => invoke<void>("delete_exam_record", { id }),
+
+  // goals (countdown targets)
+  listGoals: () => invoke<Goal[]>("list_goals"),
+  upsertGoal: (payload: UpsertGoalPayload) =>
+    invoke<Goal>("upsert_goal", { payload }),
+  removeGoal: (id: number) => invoke<void>("remove_goal", { id }),
+  setPrimaryGoal: (id: number) => invoke<void>("set_primary_goal", { id }),
   listAchievements: () => invoke<UserAchievement[]>("list_user_achievements"),
 
   // data

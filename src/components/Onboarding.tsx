@@ -4,9 +4,9 @@ import { api } from "../api/tauri";
 import { useAppSetting, useSetSetting } from "../hooks/useAppSetting";
 import { useUpdateUserProfile, useUserProfile } from "../hooks/useUserProfile";
 import { RegionSelect } from "./RegionSelect";
+import { DEFAULT_GOAL_NAME } from "../lib/constants";
 import { gaokaoDateForGrade } from "../lib/examDate";
 import { DEFAULT_USER_PROFILE, GRADES, canonicalProvince } from "../lib/profile";
-import { useUiStore } from "../store/ui";
 import type { UserProfile } from "../types";
 
 export const ONBOARDING_KEY = "onboarding_completed";
@@ -57,12 +57,13 @@ function Onboarding({ initial }: { initial: UserProfile }) {
         total_target: score,
       });
       const examDate = gaokaoDateForGrade(grade);
-      const exams = useUiStore.getState().exams;
-      const primary = exams.find((item) => item.isPrimary) ?? exams[0];
-      useUiStore.getState().upsertExam({
-        id: primary?.id ?? "gaokao",
-        name: primary?.name ?? "高考",
+      const goals = await api.listGoals();
+      const primary = goals.find((item) => item.isPrimary) ?? goals[0];
+      await api.upsertGoal({
+        id: primary?.id,
+        name: primary?.name ?? DEFAULT_GOAL_NAME,
         date: examDate,
+        kind: primary?.kind ?? "exam",
         isPrimary: true,
       });
       if (loadMock) await api.generateMockData();
@@ -74,6 +75,7 @@ function Onboarding({ initial }: { initial: UserProfile }) {
       await qc.invalidateQueries({ queryKey: ["examRecords"] });
       await qc.invalidateQueries({ queryKey: ["hasMockData"] });
       await qc.invalidateQueries({ queryKey: ["stats"] });
+      await qc.invalidateQueries({ queryKey: ["goals"] });
     } catch (cause) {
       setError(String(cause));
       setBusy(false);

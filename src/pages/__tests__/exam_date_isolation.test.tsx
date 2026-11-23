@@ -12,10 +12,12 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CompleteDialog } from "../../components/CompleteDialog";
 import { computeCountdown, todayStr } from "../../lib/date";
-import { useUiStore } from "../../store/ui";
+import { getGoalFixtures, makeGoal, setGoalFixtures } from "../../test/mockGoals";
 import type { TaskSession, UserStats } from "../../types";
 import { Dashboard } from "../Dashboard";
 import { Stats } from "../Stats";
+
+vi.mock("../../hooks/useGoals", async () => await import("../../test/mockGoals"));
 
 /**
  * C 段：看板里考试日期只被 CountdownPanel 读取。
@@ -33,9 +35,7 @@ const EXAM_C = "2026-09-01";
 const USER_PICKED = "2026-08-15";
 
 function seedPrimary(date: string) {
-  useUiStore.getState().setExams([
-    { id: "gaokao", name: "高考", date, isPrimary: true },
-  ]);
+  setGoalFixtures([makeGoal({ id: 1, name: "高考", date, isPrimary: true })]);
 }
 
 function freezeLocalNoon(year: number, monthIndex: number, day: number) {
@@ -196,7 +196,7 @@ describe("exam date isolation", () => {
     });
 
     expect(deferDateInput().value).toBe(USER_PICKED);
-    expect(useUiStore.getState().exams.find((e) => e.isPrimary)?.date).toBe(EXAM_C);
+    expect(getGoalFixtures().find((e) => e.isPrimary)?.date).toBe(EXAM_C);
   });
 
   it("exam_date_change_does_not_shift_open_stats_range", async () => {

@@ -3,8 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_USER_PROFILE } from "../../lib/profile";
-import { useUiStore } from "../../store/ui";
-import type { UserProfile } from "../../types";
+import type { Goal, UpsertGoalPayload, UserProfile } from "../../types";
 import { ONBOARDING_KEY, OnboardingGate } from "../Onboarding";
 
 const mockedInvoke = vi.mocked(invoke);
@@ -24,16 +23,26 @@ describe("Onboarding", () => {
   let completed = false;
   const calls: string[] = [];
   let saved: UserProfile | null = null;
+  let goals: Goal[] = [];
 
   beforeEach(() => {
     completed = false;
     saved = null;
     calls.length = 0;
+    goals = [
+      {
+        id: 1,
+        trackId: null,
+        name: "高考",
+        date: "2027-06-07",
+        kind: "exam",
+        isPrimary: true,
+        targetScore: null,
+        createdAt: "2026-11-06 12:00:00",
+      },
+    ];
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 10, 6, 12, 0, 0));
-    useUiStore.getState().setExams([
-      { id: "gaokao", name: "高考", date: "2027-06-07", isPrimary: true },
-    ]);
     mockedInvoke.mockReset();
     mockedInvoke.mockImplementation(async (cmd: string, args?: unknown) => {
       if (cmd === "get_setting") {
@@ -46,6 +55,34 @@ describe("Onboarding", () => {
         calls.push(cmd);
         saved = (args as { profile: UserProfile }).profile;
         return saved;
+      }
+      if (cmd === "list_goals") return goals;
+      if (cmd === "upsert_goal") {
+        const payload = (args as { payload: UpsertGoalPayload }).payload;
+        const existing =
+          payload.id != null ? goals.find((goal) => goal.id === payload.id) : undefined;
+        const next: Goal = existing
+          ? {
+              ...existing,
+              name: payload.name,
+              date: payload.date,
+              kind: payload.kind ?? existing.kind,
+              isPrimary: payload.isPrimary ?? existing.isPrimary,
+            }
+          : {
+              id: goals.reduce((max, goal) => Math.max(max, goal.id), 0) + 1,
+              trackId: null,
+              name: payload.name,
+              date: payload.date,
+              kind: payload.kind ?? "exam",
+              isPrimary: payload.isPrimary ?? false,
+              targetScore: null,
+              createdAt: "2026-11-06 12:00:00",
+            };
+        goals = existing
+          ? goals.map((goal) => (goal.id === next.id ? next : goal))
+          : [...goals, next];
+        return next;
       }
       if (cmd === "set_setting") {
         calls.push(cmd);
@@ -96,9 +133,7 @@ describe("Onboarding", () => {
       region: "湖南",
       total_target: 650,
     });
-    expect(useUiStore.getState().exams.find((exam) => exam.isPrimary)?.date).toBe(
-      "2028-06-07",
-    );
+    expect(goals.find((goal) => goal.isPrimary)?.date).toBe("2028-06-07");
   });
 
   it("onboarding_loads_hunan_demo_data", async () => {
@@ -111,9 +146,7 @@ describe("Onboarding", () => {
     expect(calls).toEqual(["update_user_profile", "generate_mock_data", "set_setting"]);
     expect(saved?.grade).toBe("高二");
     expect(saved?.region).toBe("湖南");
-    expect(useUiStore.getState().exams.find((exam) => exam.isPrimary)?.date).toBe(
-      "2028-06-07",
-    );
+    expect(goals.find((goal) => goal.isPrimary)?.date).toBe("2028-06-07");
   });
 
   it("onboarding_hides_when_already_completed", async () => {

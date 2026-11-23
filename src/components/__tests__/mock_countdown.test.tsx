@@ -1,11 +1,13 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MockCountdown } from "../MockCountdown";
-import { useUiStore } from "../../store/ui";
+import { makeGoal, setGoalFixtures } from "../../test/mockGoals";
 
-const exams = [
-  { id: "gaokao", name: "高考", date: "2027-06-07", isPrimary: true },
-  { id: "m1", name: "第一次模考", date: "2026-11-25", isPrimary: false },
+vi.mock("../../hooks/useGoals", async () => await import("../../test/mockGoals"));
+
+const goals = [
+  makeGoal({ id: 1, name: "高考", date: "2027-06-07", isPrimary: true }),
+  makeGoal({ id: 2, name: "第一次模考", date: "2026-11-25", isPrimary: false }),
 ];
 
 beforeEach(() => {
@@ -20,7 +22,7 @@ afterEach(() => {
 
 describe("MockCountdown", () => {
   it("mock_countdown_shows_days_until_next_mock_exam", () => {
-    useUiStore.setState({ exams });
+    setGoalFixtures(goals);
 
     render(<MockCountdown />);
 
@@ -31,7 +33,7 @@ describe("MockCountdown", () => {
   });
 
   it("mock_countdown_hides_when_there_is_no_mock_exam", () => {
-    useUiStore.setState({ exams: [exams[0]!] });
+    setGoalFixtures([goals[0]!]);
 
     render(<MockCountdown />);
 

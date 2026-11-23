@@ -405,8 +405,34 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         rows
     };
 
+    let goals: Vec<Value> = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, track_id, name, date, kind, is_primary, target_score, created_at
+                 FROM goals ORDER BY id",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(json!({
+                    "id": r.get::<_, i64>(0)?,
+                    "trackId": r.get::<_, Option<i64>>(1)?,
+                    "name": r.get::<_, String>(2)?,
+                    "date": r.get::<_, String>(3)?,
+                    "kind": r.get::<_, String>(4)?,
+                    "isPrimary": r.get::<_, i64>(5)? != 0,
+                    "targetScore": r.get::<_, Option<f64>>(6)?,
+                    "createdAt": r.get::<_, String>(7)?,
+                }))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    };
+
     let payload = json!({
-        "version": 1,
+        "version": 2,
         "exported_at": chrono::Local::now().to_rfc3339(),
         "tasks": tasks,
         "task_sessions": sessions,
@@ -420,6 +446,7 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         "imported_textbooks": imported_textbooks,
         "exam_records": exam_records,
         "task_knowledge_points": task_knowledge_points,
+        "goals": goals,
     });
     serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())
 }
@@ -446,6 +473,7 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
             DELETE FROM app_settings;
             DELETE FROM imported_textbooks;
             DELETE FROM exam_records;
+            DELETE FROM goals;
             UPDATE user_stats SET total_xp=0, current_level=1, current_streak=0, longest_streak=0, last_done_date=NULL WHERE id=1;
             "#,
     )
@@ -713,6 +741,50 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
             )
             .map_err(|e| e.to_string())?;
         }
+    }
+
+    // 目标：4.0 起落在 `goals` 表。
+    // v1 旧备份没有这个键，补一条默认目标，不能报错也不能把表留空。
+    if let Some(arr) = data.get("goals").and_then(|v| v.as_array()) {
+        for row in arr {
+            tx.execute(
+                r#"INSERT INTO goals (id, track_id, name, date, kind, is_primary, target_score, created_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, COALESCE(?8, datetime('now','localtime')))"#,
+                params![
+                    row.get("id").and_then(|v| v.as_i64()),
+                    row.get("trackId")
+                        .or_else(|| row.get("track_id"))
+                        .and_then(|v| v.as_i64()),
+                    row.get("name").and_then(|v| v.as_str()).unwrap_or(""),
+                    row.get("date").and_then(|v| v.as_str()).unwrap_or(""),
+                    row.get("kind")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(crate::commands::goals::GOAL_KIND_EXAM),
+                    row.get("isPrimary")
+                        .or_else(|| row.get("is_primary"))
+                        // 导出的 payload 里是布尔值，旧备份里可能是 0/1。
+                        .and_then(|v| v.as_i64().or_else(|| v.as_bool().map(i64::from)))
+                        .unwrap_or(0),
+                    row.get("targetScore")
+                        .or_else(|| row.get("target_score"))
+                        .and_then(|v| v.as_f64()),
+                    row.get("createdAt")
+                        .or_else(|| row.get("created_at"))
+                        .and_then(|v| v.as_str()),
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    } else {
+        tx.execute(
+            "INSERT INTO goals (track_id, name, date, kind, is_primary) VALUES (NULL, ?1, ?2, ?3, 1)",
+            params![
+                crate::commands::goals::DEFAULT_GOAL_NAME,
+                crate::commands::goals::DEFAULT_GOAL_DATE,
+                crate::commands::goals::GOAL_KIND_EXAM
+            ],
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     if let Some(arr) = data.get("app_settings").and_then(|v| v.as_array()) {

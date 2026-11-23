@@ -4,14 +4,14 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { computeCountdown } from "../../../lib/date";
-import { useUiStore } from "../../../store/ui";
+import { makeGoal, setGoalFixtures } from "../../../test/mockGoals";
 import { Dashboard } from "../../Dashboard.tsx";
 
+vi.mock("../../../hooks/useGoals", async () => await import("../../../test/mockGoals"));
+
 /**
- * D 段：CountdownPanel 用 useUiStore 的 exams，不在挂载时读 localStorage。
- * store 没有 setExamDate；设置页和这里都走 setExams / upsertExam。
- * localStorage 键是 timequest.exams，只在 store 创建时由 loadExams() 读一次。
- * 重新挂载仍看当前 store，不会单独把磁盘上的旧值再读进来。
+ * D 段：CountdownPanel 从目标列表（数据库）读倒计时日期，不在挂载时读 localStorage。
+ * 重新挂载仍看当前目标，不会单独把磁盘上的旧值再读进来。
  */
 
 const mockedInvoke = vi.mocked(invoke);
@@ -19,9 +19,7 @@ const DATE_A = "2026-06-07";
 const DATE_B = "2026-07-01";
 
 function seedPrimary(date: string) {
-  useUiStore.getState().setExams([
-    { id: "gaokao", name: "高考", date, isPrimary: true },
-  ]);
+  setGoalFixtures([makeGoal({ id: 1, name: "高考", date, isPrimary: true })]);
 }
 
 function daysFor(date: string): string {
@@ -107,12 +105,9 @@ describe("Dashboard countdown store sync", () => {
     expect(daysA).toBe(daysFor(DATE_A));
 
     act(() => {
-      useUiStore.getState().upsertExam({
-        id: "gaokao",
-        name: "高考",
-        date: DATE_B,
-        isPrimary: true,
-      });
+      setGoalFixtures([
+        makeGoal({ id: 1, name: "高考", date: DATE_B, isPrimary: true }),
+      ]);
     });
 
     const idBeforeUnmount = setIntervalSpy.mock.results.at(-1)?.value;

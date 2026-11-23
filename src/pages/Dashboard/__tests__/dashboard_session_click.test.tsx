@@ -3,10 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useUiStore } from "../../../store/ui";
+import { makeGoal, setGoalFixtures } from "../../../test/mockGoals";
 import type { TaskSession } from "../../../types";
 import { Dashboard } from "../../Dashboard";
 import { TodayRoute } from "../../Today";
+
+vi.mock("../../../hooks/useGoals", async () => await import("../../../test/mockGoals"));
 
 const mockedInvoke = vi.mocked(invoke);
 
@@ -49,8 +51,8 @@ function renderShell() {
 describe("Dashboard session card", () => {
   beforeEach(() => {
     localStorage.clear();
-    useUiStore.getState().setExams([
-      { id: "gaokao", name: "高考", date: "2027-06-07", isPrimary: true },
+    setGoalFixtures([
+      makeGoal({ id: 1, name: "高考", date: "2027-06-07", isPrimary: true }),
     ]);
     Element.prototype.scrollIntoView = vi.fn();
     mockedInvoke.mockReset();

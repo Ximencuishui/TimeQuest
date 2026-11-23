@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
+import { useGoalMutations, useGoals } from "../hooks/useGoals";
 import { useUpdateUserProfile, useUserProfile } from "../hooks/useUserProfile";
+import { DEFAULT_GOAL_NAME } from "../lib/constants";
 import { gaokaoDateForGrade } from "../lib/examDate";
-import { useUiStore } from "../store/ui";
+import { resolvePrimaryGoal } from "../lib/goals";
 import type { UserProfile } from "../types";
 import { RegionSelect } from "./RegionSelect";
 import {
@@ -73,7 +75,8 @@ async function fileToAvatar(bytes: Uint8Array, mime: string): Promise<string> {
 export function ProfileSetting() {
   const { data } = useUserProfile();
   const update = useUpdateUserProfile();
-  const upsertExam = useUiStore((s) => s.upsertExam);
+  const { data: goals = [] } = useGoals();
+  const { upsert: upsertGoal } = useGoalMutations();
   const fileRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<ProfileDraft | null>(null);
   const [error, setError] = useState("");
@@ -118,12 +121,12 @@ export function ProfileSetting() {
   };
 
   const writeExamDate = (date: string) => {
-    const exams = useUiStore.getState().exams;
-    const primary = exams.find((item) => item.isPrimary) ?? exams[0];
-    upsertExam({
-      id: primary?.id ?? "gaokao",
-      name: primary?.name ?? "高考",
+    const primary = resolvePrimaryGoal(goals);
+    upsertGoal.mutate({
+      id: primary?.id,
+      name: primary?.name ?? DEFAULT_GOAL_NAME,
       date,
+      kind: primary?.kind ?? "exam",
       isPrimary: true,
     });
   };
@@ -139,9 +142,7 @@ export function ProfileSetting() {
     if (!parsed.ok) return;
     setError("");
     const nextDate = gaokaoDateForGrade(parsed.profile.grade);
-    const primary =
-      useUiStore.getState().exams.find((item) => item.isPrimary) ??
-      useUiStore.getState().exams[0];
+    const primary = resolvePrimaryGoal(goals);
     const gradeChanged = parsed.profile.grade !== savedGrade;
     if (gradeChanged && primary?.date !== nextDate) {
       setPendingExamDate(nextDate);

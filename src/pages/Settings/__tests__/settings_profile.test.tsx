@@ -6,9 +6,16 @@ import { MemoryRouter } from "react-router-dom";
 import { CountdownPanel } from "../../../components/CountdownPanel";
 import { Layout } from "../../../components/Layout";
 import { DEFAULT_USER_PROFILE } from "../../../lib/profile";
-import { useUiStore } from "../../../store/ui";
+import {
+  getGoalFixtures,
+  makeGoal,
+  resetGoalMocks,
+  setGoalFixtures,
+} from "../../../test/mockGoals";
 import type { UserProfile } from "../../../types";
 import { Settings } from "../../Settings.tsx";
+
+vi.mock("../../../hooks/useGoals", async () => await import("../../../test/mockGoals"));
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   save: vi.fn(),
@@ -50,8 +57,9 @@ describe("Settings profile", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 10, 6, 12, 0, 0));
     localStorage.clear();
-    useUiStore.getState().setExams([
-      { id: "gaokao", name: "高考", date: "2027-06-07", isPrimary: true },
+    resetGoalMocks();
+    setGoalFixtures([
+      makeGoal({ id: 1, name: "高考", date: "2027-06-07", isPrimary: true }),
     ]);
     mockedInvoke.mockReset();
     mockedInvoke.mockImplementation(async (cmd: string, args?: unknown) => {
@@ -131,7 +139,7 @@ describe("Settings profile", () => {
     expect(
       mockedInvoke.mock.calls.filter((call) => call[0] === "update_user_profile"),
     ).toHaveLength(0);
-    expect(useUiStore.getState().exams.find((exam) => exam.isPrimary)?.date).toBe(
+    expect(getGoalFixtures().find((exam) => exam.isPrimary)?.date).toBe(
       "2027-06-07",
     );
 
@@ -156,7 +164,7 @@ describe("Settings profile", () => {
         region: "广东",
       });
     });
-    expect(useUiStore.getState().exams.find((exam) => exam.isPrimary)?.date).toBe(
+    expect(getGoalFixtures().find((exam) => exam.isPrimary)?.date).toBe(
       "2029-06-07",
     );
     expect(screen.getByText("目标日 2029-06-07")).toBeInTheDocument();
@@ -180,7 +188,7 @@ describe("Settings profile", () => {
     await waitFor(() => {
       expect(screen.getByText("目标日 2028-06-07")).toBeInTheDocument();
     });
-    expect(useUiStore.getState().exams.find((exam) => exam.isPrimary)?.date).toBe(
+    expect(getGoalFixtures().find((exam) => exam.isPrimary)?.date).toBe(
       "2028-06-07",
     );
     const calls = mockedInvoke.mock.calls.filter(

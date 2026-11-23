@@ -15,6 +15,10 @@ pub use commands::data::{export_json_impl, import_json_impl};
 pub use commands::exams::{
     create_exam_record_impl, delete_exam_record_impl, list_exam_records_impl,
 };
+pub use commands::goals::{
+    list_goals_impl, remove_goal_impl, seed_default_goal_impl, set_primary_goal_impl,
+    upsert_goal_impl, DEFAULT_GOAL_DATE, DEFAULT_GOAL_NAME, GOAL_KINDS,
+};
 pub use commands::knowledge_graph::{
     download_plugin_knowledge_pack, downloaded_pack_exists, list_plugin_knowledge_packs,
     list_plugin_knowledge_points, list_plugin_prerequisites, list_task_prerequisite_conflicts,
@@ -80,9 +84,10 @@ pub use knowledge_graph::{
 };
 pub use models::{
     CompleteSessionResult, CompletionRate, CreateExamRecordPayload, CreateLogPayload,
-    CreateMistakePayload, DailyUnitsRow, ExamRecord, MethodShareRow, Mistake, PlanVsActualRow,
-    RemainderSchedule, SubjectTargets, TagTypeRow, Task, TaskProgress, TaskSession, TopicMistake,
-    TopicMistakes, UpdateMistakePayload, UpdateNotePayload, UpdateTaskPayload, UserProfile,
+    CreateMistakePayload, DailyUnitsRow, ExamRecord, Goal, MethodShareRow, Mistake,
+    PlanVsActualRow, RemainderSchedule, SubjectTargets, TagTypeRow, Task, TaskProgress,
+    TaskSession, TopicMistake, TopicMistakes, UpdateMistakePayload, UpdateNotePayload,
+    UpdateTaskPayload, UpsertGoalPayload, UserProfile,
 };
 pub use pdf_outline::{
     extract_outline, extract_outline_lines, inspect_pdf_pages, outline_to_textbook,
@@ -129,6 +134,8 @@ pub fn run() {
             db::backup_db_file(&path, chrono::Local::now())?;
             let pool = tauri::async_runtime::block_on(open_sqlx_pool(&path))?;
             let conn = open_db(&path)?;
+            // 目标落库后第一次启动：空库时补一条默认目标，和以前 localStorage 里的兜底一致。
+            seed_default_goal_impl(&conn)?;
             app.manage(pool);
             app.manage(DbState(Mutex::new(conn)));
             app.manage(AppPrefs::new());
@@ -273,6 +280,10 @@ pub fn run() {
             commands::create_exam_record,
             commands::list_exam_records,
             commands::delete_exam_record,
+            commands::list_goals,
+            commands::upsert_goal,
+            commands::remove_goal,
+            commands::set_primary_goal,
             commands::has_mock_data,
             commands::generate_mock_data,
             commands::clear_mock_data,

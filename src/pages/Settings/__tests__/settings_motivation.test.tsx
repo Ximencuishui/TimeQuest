@@ -3,8 +3,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dailyMotivation } from "../../../lib/motivation";
-import { useUiStore } from "../../../store/ui";
+import { makeGoal, setGoalFixtures } from "../../../test/mockGoals";
 import { Settings } from "../../Settings.tsx";
+
+vi.mock("../../../hooks/useGoals", async () => await import("../../../test/mockGoals"));
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   save: vi.fn(),
@@ -54,8 +56,8 @@ describe("Settings motivation", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0, 0));
     localStorage.clear();
-    useUiStore.getState().setExams([
-      { id: "gaokao", name: "高考", date: "2027-06-07", isPrimary: true },
+    setGoalFixtures([
+      makeGoal({ id: 1, name: "高考", date: "2027-06-07", isPrimary: true }),
     ]);
     mockedInvoke.mockReset();
     mockedInvoke.mockImplementation(async (cmd: string) => {

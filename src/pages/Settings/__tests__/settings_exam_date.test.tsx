@@ -2,14 +2,20 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useUiStore } from "../../../store/ui";
+import {
+  getGoalFixtures,
+  makeGoal,
+  resetGoalMocks,
+  setGoalFixtures,
+  upsert,
+} from "../../../test/mockGoals";
 import { Settings } from "../../Settings.tsx";
 
+vi.mock("../../../hooks/useGoals", async () => await import("../../../test/mockGoals"));
+
 /**
- * C 段写入链路：已有考试目标的日期不走 Tauri。
- * `useUiStore.upsertExam` 更新内存，并 `JSON.stringify` 到 localStorage `timequest.exams`。
- * 仓库没有 `upsert_exam` command，所以这里不断言 invoke('upsert_exam') 被调用，
- * 只断言 store 与 localStorage，并确认没有这条 command。
+ * C 段写入链路：目标存在数据库里，日期改动走 `upsertGoal`。
+ * 目标列表从 `useGoals` 读，测试里用假数据代替。
  *
  * 过去日期：选中后先把日期留在输入框（pending），确认前不写入。
  * 初始种子日期是 2027-06-07。
@@ -29,30 +35,20 @@ vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => ({ setAlwaysOnTop: vi.fn() }),
 }));
 
-const EXAMS_KEY = "timequest.exams";
 const ORIGINAL_DATE = "2027-06-07";
 const mockedInvoke = vi.mocked(invoke);
 
 function seedExam(date = ORIGINAL_DATE) {
-  useUiStore.getState().setExams([
-    { id: "gaokao", name: "高考", date, isPrimary: true },
-  ]);
+  setGoalFixtures([makeGoal({ id: 1, name: "高考", date, isPrimary: true })]);
 }
 
 function storedPrimaryDate(): string {
-  const fromStore = useUiStore.getState().exams.find((e) => e.isPrimary)?.date;
-  const raw = localStorage.getItem(EXAMS_KEY);
-  const parsed = raw
-    ? (JSON.parse(raw) as { date: string; isPrimary: boolean }[])
-    : [];
-  const fromDisk = parsed.find((e) => e.isPrimary)?.date;
-  expect(fromDisk).toBe(fromStore);
+  const fromStore = getGoalFixtures().find((e) => e.isPrimary)?.date;
   return fromStore ?? "";
 }
 
-function expectNoUpsertExamCommand() {
-  const calls = mockedInvoke.mock.calls.filter((call) => call[0] === "upsert_exam");
-  expect(calls).toEqual([]);
+function expectNoGoalWrite() {
+  expect(upsert.mutate).not.toHaveBeenCalled();
 }
 
 function renderSettings() {
@@ -79,6 +75,7 @@ describe("Settings exam date", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0, 0));
     localStorage.clear();
+    resetGoalMocks();
     seedExam();
     mockedInvoke.mockReset();
     mockedInvoke.mockImplementation(async (cmd: string) => {
@@ -103,7 +100,7 @@ describe("Settings exam date", () => {
     expect(dialog).toHaveTextContent("已过去");
     expect(dialog).toHaveTextContent("已到达");
     expect(storedPrimaryDate()).toBe(ORIGINAL_DATE);
-    expectNoUpsertExamCommand();
+    expectNoGoalWrite();
     // 确认前输入框显示刚选的过去日期，取消后再回到种子值。
     expect(input).toHaveValue("2025-06-07");
   });
@@ -116,7 +113,7 @@ describe("Settings exam date", () => {
     fireEvent.click(screen.getByRole("button", { name: "取消" }));
 
     expect(storedPrimaryDate()).toBe(ORIGINAL_DATE);
-    expectNoUpsertExamCommand();
+    expectNoGoalWrite();
     expect(input).toHaveValue(ORIGINAL_DATE);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -132,7 +129,9 @@ describe("Settings exam date", () => {
     fireEvent.click(screen.getByRole("button", { name: "确认" }));
 
     expect(storedPrimaryDate()).toBe("2025-06-07");
-    expectNoUpsertExamCommand();
+    expect(upsert.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 1, date: "2025-06-07" }),
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(input).toHaveValue("2025-06-07");
   });
@@ -145,7 +144,9 @@ describe("Settings exam date", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(storedPrimaryDate()).toBe("2026-06-07");
-    expectNoUpsertExamCommand();
+    expect(upsert.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 1, date: "2026-06-07" }),
+    );
     expect(input).toHaveValue("2026-06-07");
   });
 

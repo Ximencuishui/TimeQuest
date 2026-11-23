@@ -317,11 +317,36 @@ export type UserAchievement = {
   description?: string;
 };
 
-export type ExamTarget = {
-  id: string;
+/** 目标类型：考试 / 里程碑 / 截止日。 */
+export type GoalKind = "exam" | "milestone" | "deadline";
+
+/** 一条倒计时目标。4.0 起落在 SQLite，不再存 localStorage。 */
+export type Goal = {
+  id: number;
+  /** 所属赛道；赛道表 P1-2 才建，先允许为 null。 */
+  trackId: number | null;
+  /** 目标名称，如「高考」。 */
+  name: string;
+  /** 目标日期，`YYYY-MM-DD`。 */
+  date: string;
+  kind: GoalKind;
+  /** 是不是主目标。全库最多一个主目标。 */
+  isPrimary: boolean;
+  /** 目标分数，可空。 */
+  targetScore: number | null;
+  createdAt: string;
+};
+
+/** 新建 / 修改一条目标的请求体。`id` 有值就是改这一条。 */
+export type UpsertGoalPayload = {
+  id?: number | null;
+  trackId?: number | null;
   name: string;
   date: string;
-  isPrimary: boolean;
+  kind?: GoalKind;
+  /** 置成 true 时，其它目标同时降为普通目标。 */
+  isPrimary?: boolean;
+  targetScore?: number | null;
 };
 
 export type PlanVsActualRow = {

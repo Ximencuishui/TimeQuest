@@ -1,17 +1,18 @@
+import { useGoals } from "../hooks/useGoals";
 import { useRemainingStudyTime } from "../hooks/useRemainingStudyTime";
 import { computeCountdown } from "../lib/date";
-import { useUiStore } from "../store/ui";
+import { resolvePrimaryGoal } from "../lib/goals";
 import { StudyRemaining } from "./StudyRemaining";
 
 export function CountdownPanel() {
-  const exams = useUiStore((s) => s.exams);
-  const primary = exams.find((e) => e.isPrimary) ?? exams[0];
+  const { data: goals = [] } = useGoals();
+  const primary = resolvePrimaryGoal(goals);
   const { now, pending, study } = useRemainingStudyTime();
 
   if (!primary) {
     return (
       <div className="rounded-2xl bg-surface-2 p-6 text-ink-muted">
-        请先在设置中添加考试目标日期
+        请先在设置中添加目标日期
       </div>
     );
   }

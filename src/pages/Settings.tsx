@@ -7,7 +7,8 @@ import { api } from "../api/tauri";
 import pkg from "../../package.json";
 import { APP_FULL_NAME, APP_NAME } from "../lib/constants";
 import { useUiStore } from "../store/ui";
-import type { ExamTarget } from "../types";
+import type { Goal } from "../types";
+import { useGoalMutations, useGoals } from "../hooks/useGoals";
 import { useAchievements, useUserStats } from "../hooks/useStats";
 import { useAppSetting, useSetSetting } from "../hooks/useAppSetting";
 import { todayStr } from "../lib/date";
@@ -256,10 +257,8 @@ function isPastLocalDate(value: string, now = new Date()): boolean {
 }
 
 export function Settings() {
-  const exams = useUiStore((s) => s.exams);
-  const upsertExam = useUiStore((s) => s.upsertExam);
-  const setPrimaryExam = useUiStore((s) => s.setPrimaryExam);
-  const removeExam = useUiStore((s) => s.removeExam);
+  const { data: goals = [] } = useGoals();
+  const { upsert, remove, setPrimary } = useGoalMutations();
   const closeToTray = useUiStore((s) => s.closeToTray);
   const setCloseToTrayStore = useUiStore((s) => s.setCloseToTray);
   const setCloseToTray = (v: boolean) => {
@@ -282,24 +281,60 @@ export function Settings() {
   const [newDate, setNewDate] = useState("");
   const [msg, setMsg] = useState("");
   const [pendingDate, setPendingDate] = useState<{
-    id: string;
+    id: number;
     date: string;
   } | null>(null);
+  // 名称框先在本地改，失焦时才写库：每敲一个字写一次数据库太吵。
+  const [nameDraft, setNameDraft] = useState<{
+    id: number;
+    value: string;
+  } | null>(null);
 
-  const onExamDateChange = (exam: ExamTarget, next: string) => {
+  const onGoalDateChange = (goal: Goal, next: string) => {
     if (isPastLocalDate(next)) {
-      setPendingDate({ id: exam.id, date: next });
+      setPendingDate({ id: goal.id, date: next });
       return;
     }
-    if (pendingDate?.id === exam.id) setPendingDate(null);
-    upsertExam({ ...exam, date: next });
+    if (pendingDate?.id === goal.id) setPendingDate(null);
+    upsert.mutate({
+      id: goal.id,
+      name: goal.name,
+      date: next,
+      kind: goal.kind,
+      isPrimary: goal.isPrimary,
+      targetScore: goal.targetScore,
+    });
   };
 
   const confirmPastDate = () => {
     if (!pendingDate) return;
-    const current = exams.find((item) => item.id === pendingDate.id);
-    if (current) upsertExam({ ...current, date: pendingDate.date });
+    const current = goals.find((item) => item.id === pendingDate.id);
+    if (current) {
+      upsert.mutate({
+        id: current.id,
+        name: current.name,
+        date: pendingDate.date,
+        kind: current.kind,
+        isPrimary: current.isPrimary,
+        targetScore: current.targetScore,
+      });
+    }
     setPendingDate(null);
+  };
+
+  const commitName = (goal: Goal) => {
+    if (!nameDraft || nameDraft.id !== goal.id) return;
+    const next = nameDraft.value.trim();
+    setNameDraft(null);
+    if (!next || next === goal.name) return;
+    upsert.mutate({
+      id: goal.id,
+      name: next,
+      date: goal.date,
+      kind: goal.kind,
+      isPrimary: goal.isPrimary,
+      targetScore: goal.targetScore,
+    });
   };
 
   const toggleAlwaysOnTop = async (v: boolean) => {
@@ -388,35 +423,36 @@ export function Settings() {
           除高考外添加的目标（比如模考）会在首页显示倒计时，帮你盯住最近的一次考试。
         </p>
         <ul className="mt-3 space-y-2">
-          {exams.map((e) => (
+          {goals.map((goal) => (
             <li
-              key={e.id}
+              key={goal.id}
               className="flex flex-wrap items-center gap-2 rounded-lg bg-surface-3/60 px-3 py-2 text-sm"
             >
               <input
                 type="radio"
                 name="primary"
-                checked={e.isPrimary}
-                onChange={() => setPrimaryExam(e.id)}
+                checked={goal.isPrimary}
+                onChange={() => setPrimary.mutate(goal.id)}
               />
               <input
                 className="min-w-0 flex-1 rounded border border-white/10 bg-surface px-2 py-1"
-                value={e.name}
+                value={nameDraft?.id === goal.id ? nameDraft.value : goal.name}
                 onChange={(ev) =>
-                  upsertExam({ ...e, name: ev.target.value })
+                  setNameDraft({ id: goal.id, value: ev.target.value })
                 }
+                onBlur={() => commitName(goal)}
               />
               <input
                 type="date"
                 className="rounded border border-white/10 bg-surface px-2 py-1"
-                value={pendingDate?.id === e.id ? pendingDate.date : e.date}
-                onChange={(ev) => onExamDateChange(e, ev.target.value)}
+                value={pendingDate?.id === goal.id ? pendingDate.date : goal.date}
+                onChange={(ev) => onGoalDateChange(goal, ev.target.value)}
               />
-              {exams.length > 1 ? (
+              {goals.length > 1 ? (
                 <button
                   type="button"
                   className="text-ink-muted hover:text-ink"
-                  onClick={() => removeExam(e.id)}
+                  onClick={() => remove.mutate(goal.id)}
                 >
                   删除
                 </button>
@@ -471,10 +507,10 @@ export function Settings() {
             className="rounded-lg bg-accent px-3 py-2 text-sm text-white"
             onClick={() => {
               if (!newName || !newDate) return;
-              upsertExam({
-                id: `exam-${Date.now()}`,
+              upsert.mutate({
                 name: newName,
                 date: newDate,
+                kind: "exam",
                 isPrimary: false,
               });
               setNewName("");

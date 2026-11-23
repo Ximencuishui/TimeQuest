@@ -2,16 +2,19 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { isTauri } from "@tauri-apps/api/core";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { useUiStore } from "../store/ui";
+import { useGoals } from "./useGoals";
 import {
-  broadcastExams,
-  isExamList,
+  broadcastSessionUpdated,
   SESSION_UPDATED_EVENT,
   WIDGET_READY_EVENT,
-  type SessionUpdatedPayload,
 } from "../lib/widgetWindow";
 
-/** Widget window: refetch sessions and apply exam payloads from the main window. */
+/**
+ * Widget window: refetch sessions and goals after the main window changed them.
+ *
+ * 目标现在存在数据库里，两边读的是同一份数据，
+ * 所以这里只要让悬浮窗重新拉一次就行，不用再互传目标列表。
+ */
 export function useWidgetEventBridge() {
   const qc = useQueryClient();
 
@@ -24,17 +27,10 @@ export function useWidgetEventBridge() {
     const attach = async () => {
       let stop: UnlistenFn;
       try {
-        stop = await listen<SessionUpdatedPayload>(
-          SESSION_UPDATED_EVENT,
-          (event) => {
-            void qc.invalidateQueries({ queryKey: ["sessions"] });
-            const exams = event.payload?.exams;
-            if (!isExamList(exams)) return;
-            const current = useUiStore.getState().exams;
-            if (JSON.stringify(current) === JSON.stringify(exams)) return;
-            useUiStore.getState().setExams(exams);
-          },
-        );
+        stop = await listen(SESSION_UPDATED_EVENT, () => {
+          void qc.invalidateQueries({ queryKey: ["sessions"] });
+          void qc.invalidateQueries({ queryKey: ["goals"] });
+        });
       } catch {
         return;
       }
@@ -65,9 +61,9 @@ export function useWidgetEventBridge() {
   }, [qc]);
 }
 
-/** Main window: push exam changes, and answer when the widget finishes mounting. */
+/** Main window: tell the widget to refresh whenever goals change. */
 export function useMainWindowBroadcast() {
-  const exams = useUiStore((s) => s.exams);
+  const { data: goals = [] } = useGoals();
   const skipMount = useRef(true);
 
   useEffect(() => {
@@ -76,8 +72,8 @@ export function useMainWindowBroadcast() {
       skipMount.current = false;
       return;
     }
-    broadcastExams(exams);
-  }, [exams]);
+    broadcastSessionUpdated();
+  }, [goals]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -86,7 +82,7 @@ export function useMainWindowBroadcast() {
 
     try {
       void listen(WIDGET_READY_EVENT, () => {
-        broadcastExams(useUiStore.getState().exams);
+        broadcastSessionUpdated();
       })
         .then((stop) => {
           if (cancelled) stop();

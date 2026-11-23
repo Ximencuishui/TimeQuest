@@ -7,6 +7,7 @@ import { ExamDateSync } from "./components/ExamDateSync";
 import { Layout } from "./components/Layout";
 import { OnboardingGate } from "./components/Onboarding";
 import { useAutoSchedule } from "./hooks/useAutoSchedule";
+import { useGoalsMigration } from "./hooks/useGoals";
 import { useSessionNotifier } from "./hooks/useSessionNotifier";
 import { useMainWindowBroadcast, useWidgetEventBridge } from "./hooks/useWidgetSync";
 import { Dashboard } from "./pages/Dashboard";
@@ -83,6 +84,7 @@ export default function App() {
       <BrowserRouter>
         <BootSync />
         <AutoSchedule />
+        <GoalsMigration />
         <ExamDateSync />
         <SessionNotifier />
         <MainBroadcast />
@@ -116,6 +118,12 @@ function SessionNotifier() {
 /** 启动时补排今天的计划（今天已经排过就什么都不做）。 */
 function AutoSchedule() {
   useAutoSchedule();
+  return null;
+}
+
+/** 启动时把老版本 localStorage 里的目标搬进数据库（只搬一次）。 */
+function GoalsMigration() {
+  useGoalsMigration();
   return null;
 }
 

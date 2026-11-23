@@ -2,8 +2,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useUiStore } from "../../../store/ui";
+import { makeGoal, setGoalFixtures } from "../../../test/mockGoals";
 import { Settings } from "../../Settings.tsx";
+
+vi.mock("../../../hooks/useGoals", async () => await import("../../../test/mockGoals"));
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   save: vi.fn(),
@@ -35,8 +37,8 @@ function renderSettings() {
 describe("Settings achievements null response", () => {
   beforeEach(() => {
     localStorage.clear();
-    useUiStore.getState().setExams([
-      { id: "gaokao", name: "高考", date: "2027-06-07", isPrimary: true },
+    setGoalFixtures([
+      makeGoal({ id: 1, name: "高考", date: "2027-06-07", isPrimary: true }),
     ]);
     mockedInvoke.mockReset();
   });

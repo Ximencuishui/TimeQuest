@@ -2,24 +2,19 @@ import { isTauri } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { useUiStore } from "../store/ui";
-import type { ExamTarget, TaskSession } from "../types";
+import type { TaskSession } from "../types";
 
 export const MAIN_LABEL = "main";
 export const WIDGET_LABEL = "widget";
 
-/** Broadcast when sessions change. Payload may also carry the exam list. */
+/** Broadcast when sessions or goals change. */
 export const SESSION_UPDATED_EVENT = "session-updated";
-/** Widget asks the main window for the current exam list after it mounts. */
+/** Widget asks the main window to refresh after it mounts. */
 export const WIDGET_READY_EVENT = "widget-ready";
 /** Keep the dashboard switch aligned when the widget hides itself. */
 export const WIDGET_VISIBILITY_EVENT = "widget-visibility";
 /** Widget asks the main window to open the focus timer for a planned session. */
 export const FOCUS_START_EVENT = "focus-start";
-
-export type SessionUpdatedPayload = {
-  exams?: ExamTarget[];
-};
 
 export function readWindowLabel(): string {
   if (!isTauri()) return MAIN_LABEL;
@@ -28,19 +23,6 @@ export function readWindowLabel(): string {
   } catch {
     return MAIN_LABEL;
   }
-}
-
-export function isExamList(value: unknown): value is ExamTarget[] {
-  if (!Array.isArray(value)) return false;
-  return value.every(
-    (item) =>
-      !!item &&
-      typeof item === "object" &&
-      typeof (item as ExamTarget).id === "string" &&
-      typeof (item as ExamTarget).name === "string" &&
-      typeof (item as ExamTarget).date === "string" &&
-      typeof (item as ExamTarget).isPrimary === "boolean",
-  );
 }
 
 function emitQuiet(event: string, payload?: unknown): void {
@@ -54,10 +36,6 @@ function emitQuiet(event: string, payload?: unknown): void {
 
 export function broadcastSessionUpdated(): void {
   emitQuiet(SESSION_UPDATED_EVENT, {});
-}
-
-export function broadcastExams(exams: ExamTarget[]): void {
-  emitQuiet(SESSION_UPDATED_EVENT, { exams } satisfies SessionUpdatedPayload);
 }
 
 /** Tell the main window to start a pomodoro, and bring that window forward. */
@@ -128,7 +106,7 @@ export async function setWidgetVisible(visible: boolean): Promise<void> {
   if (visible) {
     await win.show();
     await win.setAlwaysOnTop(true);
-    broadcastExams(useUiStore.getState().exams);
+    broadcastSessionUpdated();
   } else {
     await win.hide();
   }

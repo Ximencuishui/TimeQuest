@@ -1,16 +1,16 @@
+import { useGoals } from "../hooks/useGoals";
 import { todayStr } from "../lib/date";
-import { nextMockExam } from "../lib/mockExam";
-import { useUiStore } from "../store/ui";
+import { nextMockGoal } from "../lib/goals";
 
 /**
  * 模考倒计时：下一次模考还有多少天。
  *
- * 高考倒计时动辄几百天，学生容易失去紧迫感；模考是最近的抓手。
+ * 主目标动辄几百天，学生容易失去紧迫感；模考是最近的抓手。
  * 没有设置模考时不显示（去设置里加一条「名称（如模考）+ 日期」即可）。
  */
 export function MockCountdown() {
-  const exams = useUiStore((s) => s.exams);
-  const mock = nextMockExam(exams, todayStr());
+  const { data: goals = [] } = useGoals();
+  const mock = nextMockGoal(goals, todayStr());
   if (!mock) return null;
 
   return (

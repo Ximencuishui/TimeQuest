@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
 import { useSessionsByDate } from "../hooks/useSessions";
 import { useAppSetting } from "../hooks/useAppSetting";
+import { useGoals } from "../hooks/useGoals";
 import { computeCountdown, todayStr } from "../lib/date";
+import { resolvePrimaryGoal } from "../lib/goals";
 import { StudyRemaining } from "../components/StudyRemaining";
 import { findScrollTargetSession, sessionTimePhase } from "../lib/sessionTime";
 import { DAILY_LIMIT_SETTING_KEY, parseDailyLimit } from "../lib/studyPlan";
 import { hideWidgetWindow, requestFocusSession } from "../lib/widgetWindow";
-import { useUiStore } from "../store/ui";
 
 export function WidgetPage() {
-  const exams = useUiStore((s) => s.exams);
-  const primary = exams.find((e) => e.isPrimary) ?? exams[0];
+  const { data: goals = [] } = useGoals();
+  const primary = resolvePrimaryGoal(goals);
   const targetDate = primary?.date;
   const [now, setNow] = useState(() => new Date());
 
@@ -74,7 +75,7 @@ export function WidgetPage() {
           </div>
         ) : (
           <p data-tauri-drag-region className="pr-5 text-xs text-zinc-400">
-            请先在设置中添加考试目标日期
+            请先在设置中添加目标日期
           </p>
         )}
 

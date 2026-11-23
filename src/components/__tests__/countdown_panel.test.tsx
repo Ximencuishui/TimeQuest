@@ -1,8 +1,10 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useUiStore } from "../../store/ui";
+import { makeGoal, setGoalFixtures } from "../../test/mockGoals";
 import { CountdownPanel } from "../CountdownPanel";
+
+vi.mock("../../hooks/useGoals", async () => await import("../../test/mockGoals"));
 
 const { todaySessions } = vi.hoisted(() => ({
   todaySessions: [] as {
@@ -20,9 +22,7 @@ vi.mock("../../hooks/useSessions", () => ({
 /** C 段确认：`useEffect` 内 `window.setInterval(..., 1000)`，清理在 effect return；依赖见组件。 */
 
 function seedPrimary(date: string, name = "高考") {
-  useUiStore.getState().setExams([
-    { id: "gaokao", name, date, isPrimary: true },
-  ]);
+  setGoalFixtures([makeGoal({ id: 1, name, date, isPrimary: true })]);
 }
 
 function clockText(): string {

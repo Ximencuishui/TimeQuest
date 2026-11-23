@@ -4,9 +4,11 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { computeCountdown } from "../../lib/date";
-import { useUiStore } from "../../store/ui";
+import { makeGoal, setGoalFixtures } from "../../test/mockGoals";
 import type { TaskSession } from "../../types";
 import { WidgetPage } from "../WidgetPage";
+
+vi.mock("../../hooks/useGoals", async () => await import("../../test/mockGoals"));
 
 vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => ({
@@ -52,8 +54,8 @@ function renderWidget() {
 describe("WidgetPage", () => {
   beforeEach(() => {
     localStorage.clear();
-    useUiStore.getState().setExams([
-      { id: "gaokao", name: "高考", date: EXAM_DATE, isPrimary: true },
+    setGoalFixtures([
+      makeGoal({ id: 1, name: "高考", date: EXAM_DATE, isPrimary: true }),
     ]);
     mockedInvoke.mockReset();
     mockedInvoke.mockImplementation(async (cmd: string) => {

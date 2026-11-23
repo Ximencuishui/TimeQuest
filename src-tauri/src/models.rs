@@ -449,3 +449,43 @@ pub struct CreateExamRecordPayload {
     #[serde(default)]
     pub biology_score: Option<i64>,
 }
+
+/// 一条倒计时目标。
+///
+/// 目标以前只存在浏览器 localStorage 里，导出 JSON 带不走；
+/// 4.0 起落到 `goals` 表，导出导入才能原样还原。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Goal {
+    pub id: i64,
+    /// 所属赛道。`tracks` 表要等 P1-2 才建，先允许为空。
+    pub track_id: Option<i64>,
+    /// 目标名称，如「高考」。
+    pub name: String,
+    /// 目标日期，`YYYY-MM-DD`。
+    pub date: String,
+    /// 目标类型：`exam` / `milestone` / `deadline`。
+    pub kind: String,
+    /// 是不是主目标。全库最多一个主目标。
+    pub is_primary: bool,
+    /// 目标分数，可空。
+    pub target_score: Option<f64>,
+    pub created_at: String,
+}
+
+/// 新建 / 修改一条目标的请求体。
+///
+/// `id` 有值就是改这一条，没有则是新建。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertGoalPayload {
+    pub id: Option<i64>,
+    pub track_id: Option<i64>,
+    pub name: String,
+    pub date: String,
+    /// 不填按 `exam` 处理。
+    pub kind: Option<String>,
+    /// 置成 true 时，其它目标同时降为普通目标。
+    pub is_primary: Option<bool>,
+    pub target_score: Option<f64>,
+}
