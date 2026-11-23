@@ -2,11 +2,11 @@ import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/tauri";
 import { useAppSetting, useSetSetting } from "../hooks/useAppSetting";
+import { usePlugins } from "../hooks/usePlugins";
 import { useSubjects } from "../hooks/useSubjects";
 import { useActiveTrack } from "../hooks/useTracks";
 import { useUpdateUserProfile, useUserProfile } from "../hooks/useUserProfile";
 import { RegionSelect } from "./RegionSelect";
-import { gaokaoDateForGrade } from "../lib/examDate";
 import {
   DEFAULT_USER_PROFILE,
   GRADES,
@@ -14,7 +14,10 @@ import {
 } from "../lib/profile";
 import {
   TRACK_TEMPLATES,
+  dateRuleFromPackages,
   mergeTemplateSubjects,
+  resolveTemplateDate,
+  templateNeedsGrade,
   trackTemplateById,
   type TrackTemplateId,
 } from "../lib/track";
@@ -64,6 +67,8 @@ function Onboarding({ initial }: { initial: UserProfile }) {
   // 科目清单 = 模板给的 + 库里已有的（库里改过的目标优先）。
   // 引导时不带出库里多出来的科目：用户还没选定赛道。
   const { data: storedSubjects = [] } = useSubjects();
+  // 赛道包：装上就多一条赛道、一套科目和一组目标（含日期规则）。
+  const plugins = usePlugins();
   // 播种的科目与目标都归当前主赛道：否则成绩页按赛道筛选时看不到它们。
   const { trackId: activeTrackId } = useActiveTrack();
   const subjectRows = useMemo(
@@ -89,8 +94,14 @@ function Onboarding({ initial }: { initial: UserProfile }) {
   const score = parseTarget(target, template.maxScore);
   const regionOk = canonicalProvince(region) != null;
   const needsRegion = template.requiresGaokaoContext;
-  const needsGrade = template.requiresGaokaoContext;
-  const defaultDate = needsGrade ? gaokaoDateForGrade(grade) : defaultCustomDate();
+  const needsGrade = templateNeedsGrade(template);
+  // 目标日期的规则以赛道包为准，没装包就用内置模板里的那份。
+  const packageRule = useMemo(
+    () => dateRuleFromPackages(plugins.data ?? [], template.name),
+    [plugins.data, template.name],
+  );
+  const defaultDate =
+    resolveTemplateDate(template, packageRule, grade) || defaultCustomDate();
   const goalDate = dateOverride ?? defaultDate;
   const nameOk = goalName.trim().length > 0;
   const scoreOk = !target.trim() || score != null;

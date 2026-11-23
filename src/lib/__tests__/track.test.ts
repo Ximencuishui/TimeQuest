@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
   TRACK_TEMPLATES,
+  dateRuleFromPackages,
   mergeTemplateSubjects,
   resolveGoalForTrack,
+  resolveTemplateDate,
   templateFullMarks,
   templateGoalSum,
+  templateNeedsGrade,
   trackSubjectTotal,
   trackTemplateById,
 } from "../track";
 import { examScoreBreakdown, totalFullMarks } from "../scoreScaling";
 import { SUBJECT_FIXTURES, examSession } from "../../test/subjectFixtures";
-import type { Goal, Subject } from "../../types";
+import type { Goal, PluginInfo, Subject } from "../../types";
 
 function goal(partial: Partial<Goal> & { id: number }): Goal {
   return {
@@ -38,24 +41,46 @@ describe("赛道模板", () => {
     }
   });
 
-  it("only_gaokao_and_custom_are_available_in_this_stage", () => {
-    // 考研 / 语言 / 技能先占位：字段位留好，等赛道包（P2-1）把内容送进来。
+  it("every_built_in_template_is_available", () => {
+    // P2-1 起五个方向都能选：考研 / 语言 / 技能自带各自的科目与满分。
     const available = TRACK_TEMPLATES.filter((item) => item.available).map(
       (item) => item.id,
     );
-    expect(available).toEqual(["gaokao", "custom"]);
+    expect(available).toEqual(["gaokao", "kaoyan", "language", "skill", "custom"]);
     for (const template of TRACK_TEMPLATES) {
-      expect(template.subjects.length).toBeGreaterThanOrEqual(0);
       expect(typeof template.kind).toBe("string");
     }
   });
 
-  it("every_template_has_unique_subject_keys", () => {
+  it("keeps_the_subject_keys_of_each_track_apart", () => {
     // 科目标识全库唯一：不同赛道不能用同一个 key，否则会互相覆盖。
     const keys = TRACK_TEMPLATES.flatMap((template) =>
       template.subjects.map((subject) => subject.key),
     );
     expect(new Set(keys).size).toBe(keys.length);
+    // 非高考赛道的科目都带自己的前缀。
+    expect(trackTemplateById("kaoyan").subjects.map((s) => s.key)).toEqual([
+      "kaoyan_politics",
+      "kaoyan_english",
+      "kaoyan_math",
+    ]);
+    expect(trackTemplateById("language").subjects.map((s) => s.key)).toEqual([
+      "lang_listening",
+      "lang_reading",
+      "lang_writing",
+    ]);
+    expect(trackTemplateById("skill").subjects.map((s) => s.key)).toEqual([
+      "skill_theory",
+      "skill_practice",
+    ]);
+  });
+
+  it("gives_each_track_its_own_full_marks", () => {
+    expect(templateFullMarks(trackTemplateById("kaoyan").subjects)).toBe(350);
+    expect(templateFullMarks(trackTemplateById("language").subjects)).toBe(100);
+    expect(templateFullMarks(trackTemplateById("skill").subjects)).toBe(200);
+    // 技能习得不计总分。
+    expect(trackTemplateById("skill").maxScore).toBe(0);
   });
 
   it("template_scores_add_up", () => {
@@ -100,6 +125,84 @@ describe("科目清单合并", () => {
     const rows = mergeTemplateSubjects(template, stored);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ key: "mine", fullMark: 50, goal: 30 });
+  });
+});
+
+describe("目标日期规则", () => {
+  const november = new Date(2026, 10, 6, 12, 0, 0);
+
+  it("asks_for_the_grade_only_when_the_rule_needs_it", () => {
+    expect(templateNeedsGrade(trackTemplateById("gaokao"))).toBe(true);
+    expect(templateNeedsGrade(trackTemplateById("kaoyan"))).toBe(false);
+    expect(templateNeedsGrade(trackTemplateById("custom"))).toBe(false);
+  });
+
+  it("uses_the_template_rule_when_no_package_is_installed", () => {
+    expect(resolveTemplateDate(trackTemplateById("gaokao"), null, "高二", november)).toBe(
+      "2028-06-07",
+    );
+    // 没有规则也没有年级上下文的赛道给不出日期。
+    expect(resolveTemplateDate(trackTemplateById("custom"), null, "高二", november)).toBe("");
+  });
+
+  it("prefers_the_rule_that_comes_with_the_track_package", () => {
+    const packageRule = {
+      id: "kaoyan-december",
+      anchor: "12-20",
+      grade_offsets: { 高一: 2, 高二: 1, 高三: 0 },
+    };
+    expect(
+      resolveTemplateDate(trackTemplateById("kaoyan"), packageRule, "高三", november),
+    ).toBe("2026-12-20");
+  });
+
+  it("reads_the_rule_out_of_the_installed_track_packages", () => {
+    const plugins: PluginInfo[] = [
+      {
+        id: "track-gaokao",
+        name: "高考赛道",
+        summary: "",
+        author: "",
+        version: "",
+        icon: "",
+        size_kb: 1,
+        capabilities: [],
+        options: [],
+        kind: "track",
+        provides: {
+          track: { name: "高考" },
+          goals: [
+            {
+              name: "高考",
+              date_rule: {
+                id: "gaokao-june-7",
+                anchor: "06-07",
+                grade_offsets: { 高一: 2, 高二: 1, 高三: 0 },
+              },
+            },
+          ],
+        },
+        installed: true,
+      },
+      {
+        id: "focus-25",
+        name: "专注 25 分钟",
+        summary: "",
+        author: "",
+        version: "",
+        icon: "",
+        size_kb: 1,
+        capabilities: [],
+        options: [],
+        kind: "plugin",
+        installed: true,
+      },
+    ];
+    const rule = dateRuleFromPackages(plugins, "高考");
+    expect(rule?.anchor).toBe("06-07");
+    // 普通插件不提供日期规则。
+    expect(dateRuleFromPackages(plugins, "考研")).toBeNull();
+    expect(dateRuleFromPackages([], "高考")).toBeNull();
   });
 });
 

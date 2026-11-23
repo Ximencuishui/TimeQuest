@@ -104,10 +104,11 @@ pub use pdf_outline::{
 pub use plugins::{
     builtin_package, builtin_packages, builtin_plugin_resources, install_plugin_impl,
     list_plugins_impl, plugin_option_key, plugin_options_impl, plugin_resource_text,
-    set_plugin_option_impl, uninstall_plugin_impl, PluginInfo, PluginOption, PluginOptionValue,
-    PluginPackage, PluginResource, INSTALLED_PLUGINS_KEY, PLUGIN_RESOURCES_DIR,
-    PLUGIN_RESOURCE_KIND_FILE, PLUGIN_RESOURCE_KIND_KNOWLEDGE_GRAPH,
-    PLUGIN_RESOURCE_KIND_TEXTBOOK_CATALOG,
+    seed_track_provides, set_plugin_option_impl, uninstall_plugin_impl, DateRule, GoalSeed,
+    PluginInfo, PluginOption, PluginOptionValue, PluginPackage, PluginResource, SubjectSeed,
+    TrackProvides, TrackSeed, INSTALLED_PLUGINS_KEY, PLUGIN_KIND_PLUGIN, PLUGIN_KIND_TRACK,
+    PLUGIN_RESOURCES_DIR, PLUGIN_RESOURCE_KIND_FILE, PLUGIN_RESOURCE_KIND_KNOWLEDGE_GRAPH,
+    PLUGIN_RESOURCE_KIND_MOTIVATION_PACK, PLUGIN_RESOURCE_KIND_TEXTBOOK_CATALOG,
 };
 pub use textbook_source::{
     download_error_message, download_textbook, encode_repo_path, parse_textbook_catalog,

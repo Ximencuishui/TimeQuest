@@ -8,7 +8,12 @@
 //! 卸载 = 删掉这个目录并从登记里移除。已安装列表存在 settings 里，
 //! 不新增数据表，导出 / 导入不受影响。
 
-use rusqlite::{params, Connection};
+use crate::commands::goals::{GOAL_KIND_EXAM, GOAL_KINDS};
+use crate::commands::tracks::{
+    TRACK_KIND_EXAM, TRACK_KINDS, TRACK_SCORE_MODES, TRACK_SCORE_MODE_TOTAL,
+};
+use chrono::{Datelike, NaiveDate};
+use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -36,6 +41,19 @@ pub const PLUGIN_RESOURCE_KIND_TEXTBOOK_CATALOG: &str = "textbook_catalog";
 
 /// 资源类型：知识图谱（JSON，知识点节点 / 先修边 / 学科包清单）。
 pub const PLUGIN_RESOURCE_KIND_KNOWLEDGE_GRAPH: &str = "knowledge_graph";
+
+/// 资源类型：动机语料包（JSON，赛道包专用）。
+pub const PLUGIN_RESOURCE_KIND_MOTIVATION_PACK: &str = "motivation_pack";
+
+/// 插件类型：普通工具插件（默认）。
+pub const PLUGIN_KIND_PLUGIN: &str = "plugin";
+
+/// 插件类型：赛道包。装上就多一条赛道 + 一套科目 + 一组目标。
+pub const PLUGIN_KIND_TRACK: &str = "track";
+
+fn default_plugin_kind() -> String {
+    PLUGIN_KIND_PLUGIN.to_string()
+}
 
 fn default_option_kind() -> String {
     "text".to_string()
@@ -92,8 +110,90 @@ pub struct PluginResource {
     pub description: String,
 }
 
+/// 赛道包提供的赛道定义。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TrackSeed {
+    pub name: String,
+    /// 对应 `tracks.kind`：exam / skill / course。
+    #[serde(default)]
+    pub kind: Option<String>,
+    /// 对应 `tracks.score_mode`：total / per_subject / band。
+    #[serde(default)]
+    pub score_mode: Option<String>,
+    /// 装上就把它设成主赛道。
+    #[serde(default)]
+    pub is_primary: Option<bool>,
+    #[serde(default)]
+    pub color: Option<String>,
+}
+
+/// 赛道包提供的科目。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubjectSeed {
+    /// 科目标识，全库唯一。
+    pub key: String,
+    pub label: String,
+    #[serde(default)]
+    pub full_mark: Option<f64>,
+    /// 不写就等于满分。
+    #[serde(default)]
+    pub goal: Option<f64>,
+    #[serde(default)]
+    pub unit: Option<String>,
+    #[serde(default)]
+    pub order_index: Option<i64>,
+}
+
+/// 目标日期规则。
+///
+/// 规则只说「一年里的哪一天」（`MM-DD`），不带任何学科知识：
+/// 高考是 6 月 7 日，别的赛道可以在自己的包里声明别的日子。
+/// 年级偏移（高一往后推 2 年……）也写在规则里，前端按用户选的年级算。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DateRule {
+    pub id: String,
+    /// `MM-DD`。
+    pub anchor: String,
+    #[serde(default)]
+    pub grade_offsets: BTreeMap<String, i64>,
+}
+
+/// 赛道包提供的目标。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GoalSeed {
+    pub name: String,
+    /// 写死日期就用它；不给就按 `date_rule` 算最近的一次。
+    #[serde(default)]
+    pub date: Option<String>,
+    #[serde(default)]
+    pub kind: Option<String>,
+    #[serde(default)]
+    pub is_primary: Option<bool>,
+    #[serde(default)]
+    pub target_score: Option<f64>,
+    /// 目标日期规则。规则本身不含学科知识，只是日历 + 年级偏移。
+    #[serde(default)]
+    pub date_rule: Option<DateRule>,
+}
+
+/// 赛道包提供的内容。
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct TrackProvides {
+    #[serde(default)]
+    pub track: Option<TrackSeed>,
+    #[serde(default)]
+    pub subjects: Vec<SubjectSeed>,
+    #[serde(default)]
+    pub goals: Vec<GoalSeed>,
+    /// 动机语料包的资源路径。
+    #[serde(default)]
+    pub motivation_pack: Option<String>,
+}
+
 /// 插件包清单：仓库里 `resources/plugins/<id>.json` 的内容。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// 这里没有 `Eq`：赛道包带的科目种子里有分数（f64），浮点不实现 Eq。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PluginPackage {
     pub id: String,
     pub name: String,
@@ -114,10 +214,18 @@ pub struct PluginPackage {
     /// 插件自带的资源文件，安装时解包到插件目录。
     #[serde(default)]
     pub resources: Vec<PluginResource>,
+    /// 插件类型：`plugin`（普通工具）或 `track`（赛道包）。
+    #[serde(default = "default_plugin_kind")]
+    pub kind: String,
+    /// 赛道包提供的内容。`kind == "track"` 时才有值。
+    #[serde(default)]
+    pub provides: Option<TrackProvides>,
 }
 
 /// 工具箱列表里展示的一个插件。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// 和 `PluginPackage` 一样不带 `Eq`：赛道包的科目种子带分数（f64）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PluginInfo {
     pub id: String,
     pub name: String,
@@ -129,6 +237,10 @@ pub struct PluginInfo {
     pub capabilities: Vec<String>,
     pub options: Vec<PluginOption>,
     pub resources: Vec<PluginResource>,
+    /// 插件类型：`plugin` 或 `track`。
+    pub kind: String,
+    /// 赛道包提供的内容。
+    pub provides: Option<TrackProvides>,
     pub installed: bool,
 }
 
@@ -150,6 +262,12 @@ fn parse_package(id: &str, raw: &str) -> Result<PluginPackage, String> {
     }
     if package.name.trim().is_empty() {
         return Err(format!("插件 {id} 缺少名称"));
+    }
+    if package.kind != PLUGIN_KIND_PLUGIN && package.kind != PLUGIN_KIND_TRACK {
+        return Err(format!("插件 {id} 的类型不合法：{}", package.kind));
+    }
+    if package.kind == PLUGIN_KIND_TRACK && package.provides.is_none() {
+        return Err(format!("赛道包 {id} 缺少 provides"));
     }
     for option in &package.options {
         if option.key.trim().is_empty() {
@@ -271,6 +389,8 @@ pub fn list_plugins_impl(conn: &Connection) -> Result<Vec<PluginInfo>, String> {
             capabilities: package.capabilities,
             options: package.options,
             resources: package.resources,
+            kind: package.kind,
+            provides: package.provides,
         });
     }
     Ok(plugins)
@@ -294,6 +414,14 @@ pub fn install_plugin_impl(
         .map_err(|err| format!("写入插件文件失败：{err}"))?;
     unpack_plugin_resources(&target_dir, &package.id)?;
 
+    // 赛道包：装上就把赛道、科目、目标播种进库（幂等）。
+    // 播种失败就当装失败 —— 半套赛道比没装更麻烦。
+    if package.kind == PLUGIN_KIND_TRACK {
+        if let Some(provides) = package.provides.as_ref() {
+            seed_track_provides(conn, provides)?;
+        }
+    }
+
     let mut ids = installed_plugin_ids(conn);
     if !ids.iter().any(|existing| existing == &package.id) {
         ids.push(package.id.clone());
@@ -313,7 +441,207 @@ pub fn install_plugin_impl(
         capabilities: package.capabilities,
         options: package.options,
         resources: package.resources,
+        kind: package.kind,
+        provides: package.provides,
     })
+}
+
+/// 赛道包安装时把赛道、科目、目标播种进库（幂等）。
+///
+/// 幂等靠三个自然键：赛道按 `tracks.name`、科目按 `subjects.key`、
+/// 目标按（赛道 + 名称）。已存在的行不动 —— 用户改过的满分与目标
+/// 不该被「装个插件」这件事覆盖掉。
+pub fn seed_track_provides(
+    conn: &Connection,
+    provides: &TrackProvides,
+) -> Result<(), String> {
+    let tx = conn.unchecked_transaction().map_err(|err| err.to_string())?;
+    let track_id = match &provides.track {
+        Some(seed) => Some(seed_track(&tx, seed)?),
+        None => primary_track_id(&tx)?,
+    };
+    for (index, subject) in provides.subjects.iter().enumerate() {
+        seed_subject(&tx, track_id, subject, index)?;
+    }
+    for goal in &provides.goals {
+        seed_goal(&tx, track_id, goal)?;
+    }
+    tx.commit().map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+/// 当前主赛道的 id。没有主赛道就是 None。
+fn primary_track_id(tx: &Transaction<'_>) -> Result<Option<i64>, String> {
+    tx.query_row(
+        "SELECT id FROM tracks WHERE is_primary = 1 ORDER BY id ASC LIMIT 1",
+        [],
+        |row| row.get(0),
+    )
+    .optional()
+    .map_err(|err| err.to_string())
+}
+
+/// 播种一条赛道。同名赛道直接复用，不改用户改过的名字。
+fn seed_track(tx: &Transaction<'_>, seed: &TrackSeed) -> Result<i64, String> {
+    let name = seed.name.trim();
+    if name.is_empty() {
+        return Err("赛道包的赛道名称不能为空".to_string());
+    }
+    let existing: Option<i64> = tx
+        .query_row(
+            "SELECT id FROM tracks WHERE name = ?1",
+            params![name],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| err.to_string())?;
+    let id = match existing {
+        Some(id) => id,
+        None => {
+            let kind = pick_allowed(seed.kind.as_deref(), &TRACK_KINDS, TRACK_KIND_EXAM);
+            let score_mode = pick_allowed(
+                seed.score_mode.as_deref(),
+                &TRACK_SCORE_MODES,
+                TRACK_SCORE_MODE_TOTAL,
+            );
+            tx.execute(
+                "INSERT INTO tracks (name, kind, score_mode, color) VALUES (?1, ?2, ?3, ?4)",
+                params![name, kind, score_mode, seed.color],
+            )
+            .map_err(|err| err.to_string())?;
+            tx.last_insert_rowid()
+        }
+    };
+    if seed.is_primary.unwrap_or(false) {
+        tx.execute(
+            "UPDATE tracks SET is_primary = CASE WHEN id = ?1 THEN 1 ELSE 0 END",
+            params![id],
+        )
+        .map_err(|err| err.to_string())?;
+    }
+    Ok(id)
+}
+
+/// 播种一科。同 key 的科目已经存在就跳过：用户改过的满分与目标留着。
+fn seed_subject(
+    tx: &Transaction<'_>,
+    track_id: Option<i64>,
+    seed: &SubjectSeed,
+    index: usize,
+) -> Result<(), String> {
+    let key = seed.key.trim();
+    let label = seed.label.trim();
+    if key.is_empty() || label.is_empty() {
+        return Err("赛道包的科目要同时给 key 和名称".to_string());
+    }
+    let existing: Option<i64> = tx
+        .query_row(
+            "SELECT id FROM subjects WHERE key = ?1",
+            params![key],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| err.to_string())?;
+    if existing.is_some() {
+        return Ok(());
+    }
+    let goal = seed.goal.or(seed.full_mark);
+    let order_index = seed.order_index.unwrap_or(index as i64);
+    let unit = seed.unit.clone().unwrap_or_else(|| "分".to_string());
+    tx.execute(
+        "INSERT INTO subjects (key, label, full_mark, goal, unit, order_index, track_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![key, label, seed.full_mark, goal, unit, order_index, track_id],
+    )
+    .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+/// 播种一个目标。同名同赛道的目标已经存在就跳过。
+fn seed_goal(
+    tx: &Transaction<'_>,
+    track_id: Option<i64>,
+    seed: &GoalSeed,
+) -> Result<(), String> {
+    let name = seed.name.trim();
+    if name.is_empty() {
+        return Err("赛道包的目标名称不能为空".to_string());
+    }
+    let Some(date) = seed_date(seed) else {
+        // 既没写死日期也没有规则：等前端按用户选的年级补上，先不种。
+        return Ok(());
+    };
+    let existing: Option<i64> = tx
+        .query_row(
+            "SELECT id FROM goals WHERE name = ?1 AND (track_id = ?2 OR track_id IS NULL)",
+            params![name, track_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| err.to_string())?;
+    if existing.is_some() {
+        return Ok(());
+    }
+    let kind = pick_allowed(seed.kind.as_deref(), &GOAL_KINDS, GOAL_KIND_EXAM);
+    tx.execute(
+        "INSERT INTO goals (track_id, name, date, kind, is_primary, target_score)
+         VALUES (?1, ?2, ?3, ?4, 0, ?5)",
+        params![track_id, name, date, kind, seed.target_score],
+    )
+    .map_err(|err| err.to_string())?;
+    let id = tx.last_insert_rowid();
+    if seed.is_primary.unwrap_or(false) {
+        tx.execute(
+            "UPDATE goals SET is_primary = CASE WHEN id = ?1 THEN 1 ELSE 0 END",
+            params![id],
+        )
+        .map_err(|err| err.to_string())?;
+    }
+    Ok(())
+}
+
+/// 白名单里的值才认；空值或不认识的值退回默认值。
+fn pick_allowed<'a>(raw: Option<&'a str>, allowed: &[&str], fallback: &'a str) -> &'a str {
+    let value = raw.unwrap_or("").trim();
+    if value.is_empty() {
+        return fallback;
+    }
+    if allowed.contains(&value) {
+        value
+    } else {
+        fallback
+    }
+}
+
+/// 目标日期：包里写死了就用写死的；只给规则就按规则算最近的一次。
+fn seed_date(seed: &GoalSeed) -> Option<String> {
+    if let Some(date) = seed
+        .date
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Some(date.to_string());
+    }
+    let rule = seed.date_rule.as_ref()?;
+    let (month, day) = parse_rule_anchor(&rule.anchor)?;
+    let today = chrono::Local::now().date_naive();
+    let mut candidate = NaiveDate::from_ymd_opt(today.year(), month, day)?;
+    if candidate < today {
+        candidate = NaiveDate::from_ymd_opt(today.year() + 1, month, day)?;
+    }
+    Some(candidate.format("%Y-%m-%d").to_string())
+}
+
+/// 规则锚点 `MM-DD`。规则本身不含学科知识，这里只认日历。
+fn parse_rule_anchor(anchor: &str) -> Option<(u32, u32)> {
+    let (month, day) = anchor.trim().split_once('-')?;
+    let month: u32 = month.trim().parse().ok()?;
+    let day: u32 = day.trim().parse().ok()?;
+    if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+    Some((month, day))
 }
 
 /// 把插件内置的资源文件解包到插件目录。

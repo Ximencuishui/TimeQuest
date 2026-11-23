@@ -8,8 +8,9 @@ use sqlx::sqlite::SqlitePoolOptions;
 use std::path::PathBuf;
 use timequest_lib::{
     builtin_plugin_resources, install_plugin_impl, list_plugins_impl, plugin_options_impl,
-    plugin_resource_text, set_plugin_option_impl, uninstall_plugin_impl, PluginInfo,
-    INSTALLED_PLUGINS_KEY, PLUGIN_RESOURCES_DIR,
+    plugin_resource_text, seed_track_provides, set_plugin_option_impl, uninstall_plugin_impl,
+    GoalSeed, PluginInfo, SubjectSeed, TrackProvides, TrackSeed,
+    INSTALLED_PLUGINS_KEY, PLUGIN_RESOURCES_DIR, PLUGIN_RESOURCE_KIND_MOTIVATION_PACK,
 };
 
 async fn open_rusqlite_migrated() -> (PathBuf, Connection) {
@@ -444,6 +445,259 @@ async fn plugin_option_defaults_are_backward_compatible() {
         assert!(!option.advanced, "没标 advanced 就是普通选项");
         assert!(!option.secret, "没标 secret 就不是敏感项");
     }
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 表里某一列的行数。
+fn count_rows(conn: &Connection, table: &str) -> i64 {
+    conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+        row.get(0)
+    })
+    .unwrap_or(0)
+}
+
+/// 内置仓库里的高考赛道包。
+fn gaokao_track_package(conn: &Connection) -> PluginInfo {
+    list_plugins_impl(conn)
+        .expect("list plugins")
+        .into_iter()
+        .find(|plugin| plugin.id == "track-gaokao")
+        .expect("内置仓库里应该有高考赛道包")
+}
+
+/// 一条自定义赛道包提供的内容：考研。
+fn kaoyan_provides() -> TrackProvides {
+    TrackProvides {
+        track: Some(TrackSeed {
+            name: "考研".to_string(),
+            kind: Some("exam".to_string()),
+            score_mode: Some("total".to_string()),
+            is_primary: Some(true),
+            color: None,
+        }),
+        subjects: vec![
+            SubjectSeed {
+                key: "kaoyan_politics".to_string(),
+                label: "政治".to_string(),
+                full_mark: Some(100.0),
+                goal: Some(70.0),
+                unit: Some("分".to_string()),
+                order_index: Some(0),
+            },
+            SubjectSeed {
+                key: "kaoyan_english".to_string(),
+                label: "英语".to_string(),
+                full_mark: Some(100.0),
+                goal: Some(70.0),
+                unit: Some("分".to_string()),
+                order_index: Some(1),
+            },
+        ],
+        goals: vec![GoalSeed {
+            name: "考研".to_string(),
+            date: Some("2026-12-20".to_string()),
+            kind: Some("exam".to_string()),
+            is_primary: Some(true),
+            target_score: Some(350.0),
+            date_rule: None,
+        }],
+        motivation_pack: None,
+    }
+}
+
+/// 赛道包装上之后，赛道、科目、目标各增对应行。
+#[tokio::test]
+async fn track_package_seeds_track_subjects_and_goals() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    let tracks_before = count_rows(&conn, "tracks");
+    let subjects_before = count_rows(&conn, "subjects");
+    let goals_before = count_rows(&conn, "goals");
+
+    seed_track_provides(&conn, &kaoyan_provides()).expect("seed track provides");
+
+    assert_eq!(count_rows(&conn, "tracks"), tracks_before + 1, "多一条赛道");
+    assert_eq!(count_rows(&conn, "subjects"), subjects_before + 2, "多两科");
+    assert_eq!(count_rows(&conn, "goals"), goals_before + 1, "多一个目标");
+
+    let track_id: i64 = conn
+        .query_row("SELECT id FROM tracks WHERE name = '考研'", [], |row| {
+            row.get(0)
+        })
+        .expect("考研赛道");
+    let (kind, score_mode, is_primary): (String, String, i64) = conn
+        .query_row(
+            "SELECT kind, score_mode, is_primary FROM tracks WHERE id = ?1",
+            params![track_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("赛道内容");
+    assert_eq!(kind, "exam");
+    assert_eq!(score_mode, "total");
+    assert_eq!(is_primary, 1, "包里说自己是主赛道");
+
+    let (full_mark, goal, unit, subject_track): (f64, f64, String, i64) = conn
+        .query_row(
+            "SELECT full_mark, goal, unit, track_id FROM subjects WHERE key = 'kaoyan_politics'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .expect("科目内容");
+    assert_eq!(full_mark, 100.0);
+    assert_eq!(goal, 70.0);
+    assert_eq!(unit, "分");
+    assert_eq!(subject_track, track_id, "科目归到新赛道下面");
+
+    let (date, goal_primary, target_score): (String, i64, f64) = conn
+        .query_row(
+            "SELECT date, is_primary, target_score FROM goals WHERE name = '考研'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("目标内容");
+    assert_eq!(date, "2026-12-20");
+    assert_eq!(goal_primary, 1);
+    assert_eq!(target_score, 350.0);
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 内置的高考赛道包：装上就多出高考目标与六科。
+#[tokio::test]
+async fn install_track_package_seeds_the_builtin_gaokao_track() {
+    let (path, conn) = open_rusqlite_migrated().await;
+    let dir = scratch_dir("track-install");
+
+    let package = gaokao_track_package(&conn);
+    assert_eq!(package.kind, "track", "高考包是赛道包");
+    assert!(package.provides.is_some(), "赛道包带着 provides");
+    assert!(
+        package
+            .resources
+            .iter()
+            .any(|resource| resource.kind == PLUGIN_RESOURCE_KIND_MOTIVATION_PACK),
+        "高考包声明了动机语料包"
+    );
+
+    let goals_before = count_rows(&conn, "goals");
+    let installed = install_plugin_impl(&conn, &dir, "track-gaokao").expect("install");
+    assert!(installed.installed);
+
+    assert_eq!(
+        count_rows(&conn, "goals"),
+        goals_before + 1,
+        "装包时把目标也种进去"
+    );
+    let (date, is_primary): (String, i64) = conn
+        .query_row(
+            "SELECT date, is_primary FROM goals WHERE name = '高考'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("高考目标");
+    assert!(date.ends_with("-06-07"), "目标日期按 6 月 7 日算：{date}");
+    assert_eq!(is_primary, 1);
+
+    let subjects: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM subjects
+             WHERE key IN ('chinese','math','english','physics','chemistry','biology')",
+            [],
+            |row| row.get(0),
+        )
+        .expect("六科");
+    assert_eq!(subjects, 6, "高考六科都在");
+
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 重复装同一个赛道包不会多出重复行。
+#[tokio::test]
+async fn install_track_package_twice_does_not_duplicate_rows() {
+    let (path, conn) = open_rusqlite_migrated().await;
+    let dir = scratch_dir("track-install-twice");
+
+    install_plugin_impl(&conn, &dir, "track-gaokao").expect("first install");
+    let tracks = count_rows(&conn, "tracks");
+    let subjects = count_rows(&conn, "subjects");
+    let goals = count_rows(&conn, "goals");
+
+    install_plugin_impl(&conn, &dir, "track-gaokao").expect("second install");
+
+    assert_eq!(count_rows(&conn, "tracks"), tracks, "赛道不翻倍");
+    assert_eq!(count_rows(&conn, "subjects"), subjects, "科目不翻倍");
+    assert_eq!(count_rows(&conn, "goals"), goals, "目标不翻倍");
+
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 装包不会覆盖用户自己改过的科目目标。
+#[tokio::test]
+async fn track_package_keeps_the_users_own_subject_goals() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    conn.execute("UPDATE subjects SET goal = 66 WHERE key = 'chinese'", [])
+        .expect("改语文目标");
+
+    seed_track_provides(&conn, &kaoyan_provides()).expect("seed track provides");
+
+    let goal: f64 = conn
+        .query_row("SELECT goal FROM subjects WHERE key = 'chinese'", [], |row| {
+            row.get(0)
+        })
+        .expect("语文");
+    assert_eq!(goal, 66.0, "用户改过的目标不能被装包覆盖");
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 卸载赛道包不删已有的历史记录。
+#[tokio::test]
+async fn uninstall_track_package_keeps_the_seeded_rows() {
+    let (path, conn) = open_rusqlite_migrated().await;
+    let dir = scratch_dir("track-uninstall");
+
+    install_plugin_impl(&conn, &dir, "track-gaokao").expect("install");
+    let tracks = count_rows(&conn, "tracks");
+    let subjects = count_rows(&conn, "subjects");
+    let goals = count_rows(&conn, "goals");
+
+    uninstall_plugin_impl(&conn, &dir, "track-gaokao").expect("uninstall");
+
+    assert_eq!(count_rows(&conn, "tracks"), tracks, "卸载不删赛道");
+    assert_eq!(count_rows(&conn, "subjects"), subjects, "卸载不删科目");
+    assert_eq!(count_rows(&conn, "goals"), goals, "卸载不删目标");
+    assert!(installed_ids(&conn).is_empty());
+
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 包里不认识的赛道类型退回默认值，不把非法值写进库。
+#[tokio::test]
+async fn track_package_falls_back_to_the_default_kind() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    let mut provides = kaoyan_provides();
+    if let Some(track) = provides.track.as_mut() {
+        track.kind = Some("not-a-kind".to_string());
+        track.score_mode = Some("not-a-mode".to_string());
+    }
+
+    seed_track_provides(&conn, &provides).expect("seed track provides");
+
+    let (kind, score_mode): (String, String) = conn
+        .query_row(
+            "SELECT kind, score_mode FROM tracks WHERE name = '考研'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("赛道");
+    assert_eq!(kind, "exam");
+    assert_eq!(score_mode, "total");
 
     let _ = std::fs::remove_file(&path);
 }

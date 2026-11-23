@@ -6,6 +6,7 @@ import { DEFAULT_USER_PROFILE } from "../../lib/profile";
 import { SUBJECT_FIXTURES } from "../../test/subjectFixtures";
 import type {
   Goal,
+  PluginInfo,
   UpsertGoalPayload,
   UpsertSubjectPayload,
   UserProfile,
@@ -30,11 +31,13 @@ describe("Onboarding", () => {
   const calls: string[] = [];
   let saved: UserProfile | null = null;
   let goals: Goal[] = [];
+  let plugins: PluginInfo[] = [];
 
   beforeEach(() => {
     completed = false;
     saved = null;
     calls.length = 0;
+    plugins = [];
     goals = [
       {
         id: 1,
@@ -63,6 +66,7 @@ describe("Onboarding", () => {
         return saved;
       }
       if (cmd === "list_goals") return goals;
+      if (cmd === "list_plugins") return plugins;
       if (cmd === "list_subjects") return SUBJECT_FIXTURES;
       if (cmd === "upsert_subject") {
         const payload = (args as { payload: UpsertSubjectPayload }).payload;
@@ -193,24 +197,71 @@ describe("Onboarding", () => {
     expect(goals.find((goal) => goal.isPrimary)?.date).toBe("2028-06-07");
   });
 
-  it("onboarding_placeholder_track_falls_back_to_custom", async () => {
+  it("onboarding_kaoyan_track_uses_its_own_subjects", async () => {
     renderGate();
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "你在为什么努力" })).toBeInTheDocument();
     });
 
-    // 考研还没落地，选中后按「自定义」分支走。
+    // 考研赛道已落地：自带三科，不问年级 / 地区。
     fireEvent.click(screen.getByRole("button", { name: /考研/ }));
     fireEvent.click(screen.getByRole("button", { name: "下一步" }));
 
     expect(screen.getByRole("heading", { name: "定下目标" })).toBeInTheDocument();
-    expect(screen.getByLabelText("目标名称")).toHaveValue("我的目标");
-    // 自定义赛道不问年级 / 地区，也没有科目清单。
+    expect(screen.getByLabelText("目标名称")).toHaveValue("考研");
     expect(screen.queryByRole("button", { name: "高二" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("地区")).not.toBeInTheDocument();
+    // 高考的六科不带过来。
     expect(screen.queryByLabelText("语文")).not.toBeInTheDocument();
-    // 不计总分，满分上限不写死。
-    expect(screen.getByLabelText("总分目标")).toHaveAttribute("placeholder", "可留空");
+    expect(screen.getByLabelText("政治")).toHaveValue("70");
+    expect(screen.getByLabelText("英语")).toHaveValue("70");
+    expect(screen.getByLabelText("数学")).toHaveValue("100");
+    // 满分上限来自模板本身。
+    expect(screen.getByLabelText("总分目标")).toHaveAttribute("placeholder", "1–500");
+  });
+
+  it("onboarding_takes_the_date_rule_from_the_track_package", async () => {
+    // 装了赛道包之后，目标日期按包里的规则算，不再是内置模板那份。
+    plugins = [
+      {
+        id: "track-gaokao",
+        name: "高考赛道",
+        summary: "",
+        author: "",
+        version: "",
+        icon: "",
+        size_kb: 1,
+        capabilities: [],
+        options: [],
+        kind: "track",
+        provides: {
+          track: { name: "高考" },
+          goals: [
+            {
+              name: "高考",
+              date_rule: {
+                id: "gaokao-june-20",
+                anchor: "06-20",
+                grade_offsets: { 高一: 2, 高二: 1, 高三: 0 },
+              },
+            },
+          ],
+        },
+        installed: true,
+      },
+    ];
+
+    renderGate();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "你在为什么努力" })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+
+    // 包里的规则说了算：06-20 而不是内置模板那份 06-07。
+    await waitFor(() => {
+      expect(screen.getByLabelText("目标日期")).toHaveValue("2027-06-20");
+    });
+    expect(screen.getByText(/预计考试日 2027-06-20/)).toBeInTheDocument();
   });
 
   it("onboarding_custom_track_has_no_subjects", async () => {

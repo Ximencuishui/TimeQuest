@@ -172,7 +172,67 @@ export type PluginInfo = {
   options: PluginOption[];
   /** 插件自带的资源文件，教材清单就靠它认。 */
   resources?: PluginResource[];
+  /** 插件类型：`plugin`（普通工具）或 `track`（赛道包）。 */
+  kind?: string;
+  /** 赛道包提供的内容（赛道、科目、目标、语料包）。 */
+  provides?: TrackProvides;
   installed: boolean;
+};
+
+/**
+ * 目标日期规则：一年里的某一天 + 年级偏移。
+ *
+ * 规则不含任何学科知识 —— 高考是 6 月 7 日，别的赛道在自己的包里
+ * 声明别的日子。
+ */
+export type DateRule = {
+  id: string;
+  /** `MM-DD`，这一年的哪一天。 */
+  anchor: string;
+  /** 年级 -> 往后推几年。高一 2、高二 1、高三 0。 */
+  grade_offsets?: Record<string, number>;
+};
+
+/** 赛道包提供的赛道定义。 */
+export type TrackSeed = {
+  name: string;
+  /** 对应 `tracks.kind`：exam / skill / course。 */
+  kind?: string;
+  /** 对应 `tracks.score_mode`：total / per_subject / band。 */
+  score_mode?: string;
+  is_primary?: boolean;
+  color?: string;
+};
+
+/** 赛道包提供的科目。 */
+export type SubjectSeed = {
+  /** 科目标识，全库唯一。 */
+  key: string;
+  label: string;
+  full_mark?: number;
+  goal?: number;
+  unit?: string;
+  order_index?: number;
+};
+
+/** 赛道包提供的目标。 */
+export type GoalSeed = {
+  name: string;
+  /** 写死日期就用它；不给就按 `date_rule` 算最近的一次。 */
+  date?: string;
+  kind?: string;
+  is_primary?: boolean;
+  target_score?: number;
+  date_rule?: DateRule;
+};
+
+/** 赛道包提供的内容。 */
+export type TrackProvides = {
+  track?: TrackSeed;
+  subjects?: SubjectSeed[];
+  goals?: GoalSeed[];
+  /** 动机语料包的资源路径。 */
+  motivation_pack?: string;
 };
 
 /** 插件选项的当前值：没设置过就用包里的默认值。 */
