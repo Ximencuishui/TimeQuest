@@ -1,9 +1,16 @@
+use crate::commands::app_settings::{
+    get_list_setting_impl, TRACK_MISTAKE_REASONS_SETTING_KEY,
+};
 use crate::db::{with_db, DbState};
 use crate::models::{CreateMistakePayload, Mistake, UpdateMistakePayload};
 use rusqlite::{params, Connection};
 use tauri::State;
 
-/// 错因分类：闭合集合，和前端 `src/lib/mistakes.ts` 的 `MISTAKE_REASONS` 一致。
+/// 错因分类：内置默认的闭合集合，和前端 `src/lib/fallbacks.ts` 的
+/// `FALLBACK_MISTAKE_REASONS` 一致。
+///
+/// 这只是**缺省值**：赛道包可以在 `app_settings` 里覆盖它
+/// （key 见 `TRACK_MISTAKE_REASONS_SETTING_KEY`），前后端读同一份。
 pub const REASON_WHITELIST: &[&str] = &[
     "概念不清",
     "公式记错",
@@ -13,6 +20,42 @@ pub const REASON_WHITELIST: &[&str] = &[
     "粗心大意",
     "其他",
 ];
+
+/// 当前生效的错因白名单。
+///
+/// 赛道包覆盖了就用覆盖的；没配置 / 配坏了（空表）就用内置的那份。
+pub fn reason_whitelist(conn: &Connection) -> Vec<String> {
+    let configured = get_list_setting_impl(conn, TRACK_MISTAKE_REASONS_SETTING_KEY);
+    if configured.is_empty() {
+        return REASON_WHITELIST
+            .iter()
+            .map(|reason| reason.to_string())
+            .collect();
+    }
+    configured
+}
+
+/// 按给定的白名单归一错因：未知 / 空 → 「其他」。
+///
+/// 白名单里没有「其他」就退到第一项 —— 至少不是空的。
+/// 前端 `normalizeReason` 是同一套算法。
+pub fn normalize_reason_in(whitelist: &[String], raw: &str) -> String {
+    let value = raw.trim();
+    if let Some(found) = whitelist.iter().find(|reason| reason.as_str() == value) {
+        return found.clone();
+    }
+    whitelist
+        .iter()
+        .find(|reason| reason.as_str() == "其他")
+        .or_else(|| whitelist.first())
+        .cloned()
+        .unwrap_or_else(|| "其他".to_string())
+}
+
+/// 按当前生效的白名单归一错因。
+pub fn normalize_reason_with(conn: &Connection, raw: &str) -> String {
+    normalize_reason_in(&reason_whitelist(conn), raw)
+}
 
 /// 把任意错因映射到白名单；未知 / 空 → `"其他"`。
 pub fn normalize_reason(raw: &str) -> &'static str {
@@ -117,6 +160,12 @@ pub fn list_mistakes(state: State<'_, DbState>) -> Result<Vec<Mistake>, String> 
     with_db(&state, list_mistakes_impl)
 }
 
+/// 当前生效的错因白名单。前端下拉框用同一份。
+#[tauri::command]
+pub fn list_mistake_reasons(state: State<'_, DbState>) -> Result<Vec<String>, String> {
+    with_db(&state, |conn| Ok(reason_whitelist(conn)))
+}
+
 /// 新建一条错题。错因归一到白名单，科目去空白，题目简述不能是空的。
 ///
 /// `graph_topic_id` / `graph_subject` 是可选的：挂上就说明这条错题落在哪个
@@ -130,7 +179,7 @@ pub fn create_mistake_impl(
         return Err("题目简述不能为空".to_string());
     }
     let subject = normalize_subject(&payload.subject);
-    let reason = normalize_reason(&payload.reason).to_string();
+    let reason = normalize_reason_with(conn, &payload.reason);
     let (graph_topic_id, graph_subject, graph_topic_name) = normalize_graph_link(
         payload.graph_topic_id,
         payload.graph_subject,
@@ -175,7 +224,7 @@ pub fn update_mistake_impl(
         mistake.title = t;
     }
     if let Some(r) = payload.reason {
-        mistake.reason = normalize_reason(&r).to_string();
+        mistake.reason = normalize_reason_with(conn, &r);
     }
     if let Some(c) = payload.correct_note {
         mistake.correct_note = c;

@@ -2,7 +2,8 @@ use crate::db::{with_db, DbState};
 use crate::plugins::{
     builtin_package, install_plugin_impl, list_plugins_impl, plugin_options_impl,
     plugin_resource_text, plugins_dir, set_plugin_option_impl, uninstall_plugin_impl, PluginInfo,
-    PluginOptionValue, PLUGIN_RESOURCE_KIND_TEXTBOOK_CATALOG,
+    PluginOptionValue, PLUGIN_RESOURCE_KIND_MOTIVATION_PACK,
+    PLUGIN_RESOURCE_KIND_TEXTBOOK_CATALOG,
 };
 use crate::textbook_source::{
     download_textbook, parse_textbook_catalog, textbook_download_plan, textbooks_dir,
@@ -72,6 +73,34 @@ pub fn read_plugin_resource(
 ) -> Result<String, String> {
     let dir = plugins_dir(&app)?;
     plugin_resource_text(&dir, &plugin_id, &path)
+}
+
+/// 读插件自带的动机语料包。
+///
+/// 赛道包可以带一份自己的每日一句（`kind = "motivation_pack"`）。
+/// 插件没装也能读：读不到本地副本就回落到内置的那份。
+#[tauri::command]
+pub fn read_plugin_motivation_pack(
+    app: AppHandle,
+    plugin_id: String,
+) -> Result<String, String> {
+    let dir = plugins_dir(&app)?;
+    let resource = motivation_pack_resource(&plugin_id)?;
+    plugin_resource_text(&dir, &plugin_id, &resource)
+}
+
+/// 找到插件声明的动机语料包资源路径。
+fn motivation_pack_resource(plugin_id: &str) -> Result<String, String> {
+    let id = plugin_id.trim();
+    let Some((package, _)) = builtin_package(id)? else {
+        return Err(format!("插件仓库里没有 {id}"));
+    };
+    package
+        .resources
+        .iter()
+        .find(|resource| resource.kind == PLUGIN_RESOURCE_KIND_MOTIVATION_PACK)
+        .map(|resource| resource.path.clone())
+        .ok_or_else(|| format!("插件 {id} 没有动机语料包"))
 }
 
 /// 下载进度事件的名称，前端靠它更新进度条。

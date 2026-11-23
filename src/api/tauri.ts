@@ -245,6 +245,8 @@ export const api = {
     invoke<void>("set_plugin_option", { pluginId, key, value }),
   listPluginTextbookCatalog: (pluginId: string) =>
     invoke<TextbookCatalog>("list_plugin_textbook_catalog", { pluginId }),
+  readPluginMotivationPack: (pluginId: string) =>
+    invoke<string>("read_plugin_motivation_pack", { pluginId }),
   downloadPluginTextbook: (pluginId: string, path: string) =>
     invoke<DownloadedTextbook>("download_plugin_textbook", { pluginId, path }),
 

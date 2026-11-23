@@ -4,7 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAppSetting } from "../../../hooks/useAppSetting";
-import { DEFAULT_MOTIVATIONS } from "../../../lib/constants";
+import { FALLBACK_MOTIVATIONS } from "../../../lib/fallbacks";
 import { makeGoal, setGoalFixtures } from "../../../test/mockGoals";
 import { Dashboard } from "../../Dashboard.tsx";
 
@@ -38,7 +38,7 @@ function renderDashboard() {
 }
 
 function visibleDefault(): string {
-  const found = DEFAULT_MOTIVATIONS.filter((line) => screen.queryByText(line));
+  const found = FALLBACK_MOTIVATIONS.filter((line) => screen.queryByText(line));
   expect(found).toHaveLength(1);
   return found[0];
 }
@@ -104,7 +104,7 @@ describe("Dashboard daily motivation", () => {
     expect(screen.getByRole("heading", { name: "TimeQuest" }).closest("header")).toContainElement(
       node,
     );
-    for (const line of DEFAULT_MOTIVATIONS) {
+    for (const line of FALLBACK_MOTIVATIONS) {
       expect(screen.queryByText(line)).not.toBeInTheDocument();
     }
   });

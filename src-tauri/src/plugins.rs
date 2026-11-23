@@ -8,6 +8,10 @@
 //! 卸载 = 删掉这个目录并从登记里移除。已安装列表存在 settings 里，
 //! 不新增数据表，导出 / 导入不受影响。
 
+use crate::commands::app_settings::{
+    clean_list_setting, set_list_setting_impl, TRACK_MISTAKE_REASONS_SETTING_KEY,
+    TRACK_METHODS_SETTING_KEY,
+};
 use crate::commands::goals::{GOAL_KIND_EXAM, GOAL_KINDS};
 use crate::commands::tracks::{
     TRACK_KIND_EXAM, TRACK_KINDS, TRACK_SCORE_MODES, TRACK_SCORE_MODE_TOTAL,
@@ -188,6 +192,12 @@ pub struct TrackProvides {
     /// 动机语料包的资源路径。
     #[serde(default)]
     pub motivation_pack: Option<String>,
+    /// 赛道级错因白名单。装上就写进 `app_settings`，前后端读同一份。
+    #[serde(default)]
+    pub mistake_reasons: Option<Vec<String>>,
+    /// 赛道级学习方式。装上就写进 `app_settings`。
+    #[serde(default)]
+    pub methods: Option<Vec<String>>,
 }
 
 /// 插件包清单：仓库里 `resources/plugins/<id>.json` 的内容。
@@ -466,7 +476,28 @@ pub fn seed_track_provides(
     for goal in &provides.goals {
         seed_goal(&tx, track_id, goal)?;
     }
+    seed_track_content(&tx, provides)?;
     tx.commit().map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+/// 赛道包里的语料配置：错因白名单、学习方式。
+///
+/// 写进 `app_settings`，前端读同一份（`useMistakeReasons` / `useStudyMethods`）。
+/// 空的清单不写：宁可继续用内置的，也不要把用户已有的配置清空。
+fn seed_track_content(tx: &Transaction<'_>, provides: &TrackProvides) -> Result<(), String> {
+    if let Some(reasons) = provides.mistake_reasons.as_ref() {
+        let list = clean_list_setting(reasons);
+        if !list.is_empty() {
+            set_list_setting_impl(tx, TRACK_MISTAKE_REASONS_SETTING_KEY, &list)?;
+        }
+    }
+    if let Some(methods) = provides.methods.as_ref() {
+        let list = clean_list_setting(methods);
+        if !list.is_empty() {
+            set_list_setting_impl(tx, TRACK_METHODS_SETTING_KEY, &list)?;
+        }
+    }
     Ok(())
 }
 

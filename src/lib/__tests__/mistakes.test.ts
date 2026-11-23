@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_MISTAKE_REASON,
   MISTAKE_REASONS,
+  MISTAKE_REASONS_SETTING_KEY,
   STRUCTURE_REASONS,
   filterMistakes,
   normalizeReason,
   normalizeSubject,
   reasonCounts,
+  resolveMistakeReasons,
   suggestsPrerequisites,
   summarizeMistakes,
   topicCount,
@@ -131,5 +133,42 @@ describe("mistakes lib", () => {
       makeMistake({ id: 5, graph_topic_id: "   " }),
     ];
     expect(topicCount(rows)).toBe(2);
+  });
+
+  it("resolve_mistake_reasons_prefers_the_track_list", () => {
+    // 没配置 / 配坏了：回落到内置的那份。
+    expect(resolveMistakeReasons([])).toEqual([...MISTAKE_REASONS]);
+    expect(resolveMistakeReasons(null)).toEqual([...MISTAKE_REASONS]);
+    expect(resolveMistakeReasons(["  "])).toEqual([...MISTAKE_REASONS]);
+    // 赛道包覆盖了就用覆盖的。
+    expect(resolveMistakeReasons(["精读", " 精读 ", "默写"])).toEqual([
+      "精读",
+      "默写",
+    ]);
+  });
+
+  it("setting_key_is_shared_with_the_backend", () => {
+    // 前后端读的是同一个 key：Rust 侧 `TRACK_MISTAKE_REASONS_SETTING_KEY`。
+    expect(MISTAKE_REASONS_SETTING_KEY).toBe("track.mistake_reasons");
+  });
+
+  it("normalize_reason_uses_the_track_whitelist", () => {
+    const reasons = ["精读", "默写", "其他"];
+    expect(normalizeReason("精读", reasons)).toBe("精读");
+    // 不在赛道白名单里的旧错因归到「其他」。
+    expect(normalizeReason("审题失误", reasons)).toBe("其他");
+    // 白名单里没有「其他」就退到第一项。
+    expect(normalizeReason("瞎写的", ["精读", "默写"])).toBe("精读");
+  });
+
+  it("reason_counts_use_the_track_whitelist", () => {
+    const rows = [
+      makeMistake({ id: 1, reason: "精读" }),
+      makeMistake({ id: 2, reason: "精读" }),
+      makeMistake({ id: 3, reason: "审题失误" }),
+    ];
+    const counts = reasonCounts(rows, ["精读", "默写", "其他"]);
+    expect(counts[0]).toEqual({ reason: "精读", count: 2 });
+    expect(counts).toContainEqual({ reason: "其他", count: 1 });
   });
 });

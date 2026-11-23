@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "./Modal";
 import type { CompleteSessionResult, TaskSession } from "../types";
-import { METHODS } from "../lib/constants";
+import { useStudyMethods } from "../hooks/useStudyMethods";
 import { todayStr } from "../lib/date";
 import { timeRangeError } from "../lib/sessionTime";
 import { actualUnitsLabel, unitNameOf, unitsLabel } from "../lib/units";
@@ -100,7 +100,13 @@ export function CompleteDialog({ session, onClose, onSubmit, busy }: Props) {
   const [actualUnitsRaw, setActualUnitsRaw] = useState("");
   const [selfRating, setSelfRating] = useState(3);
   const [selfNote, setSelfNote] = useState("");
-  const [method, setMethod] = useState<string>(METHODS[1]);
+  const [method, setMethod] = useState<string>("");
+  // 学习方式跟着当前赛道走：赛道包装了学习方式就用它的。
+  const methods = useStudyMethods();
+  // 清单是异步拿到的：没选 / 选的不在清单里就落到默认项。
+  const methodValue = methods.includes(method)
+    ? method
+    : methods[1] || methods[0] || "";
   const [deferRemaining, setDeferRemaining] = useState(false);
   const [deferDate, setDeferDate] = useState(todayStr());
   const [deferStart, setDeferStart] = useState("19:00");
@@ -174,7 +180,7 @@ export function CompleteDialog({ session, onClose, onSubmit, busy }: Props) {
                     actualUnits: units,
                     selfRating,
                     selfNote,
-                    method,
+                    method: methodValue,
                     deferRemaining: defer,
                     deferDate: defer ? deferDate : null,
                     deferStart: defer ? deferStart : null,
@@ -250,10 +256,10 @@ export function CompleteDialog({ session, onClose, onSubmit, busy }: Props) {
           <span className="text-ink-muted">学习方式</span>
           <select
             className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2"
-            value={method}
+            value={methodValue}
             onChange={(e) => setMethod(e.target.value)}
           >
-            {METHODS.map((m) => (
+            {methods.map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>

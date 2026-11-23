@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Modal } from "./Modal";
 import { TextbookCombobox } from "./TextbookCombobox";
-import { SUBJECTS } from "../lib/constants";
+import { useActiveTrack } from "../hooks/useTracks";
+import { useSubjects } from "../hooks/useSubjects";
+import { resolveSubjects } from "../lib/content";
 import { TASK_PALETTE } from "../lib/colors";
 import { roundSequence } from "../lib/rounds";
 import type { Task, TaskType } from "../types";
@@ -75,6 +77,14 @@ export function TaskFormModal({
     initial ? formOf(initial) : blankForm(),
   );
   const [titleError, setTitleError] = useState<string | null>(null);
+
+  // 科目下拉跟着当前赛道走：换赛道就换一套科目。
+  const { trackId } = useActiveTrack();
+  const { data: trackSubjects = [] } = useSubjects(trackId);
+  const subjectOptions = useMemo(
+    () => resolveSubjects(trackSubjects),
+    [trackSubjects],
+  );
 
   const isMain = form.type === "main";
   const editing = mode === "edit";
@@ -165,7 +175,7 @@ export function TaskFormModal({
                   }))
                 }
               >
-                {SUBJECTS.map((s) => (
+                {subjectOptions.map((s) => (
                   <option key={s}>{s}</option>
                 ))}
               </select>

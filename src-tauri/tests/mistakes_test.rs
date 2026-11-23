@@ -16,9 +16,10 @@ use sqlx::sqlite::SqlitePoolOptions;
 use std::path::PathBuf;
 use timequest_lib::{
     create_mistake_impl, delete_mistake_impl, export_json_impl, import_json_impl,
-    list_mistakes_impl, list_topic_mistakes_impl, normalize_reason, normalize_subject,
-    update_mistake_impl, CreateMistakePayload, Mistake, TopicMistake, TopicMistakes,
-    UpdateMistakePayload, REASON_WHITELIST,
+    list_mistakes_impl, list_topic_mistakes_impl, normalize_reason, normalize_reason_in,
+    normalize_subject, reason_whitelist, set_list_setting_impl, update_mistake_impl,
+    CreateMistakePayload, Mistake, TopicMistake, TopicMistakes, UpdateMistakePayload,
+    REASON_WHITELIST, TRACK_MISTAKE_REASONS_SETTING_KEY,
 };
 
 /// 建一条错题的请求体。
@@ -125,21 +126,34 @@ async fn open_rusqlite_migrated() -> (PathBuf, Connection) {
 
 #[test]
 fn frontend_reason_list_matches_backend_whitelist() {
-    // 护栏：前端下拉框（src/lib/mistakes.ts 的 MISTAKE_REASONS）必须与后端白名单一致，
+    // 护栏：前端下拉框（src/lib/fallbacks.ts 的 FALLBACK_MISTAKE_REASONS）必须与后端白名单一致，
     // 否则用户会选到后端静默改成「其他」的错因。
+    //
+    // 前端白名单是**缺省值**：赛道包可以在 app_settings 里覆盖它（前后端读同一份），
+    // 但缺省的那一份必须和后端内置表逐项相等。
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("src")
         .join("lib")
-        .join("mistakes.ts");
+        .join("fallbacks.ts");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
     let start = source
-        .find("MISTAKE_REASONS = [")
-        .unwrap_or_else(|| panic!("MISTAKE_REASONS block not found in {}", path.display()));
+        .find("FALLBACK_MISTAKE_REASONS = [")
+        .unwrap_or_else(|| {
+            panic!(
+                "FALLBACK_MISTAKE_REASONS block not found in {}",
+                path.display()
+            )
+        });
     let end = source[start..]
         .find("] as const;")
-        .unwrap_or_else(|| panic!("MISTAKE_REASONS block is not closed in {}", path.display()))
+        .unwrap_or_else(|| {
+            panic!(
+                "FALLBACK_MISTAKE_REASONS block is not closed in {}",
+                path.display()
+            )
+        })
         + start;
     let frontend: Vec<&str> = source[start..end]
         .lines()
@@ -149,8 +163,43 @@ fn frontend_reason_list_matches_backend_whitelist() {
     assert_eq!(
         frontend,
         REASON_WHITELIST.to_vec(),
-        "frontend MISTAKE_REASONS must match Rust REASON_WHITELIST"
+        "frontend FALLBACK_MISTAKE_REASONS must match Rust REASON_WHITELIST"
     );
+}
+
+/// 赛道包可以在 app_settings 里覆盖错因白名单（前后端读同一份）。
+///
+/// 覆盖后：清单里的错因原样保留，清单外的错因归到「其他」而不是自由文本。
+#[tokio::test]
+async fn configured_reason_whitelist_replaces_the_builtin_one() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    let configured = vec![
+        "概念不清".to_string(),
+        "背不下来".to_string(),
+        "其他".to_string(),
+    ];
+    set_list_setting_impl(&conn, TRACK_MISTAKE_REASONS_SETTING_KEY, &configured)
+        .expect("write whitelist");
+
+    assert_eq!(reason_whitelist(&conn), configured);
+
+    let kept = create_mistake_impl(
+        &conn,
+        new_mistake("英语", "单词背不下来", "背不下来", "", None, None, None),
+    )
+    .expect("create");
+    assert_eq!(kept.reason, "背不下来");
+
+    // 内置表里有、赛道表里没有的错因：归到「其他」，不落成自由文本。
+    let dropped = create_mistake_impl(
+        &conn,
+        new_mistake("英语", "审题失误", "审题失误", "", None, None, None),
+    )
+    .expect("create");
+    assert_eq!(dropped.reason, "其他");
+
+    let _ = std::fs::remove_file(&path);
 }
 
 #[test]
@@ -159,6 +208,23 @@ fn normalize_reason_maps_unknown_to_other() {
     assert_eq!(normalize_reason("  审题失误  "), "审题失误");
     assert_eq!(normalize_reason("瞎写的"), "其他");
     assert_eq!(normalize_reason(""), "其他");
+}
+
+/// 归一错因时用哪张白名单，由调用方说了算（赛道包覆盖后的那张）。
+#[test]
+fn normalize_reason_in_uses_the_given_whitelist() {
+    let whitelist = vec!["背不下来".to_string(), "其他".to_string()];
+    assert_eq!(normalize_reason_in(&whitelist, "背不下来"), "背不下来");
+    assert_eq!(normalize_reason_in(&whitelist, " 背不下来 "), "背不下来");
+    // 清单外的错因归到「其他」，不落成自由文本。
+    assert_eq!(normalize_reason_in(&whitelist, "审题失误"), "其他");
+
+    // 白名单里没有「其他」就退到第一项，至少不是空的。
+    let no_other = vec!["背不下来".to_string()];
+    assert_eq!(normalize_reason_in(&no_other, "瞎写的"), "背不下来");
+
+    // 空白名单：兜底「其他」。
+    assert_eq!(normalize_reason_in(&[], "瞎写的"), "其他");
 }
 
 #[test]

@@ -715,6 +715,100 @@
 | textbook_combobox_still_picks_a_suggestion_after_blur_guard | 失焦守卫不误伤：点选项仍能选中并回调 `onPick` | `src/components/__tests__/textbook_combobox.test.tsx` |
 | textbook_combobox_reopens_when_the_subject_changes | 换科目后书目列表按新科目重新展开（收起只是浮层副作用，不是放弃选择） | `src/components/__tests__/textbook_combobox.test.tsx` |
 | textbook_combobox_stays_closed_after_escape_even_if_the_subject_changes | ESC 是明确放弃选择：之后换科目不再自动弹出 | `src/components/__tests__/textbook_combobox.test.tsx` |
+| goals_crud_validates_and_keeps_one_primary | 目标增删改；设 primary 时其它自动置 false | `src-tauri/tests/goals_test.rs` |
+| goals_seed_default_goal_is_idempotent | 默认目标重复播种不重复插行 | `src-tauri/tests/goals_test.rs` |
+| goals_survive_export_import_round_trip | 目标导出导入往返保留 | `src-tauri/tests/goals_test.rs` |
+| goals_import_v1_payload_without_goals_key_falls_back_to_default | v1 payload 无 `goals` 键时回落默认目标 | `src-tauri/tests/goals_test.rs` |
+| exam_session_stores_one_row_per_subject_and_lists_newest_first | 一场考试每科一行成绩；列表按场次新→旧 | `src-tauri/tests/exam_scores_test.rs` |
+| exam_score_is_real_so_fractions_survive | `score` 是 REAL，6.5 这类小数能存 | `src-tauri/tests/exam_scores_test.rs` |
+| seed_subjects_are_six_with_the_documented_full_marks | 迁移种子出六科且满分与文档一致 | `src-tauri/tests/exam_scores_test.rs` |
+| deleting_a_session_removes_its_score_rows | 删场次级联清掉它的成绩行 | `src-tauri/tests/exam_scores_test.rs` |
+| export_import_round_trip_keeps_sessions_and_scores | 场次与成绩行导出导入往返一致 | `src-tauri/tests/exam_scores_test.rs` |
+| import_v1_payload_with_flat_exam_records_expands_into_score_rows | 导入 v1 扁平 `exam_records` 会展开成成绩行 | `src-tauri/tests/exam_scores_test.rs` |
+| export_payload_is_version_2_and_carries_goals | 导出 payload 版本升 2 且带 `goals` | `src-tauri/tests/export_import_test.rs` |
+| import_v1_payload_without_goals_key_still_succeeds | 导入缺 `goals` 的 v1 payload 仍成功 | `src-tauri/tests/export_import_test.rs` |
+| migration_seeds_one_primary_track | 迁移后库里只有一条主赛道 | `src-tauri/tests/tracks_test.rs` |
+| seed_subjects_belong_to_the_default_track | 种子科目挂在默认赛道下 | `src-tauri/tests/tracks_test.rs` |
+| upsert_track_creates_updates_and_keeps_one_primary | 赛道增改；主赛道始终唯一 | `src-tauri/tests/tracks_test.rs` |
+| upsert_track_rejects_bad_kind_and_empty_name | 非法赛道类型与空名被拒 | `src-tauri/tests/tracks_test.rs` |
+| upsert_subject_adds_updates_and_allows_null_full_mark | 科目增改；满分可空 | `src-tauri/tests/tracks_test.rs` |
+| upsert_subject_rejects_duplicate_key_and_negative_scores | 重复 key 与负分被拒 | `src-tauri/tests/tracks_test.rs` |
+| remove_subject_cleans_up_its_score_rows | 删科目时清掉它的成绩行 | `src-tauri/tests/tracks_test.rs` |
+| remove_track_keeps_history_but_clears_ownership | 删赛道留历史、解除归属 | `src-tauri/tests/tracks_test.rs` |
+| export_import_round_trip_keeps_tracks_and_subject_ownership | 赛道与科目归属导出导入往返一致 | `src-tauri/tests/tracks_test.rs` |
+| legacy_exam_records_expand_into_sessions_and_score_rows | 旧 `exam_records` 升级成场次 + 成绩行 | `src-tauri/tests/migration_test.rs` |
+| legacy_subject_targets_move_into_the_subject_dictionary | 旧 `subject_targets` 迁进科目字典 | `src-tauri/tests/migration_test.rs` |
+| core_modules_have_no_domain_constants | 内核模块源码里没有领域常量（护栏） | `src-tauri/tests/domain_isolation_test.rs` |
+| core_modules_do_not_read_the_legacy_score_table | 内核模块不再读旧 `exam_records` 表 | `src-tauri/tests/domain_isolation_test.rs` |
+| domain_constants_live_outside_the_core | 领域常量只落在赛道/内容包层 | `src-tauri/tests/domain_isolation_test.rs` |
+| rust_business_code_never_reads_subject_targets | Rust 业务代码不再读旧 `subject_targets` | `src-tauri/tests/subject_dict_guard_test.rs` |
+| frontend_never_reads_subject_targets | 前端不再读旧 `subject_targets` | `src-tauri/tests/subject_dict_guard_test.rs` |
+| track_package_seeds_track_subjects_and_goals | 赛道包装上后赛道/科目/目标各增对应行 | `src-tauri/tests/plugins_test.rs` |
+| track_package_keeps_the_users_own_subject_goals | 用户改过的科目目标不被装包覆盖 | `src-tauri/tests/plugins_test.rs` |
+| install_track_package_seeds_the_builtin_gaokao_track | 装 `track-gaokao` 播种高考赛道与六科 | `src-tauri/tests/plugins_test.rs` |
+| install_track_package_twice_does_not_duplicate_rows | 重复安装不重复插行 | `src-tauri/tests/plugins_test.rs` |
+| uninstall_track_package_keeps_the_seeded_rows | 卸载赛道包不删已有历史记录 | `src-tauri/tests/plugins_test.rs` |
+| track_package_falls_back_to_the_default_kind | 包里非法的赛道类型/折算口径退回默认值 | `src-tauri/tests/plugins_test.rs` |
+| seeding_a_track_package_writes_the_content_settings | 赛道包的错因表/学习方式装上就写进 `app_settings` | `src-tauri/tests/plugins_test.rs` |
+| seeding_a_track_package_without_content_keeps_the_builtin_lists | 没带语料配置时不动已有配置，内置表继续生效 | `src-tauri/tests/plugins_test.rs` |
+| configured_reason_whitelist_replaces_the_builtin_one | `app_settings` 的赛道级错因表覆盖内置表；表外错因归「其他」 | `src-tauri/tests/mistakes_test.rs` |
+| normalize_reason_in_uses_the_given_whitelist | 按给定白名单归一错因；无「其他」退到第一项 | `src-tauri/tests/mistakes_test.rs` |
+| goals_primary_goal_prefers_the_flagged_one | 主目标取标记了 `is_primary` 的那条 | `src/lib/__tests__/goals.test.ts` |
+| goals_primary_goal_falls_back_to_the_first_row | 没有主目标就退回第一行 | `src/lib/__tests__/goals.test.ts` |
+| goals_primary_goal_is_undefined_without_any_goal | 一条目标都没有时是 undefined | `src/lib/__tests__/goals.test.ts` |
+| goals_read_legacy_goals_skips_broken_rows | 读旧 localStorage 时跳过坏行 | `src/lib/__tests__/goals.test.ts` |
+| goals_migration_moves_legacy_rows_and_clears_the_old_key | 旧目标迁进库并清掉旧 key | `src/lib/__tests__/goals.test.ts` |
+| goals_migration_only_runs_once | 迁移只跑一次（标记防重入） | `src/lib/__tests__/goals.test.ts` |
+| goals_migration_marks_done_when_there_is_no_legacy_data | 没有旧数据也照样标记完成 | `src/lib/__tests__/goals.test.ts` |
+| goals_migration_drops_the_seeded_default_goal_before_moving | 迁移前先删掉种子默认目标 | `src/lib/__tests__/goals.test.ts` |
+| goals_migration_sets_a_primary_when_the_legacy_data_has_none | 旧数据没有主目标时补一个 | `src/lib/__tests__/goals.test.ts` |
+| goals_migration_rolls_back_and_unmarks_when_writing_fails | 写入失败时回滚并撤销标记 | `src/lib/__tests__/goals.test.ts` |
+| reads_the_gaokao_rule_from_the_track_package_data | 高考日期规则从赛道包数据读 | `src/lib/__tests__/examDate.test.ts` |
+| works_for_any_anchor_and_grade_offset | 任意锚点 + 年级偏移都能算出目标日 | `src/lib/__tests__/examDate.test.ts` |
+| rolls_to_the_next_year_once_the_anchor_has_passed | 锚点过了就顺延到下一年 | `src/lib/__tests__/examDate.test.ts` |
+| returns_an_empty_string_for_a_broken_anchor | 锚点坏了返回空串而不是崩 | `src/lib/__tests__/examDate.test.ts` |
+| total_full_marks_come_from_the_subject_list | 总分满分由科目清单算出 | `src/lib/__tests__/scoreScaling.test.ts` |
+| subjects_without_a_full_mark_do_not_break_the_scaling | 没有满分的科目不影响折算 | `src/lib/__tests__/scoreScaling.test.ts` |
+| scales_against_a_four_subject_paper | 四科卷按自己的满分折算 | `src/lib/__tests__/scoreScaling.test.ts` |
+| every_built_in_template_is_available | 内置赛道模板都在 | `src/lib/__tests__/track.test.ts` |
+| gaokao_is_the_only_template_requiring_grade_and_region | 只有高考模板要年级与地区 | `src/lib/__tests__/track.test.ts` |
+| gives_each_track_its_own_full_marks | 每条赛道有自己的满分 | `src/lib/__tests__/track.test.ts` |
+| keeps_the_subject_keys_of_each_track_apart | 各赛道的科目 key 互不串 | `src/lib/__tests__/track.test.ts` |
+| adds_subjects_that_only_exist_in_the_database | 模板外的科目按库里补进来 | `src/lib/__tests__/track.test.ts` |
+| keeps_the_stored_goal_when_the_template_already_has_the_subject | 库里已有的科目目标不被模板覆盖 | `src/lib/__tests__/track.test.ts` |
+| keeps_the_single_subject_score_as_is | 单科成绩原样保留 | `src/lib/__tests__/track.test.ts` |
+| template_scores_add_up | 模板分值能加起来 | `src/lib/__tests__/track.test.ts` |
+| sums_only_the_subjects_with_a_goal | 只统计有目标的科目 | `src/lib/__tests__/track.test.ts` |
+| total_full_marks_comes_from_the_subject_list | 总满分来自科目清单 | `src/lib/__tests__/track.test.ts` |
+| scales_a_four_subject_paper_against_its_own_full_marks | 四科卷按各自满分折算 | `src/lib/__tests__/track.test.ts` |
+| prefers_a_goal_scoped_to_the_track | 优先取归属当前赛道的目标 | `src/lib/__tests__/track.test.ts` |
+| falls_back_to_the_primary_goal_then_the_first_one | 没有归属目标就退主目标再退第一行 | `src/lib/__tests__/track.test.ts` |
+| uses_the_template_rule_when_no_package_is_installed | 没装赛道包就用模板规则 | `src/lib/__tests__/track.test.ts` |
+| prefers_the_rule_that_comes_with_the_track_package | 优先用赛道包带来的规则 | `src/lib/__tests__/track.test.ts` |
+| reads_the_rule_out_of_the_installed_track_packages | 从已装赛道包里读出规则 | `src/lib/__tests__/track.test.ts` |
+| falls_back_to_the_custom_template_for_an_unknown_id | 未知模板 id 回退到自定义模板 | `src/lib/__tests__/track.test.ts` |
+| asks_for_the_grade_only_when_the_rule_needs_it | 只有规则需要时才问年级 | `src/lib/__tests__/track.test.ts` |
+| lists_the_tracks_and_marks_the_active_one | 赛道列表标出当前主赛道 | `src/components/__tests__/track_setting.test.tsx` |
+| switching_to_another_track_makes_it_primary_and_moves_the_goal | 切赛道即改主赛道并把目标挪过去 | `src/components/__tests__/track_setting.test.tsx` |
+| creating_a_track_seeds_the_template_subjects | 新建赛道时按模板播种科目 | `src/components/__tests__/track_setting.test.tsx` |
+| deleting_a_track_keeps_history_and_reports_it | 删赛道保留历史并如实提示 | `src/components/__tests__/track_setting.test.tsx` |
+| onboarding_kaoyan_track_uses_its_own_subjects | 选高考赛道时科目用它自己那套 | `src/components/__tests__/onboarding.test.tsx` |
+| onboarding_custom_track_has_no_subjects | 自定义赛道不预置科目 | `src/components/__tests__/onboarding.test.tsx` |
+| onboarding_takes_the_date_rule_from_the_track_package | 目标日期规则从赛道包读 | `src/components/__tests__/onboarding.test.tsx` |
+| onboarding_target_score_has_no_hardcoded_750_limit | 目标分不再硬编码 750 | `src/components/__tests__/onboarding.test.tsx` |
+| renders_only_the_subjects_of_the_active_track | 成绩页只渲染当前赛道的科目 | `src/pages/__tests__/scores_page.test.tsx` |
+| subjects_fall_back_when_the_track_has_none | 赛道没有科目时回落到内置科目表 | `src/lib/__tests__/content.test.ts` |
+| subjects_come_from_the_track_and_keep_other_last | 科目来自赛道字典，「其他」永远排最后 | `src/lib/__tests__/content.test.ts` |
+| subjects_do_not_duplicate_other | 赛道里已有「其他」时不重复追加 | `src/lib/__tests__/content.test.ts` |
+| methods_fall_back_and_dedupe | 学习方式缺省回落并去重 | `src/lib/__tests__/content.test.ts` |
+| motivations_fall_back_and_dedupe | 每日一句缺省回落并去重 | `src/lib/__tests__/content.test.ts` |
+| fallback_reasons_match_the_builtin_whitelist | 前端兜底错因表与后端内置表一致 | `src/lib/__tests__/content.test.ts` |
+| resolve_mistake_reasons_prefers_the_track_list | 赛道包覆盖就用覆盖的，否则回落内置 | `src/lib/__tests__/mistakes.test.ts` |
+| setting_key_is_shared_with_the_backend | 与 Rust `TRACK_MISTAKE_REASONS_SETTING_KEY` 同 key | `src/lib/__tests__/mistakes.test.ts` |
+| normalize_reason_uses_the_track_whitelist | 按赛道级白名单归一错因 | `src/lib/__tests__/mistakes.test.ts` |
+| reason_counts_use_the_track_whitelist | 错因分布按赛道级白名单统计 | `src/lib/__tests__/mistakes.test.ts` |
+| reads_the_lines_out_of_a_track_pack | 从赛道包动机资源里读出语料行 | `src/lib/__tests__/motivation.test.ts` |
+| treats_a_broken_pack_as_no_pack | 坏包当作没有包 | `src/lib/__tests__/motivation.test.ts` |
 
 ## 已知实现约束
 

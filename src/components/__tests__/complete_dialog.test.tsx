@@ -1,5 +1,12 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../api/tauri";
@@ -7,6 +14,16 @@ import type { TaskSession } from "../../types";
 import { CompleteDialog } from "../CompleteDialog";
 
 const mockedInvoke = vi.mocked(invoke);
+
+/**
+ * 弹窗要读赛道级学习方式（走 React Query），所以渲染得带上 QueryClientProvider。
+ */
+function render(ui: Parameters<typeof rtlRender>[0]) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
+  });
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 const session: TaskSession = {
   id: 42,
@@ -58,9 +75,35 @@ const zeroPlannedSession: TaskSession = {
   planned_units: 0,
 };
 
+/** 完成命令的默认返回体。 */
+const COMPLETE_RESULT = {
+  session,
+  xpAwarded: 0,
+  newAchievements: [],
+  createdSessionId: null,
+  remainderSessionId: null,
+};
+
+/**
+ * 弹窗要读赛道级学习方式（走 React Query），会额外打一次 `get_setting`。
+ * 断言只盯完成命令，别把配置读取算进去。
+ */
+function completeCalls() {
+  return mockedInvoke.mock.calls.filter(([cmd]) => cmd === "complete_session");
+}
+
+/** `get_setting` 回 null（没装赛道内容），其它命令回给定的完成结果。 */
+function mockInvoke(result: unknown = COMPLETE_RESULT) {
+  mockedInvoke.mockImplementation(((cmd: string) =>
+    cmd === "get_setting"
+      ? Promise.resolve(null)
+      : Promise.resolve(result)) as never);
+}
+
 function completeInvokeArgs() {
-  expect(mockedInvoke).toHaveBeenCalledTimes(1);
-  const [cmd, arg] = mockedInvoke.mock.calls[0]!;
+  const calls = completeCalls();
+  expect(calls).toHaveLength(1);
+  const [cmd, arg] = calls[0]!;
   expect(cmd).toBe("complete_session");
   expect(arg).toEqual(expect.objectContaining({ input: expect.any(Object) }));
   return (arg as { input: Record<string, unknown> }).input;
@@ -69,13 +112,7 @@ function completeInvokeArgs() {
 describe("CompleteDialog deferRemaining", () => {
   beforeEach(() => {
     mockedInvoke.mockReset();
-    mockedInvoke.mockResolvedValue({
-      session,
-      xpAwarded: 0,
-      newAchievements: [],
-      createdSessionId: null,
-      remainderSessionId: null,
-    });
+    mockInvoke();
   });
 
   afterEach(() => {
@@ -106,7 +143,7 @@ describe("CompleteDialog deferRemaining", () => {
     await user.click(screen.getByRole("button", { name: "确认完成" }));
 
     await waitFor(() => {
-      expect(mockedInvoke).toHaveBeenCalled();
+      expect(completeCalls().length).toBeGreaterThan(0);
     });
 
     // B 段确认：wire 为 camelCase（serde rename_all），嵌在 { input } 里。
@@ -132,7 +169,7 @@ describe("CompleteDialog deferRemaining", () => {
     await user.click(screen.getByRole("button", { name: "确认完成" }));
 
     await waitFor(() => {
-      expect(mockedInvoke).toHaveBeenCalled();
+      expect(completeCalls().length).toBeGreaterThan(0);
     });
 
     const input = completeInvokeArgs();
@@ -176,7 +213,7 @@ describe("CompleteDialog deferRemaining", () => {
     await user.click(screen.getByRole("button", { name: "确认完成" }));
 
     await waitFor(() => {
-      expect(mockedInvoke).toHaveBeenCalled();
+      expect(completeCalls().length).toBeGreaterThan(0);
     });
 
     const input = completeInvokeArgs();
@@ -204,7 +241,7 @@ describe("CompleteDialog deferRemaining", () => {
     await user.click(screen.getByRole("button", { name: "确认完成" }));
 
     await waitFor(() => {
-      expect(mockedInvoke).toHaveBeenCalled();
+      expect(completeCalls().length).toBeGreaterThan(0);
     });
 
     const input = completeInvokeArgs();
@@ -232,7 +269,7 @@ describe("CompleteDialog deferRemaining", () => {
     await user.click(submit);
 
     await waitFor(() => {
-      expect(mockedInvoke).toHaveBeenCalled();
+      expect(completeCalls().length).toBeGreaterThan(0);
     });
 
     const input = completeInvokeArgs();
@@ -264,7 +301,7 @@ describe("CompleteDialog deferRemaining", () => {
     await user.click(screen.getByRole("button", { name: "确认完成" }));
 
     await waitFor(() => {
-      expect(mockedInvoke).toHaveBeenCalled();
+      expect(completeCalls().length).toBeGreaterThan(0);
     });
 
     const input = completeInvokeArgs();
@@ -274,9 +311,12 @@ describe("CompleteDialog deferRemaining", () => {
 
   it("complete_dialog_backend_zero_defer_error_shows_friendly_message", async () => {
     // 后端 Result Err 经 to_string()：Display 文案（含 reschedule），非 JSON 对象。
-    mockedInvoke.mockRejectedValue(
-      "cannot defer remaining units when actual_units is 0; use reschedule instead",
-    );
+    mockedInvoke.mockImplementation(((cmd: string) =>
+      cmd === "get_setting"
+        ? Promise.resolve(null)
+        : Promise.reject(
+            "cannot defer remaining units when actual_units is 0; use reschedule instead",
+          )) as never);
 
     const unhandled: unknown[] = [];
     const onUnhandled = (ev: PromiseRejectionEvent) => {
@@ -334,7 +374,7 @@ const XP_FOR_FIVE_UNITS = 60;
 const XP_IF_CAPPED_AT_PLANNED = 36;
 
 function renderPlannedThree() {
-  mockedInvoke.mockResolvedValue({
+  mockInvoke({
     session: { ...plannedThree, status: "done", actual_units: 5, xp_awarded: XP_FOR_FIVE_UNITS },
     xpAwarded: XP_FOR_FIVE_UNITS,
     newAchievements: [],
@@ -371,13 +411,14 @@ async function submitUnits(units: string) {
   }
   await user.click(screen.getByRole("button", { name: "确认完成" }));
   await waitFor(() => {
-    expect(mockedInvoke).toHaveBeenCalled();
+    expect(completeCalls().length).toBeGreaterThan(0);
   });
 }
 
 describe("CompleteDialog overage hint", () => {
   beforeEach(() => {
     mockedInvoke.mockReset();
+    mockInvoke();
   });
 
   afterEach(() => {
@@ -419,7 +460,10 @@ describe("CompleteDialog overage hint", () => {
     const hint = await screen.findByRole("status");
     expect(hint).toHaveTextContent(String(XP_FOR_FIVE_UNITS));
     expect(hint).not.toHaveTextContent(String(XP_IF_CAPPED_AT_PLANNED));
-    const returned = await mockedInvoke.mock.results[0]!.value;
+    const resultIndex = mockedInvoke.mock.calls.findIndex(
+      ([cmd]) => cmd === "complete_session",
+    );
+    const returned = await mockedInvoke.mock.results[resultIndex]!.value;
     expect(returned.xpAwarded).toBe(XP_FOR_FIVE_UNITS);
     expect(hint).toHaveTextContent(String(returned.xpAwarded));
   });
@@ -435,13 +479,7 @@ function setActualUnitsRaw(raw: string) {
 describe("CompleteDialog actual_units validation", () => {
   beforeEach(() => {
     mockedInvoke.mockReset();
-    mockedInvoke.mockResolvedValue({
-      session,
-      xpAwarded: 0,
-      newAchievements: [],
-      createdSessionId: null,
-      remainderSessionId: null,
-    });
+    mockInvoke();
   });
 
   afterEach(() => {
@@ -456,7 +494,7 @@ describe("CompleteDialog actual_units validation", () => {
 
     expect(screen.getByText(/请输入数字/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "确认完成" })).toBeDisabled();
-    expect(mockedInvoke).not.toHaveBeenCalled();
+    expect(completeCalls()).toHaveLength(0);
 
     const logged = errorSpy.mock.calls.map((args) => args.map(String).join(" ")).join("\n");
     expect(logged).not.toMatch(/NaN/);
@@ -472,7 +510,7 @@ describe("CompleteDialog actual_units validation", () => {
     expect(screen.getByText(/不能为负数/)).toBeInTheDocument();
     expect(screen.queryByText(/actual_units must be >= 0/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "确认完成" })).toBeDisabled();
-    expect(mockedInvoke).not.toHaveBeenCalled();
+    expect(completeCalls()).toHaveLength(0);
   });
 
   it("complete_dialog_empty_input_treated_as_zero_not_submitted_silently", () => {
@@ -485,7 +523,7 @@ describe("CompleteDialog actual_units validation", () => {
     expect(units.value).toBe("");
     expect(screen.getByText(/请输入课数/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "确认完成" })).toBeDisabled();
-    expect(mockedInvoke).not.toHaveBeenCalled();
+    expect(completeCalls()).toHaveLength(0);
   });
 
   it("complete_dialog_rejects_overlong_number", () => {
@@ -497,7 +535,7 @@ describe("CompleteDialog actual_units validation", () => {
     expect(units.value).toBe(raw);
     expect(screen.getByText(/数值过大/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "确认完成" })).toBeDisabled();
-    expect(mockedInvoke).not.toHaveBeenCalled();
+    expect(completeCalls()).toHaveLength(0);
   });
 
   it("complete_dialog_decimal_input_behavior_documented", () => {
@@ -509,7 +547,7 @@ describe("CompleteDialog actual_units validation", () => {
     expect(units.value).toBe("3.7");
     expect(screen.getByText(/请输入整数/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "确认完成" })).toBeDisabled();
-    expect(mockedInvoke).not.toHaveBeenCalled();
+    expect(completeCalls()).toHaveLength(0);
   });
 });
 
@@ -526,13 +564,7 @@ const textbookSession: TaskSession = {
 describe("CompleteDialog 防呆：单位口径与剩余改期时段", () => {
   beforeEach(() => {
     mockedInvoke.mockReset();
-    mockedInvoke.mockResolvedValue({
-      session,
-      xpAwarded: 0,
-      newAchievements: [],
-      createdSessionId: null,
-      remainderSessionId: null,
-    });
+    mockInvoke();
   });
 
   afterEach(() => {
@@ -578,7 +610,7 @@ describe("CompleteDialog 防呆：单位口径与剩余改期时段", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("不能早于开始时间");
     expect(screen.getByRole("button", { name: "确认完成" })).toBeDisabled();
-    expect(mockedInvoke).not.toHaveBeenCalled();
+    expect(completeCalls()).toHaveLength(0);
 
     // 改回正常时段后错误消失，可以提交。
     fireEvent.change(timeInputs[0]!, { target: { value: "19:00" } });

@@ -5,11 +5,14 @@ import {
   type MistakeTopic,
 } from "../components/MistakeTopicPicker";
 import { useMistakeMutations, useMistakes } from "../hooks/useMistakes";
+import { useMistakeReasons } from "../hooks/useMistakeReasons";
 import { usePlugins } from "../hooks/usePlugins";
-import { KNOWLEDGE_GRAPH_PLUGIN_ID, SUBJECTS } from "../lib/constants";
+import { useActiveTrack } from "../hooks/useTracks";
+import { useSubjects } from "../hooks/useSubjects";
+import { KNOWLEDGE_GRAPH_PLUGIN_ID } from "../lib/constants";
+import { resolveSubjects } from "../lib/content";
 import {
   MISTAKE_FILTERS,
-  MISTAKE_REASONS,
   filterMistakes,
   normalizeReason,
   normalizeSubject,
@@ -129,15 +132,37 @@ export function Mistakes() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const reasons = useMistakeReasons();
+
+  // 科目与错因都跟着赛道走：赛道包 / 赛道配置能换掉内置的那套。
+  const { trackId } = useActiveTrack();
+  const { data: trackSubjects = [] } = useSubjects(trackId);
+  const subjectOptions = useMemo(
+    () => resolveSubjects(trackSubjects),
+    [trackSubjects],
+  );
+
   const [subject, setSubject] = useState<string>("物理");
   const [title, setTitle] = useState("");
-  const [reason, setReason] = useState<string>(MISTAKE_REASONS[0]);
+  const [reason, setReason] = useState<string>(reasons[0] ?? "其他");
   const [correctNote, setCorrectNote] = useState("");
   const [topic, setTopic] = useState<MistakeTopic | null>(null);
   const [filter, setFilter] = useState<MistakeFilter>("all");
   const [error, setError] = useState("");
   /** 列表里的操作（订正、删除）失败了要说一声，不然用户以为改成了。 */
   const [actionError, setActionError] = useState("");
+
+  // 赛道换了、配置改了，选中的值要跟着回到合法范围里。
+  useEffect(() => {
+    setSubject((current) =>
+      subjectOptions.includes(current) ? current : subjectOptions[0] ?? "其他",
+    );
+  }, [subjectOptions]);
+  useEffect(() => {
+    setReason((current) =>
+      reasons.includes(current) ? current : reasons[0] ?? "其他",
+    );
+  }, [reasons]);
 
   const graphInstalled = plugins.some(
     (plugin) => plugin.id === KNOWLEDGE_GRAPH_PLUGIN_ID && plugin.installed,
@@ -167,7 +192,7 @@ export function Mistakes() {
   );
   const summary = useMemo(() => summarizeMistakes(mistakes), [mistakes]);
   const topics = useMemo(() => topicCount(mistakes), [mistakes]);
-  const topReason = useMemo(() => reasonCounts(mistakes)[0], [mistakes]);
+  const topReason = useMemo(() => reasonCounts(mistakes, reasons)[0], [mistakes, reasons]);
   const titleMissing = title.trim() === "";
   const summaryLine =
     `共 ${summary.total} 条 · 已订正 ${summary.mastered} 条 · 待订正 ${summary.pending} 条` +
@@ -190,7 +215,7 @@ export function Mistakes() {
       await create.mutateAsync({
         subject: normalizeSubject(subject),
         title: title.trim(),
-        reason: normalizeReason(reason),
+        reason: normalizeReason(reason, reasons),
         correctNote: correctNote.trim(),
         graphTopicId: topic?.id ?? null,
         graphSubject: topic?.subject ?? null,
@@ -244,7 +269,7 @@ export function Mistakes() {
               value={subject}
               onChange={(event) => setSubject(event.target.value)}
             >
-              {SUBJECTS.map((s) => (
+              {subjectOptions.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
@@ -259,7 +284,7 @@ export function Mistakes() {
               value={reason}
               onChange={(event) => setReason(event.target.value)}
             >
-              {MISTAKE_REASONS.map((r) => (
+              {reasons.map((r) => (
                 <option key={r} value={r}>
                   {r}
                 </option>

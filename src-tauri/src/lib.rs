@@ -10,7 +10,10 @@ mod plugins;
 mod textbook_source;
 mod textbooks;
 
-pub use commands::app_settings::{get_setting_impl, set_setting_impl};
+pub use commands::app_settings::{
+    clean_list_setting, get_list_setting_impl, get_setting_impl, set_list_setting_impl,
+    set_setting_impl, TRACK_MISTAKE_REASONS_SETTING_KEY, TRACK_METHODS_SETTING_KEY,
+};
 pub use commands::data::{export_json_impl, import_json_impl};
 pub use commands::exams::{
     create_exam_session_impl, delete_exam_session_impl, list_exam_sessions_impl,
@@ -30,7 +33,8 @@ pub use commands::knowledge_graph::{
 pub use commands::logs::{compute_duration_min, create_log_impl};
 pub use commands::mistakes::{
     create_mistake_impl, delete_mistake_impl, list_mistakes_impl, normalize_graph_link,
-    normalize_reason, normalize_subject, update_mistake_impl, REASON_WHITELIST,
+    normalize_reason, normalize_reason_in, normalize_reason_with, normalize_subject,
+    reason_whitelist, update_mistake_impl, REASON_WHITELIST,
 };
 pub use commands::mock::{clear_mock_data_impl, generate_mock_data_impl, has_mock_data_impl};
 pub use commands::notes::{
@@ -43,8 +47,9 @@ pub use commands::planner::{
 };
 pub use commands::plugins::{
     download_plugin_textbook, install_plugin, list_plugin_options, list_plugin_textbook_catalog,
-    list_plugins, read_plugin_resource, set_plugin_option, uninstall_plugin,
-    PLUGIN_OPTION_DOWNLOAD_SOURCE, PLUGIN_OPTION_GITHUB_TOKEN, TEXTBOOK_DOWNLOAD_PROGRESS_EVENT,
+    list_plugins, read_plugin_motivation_pack, read_plugin_resource, set_plugin_option,
+    uninstall_plugin, PLUGIN_OPTION_DOWNLOAD_SOURCE, PLUGIN_OPTION_GITHUB_TOKEN,
+    TEXTBOOK_DOWNLOAD_PROGRESS_EVENT,
 };
 pub use commands::presets::{
     apply_preset_duration_changes, apply_preset_duration_changes_impl,
@@ -262,6 +267,7 @@ pub fn run() {
             commands::list_plugin_options,
             commands::set_plugin_option,
             commands::read_plugin_resource,
+            commands::read_plugin_motivation_pack,
             commands::list_plugin_textbook_catalog,
             commands::download_plugin_textbook,
             commands::list_plugin_knowledge_packs,
@@ -271,6 +277,7 @@ pub fn run() {
             commands::list_topic_mistakes,
             commands::download_plugin_knowledge_pack,
             commands::list_mistakes,
+            commands::list_mistake_reasons,
             commands::create_mistake,
             commands::update_mistake,
             commands::delete_mistake,

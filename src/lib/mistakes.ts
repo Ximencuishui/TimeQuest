@@ -1,28 +1,54 @@
+import { FALLBACK_MISTAKE_REASONS } from "./fallbacks";
 import type { Mistake } from "../types";
 
 /**
- * 错因分类：闭合集合，必须与 Rust `REASON_WHITELIST` 完全一致。
+ * 错因分类：内置默认的闭合集合，必须与 Rust `REASON_WHITELIST` 完全一致。
  *
  * 顺序即下拉框里的展示顺序：从「不会」到「粗心」。
+ *
+ * 赛道包可以覆盖这张表（`resolveMistakeReasons`），但前后端必须用同一份
+ * 来源 —— 后端也从 `app_settings` 读它（key 见 `MISTAKE_REASONS_SETTING_KEY`）。
  */
-export const MISTAKE_REASONS = [
-  "概念不清",
-  "公式记错",
-  "审题失误",
-  "计算失误",
-  "方法不会",
-  "粗心大意",
-  "其他",
-] as const;
+export const MISTAKE_REASONS = FALLBACK_MISTAKE_REASONS;
+
+/** 赛道级错因白名单存在 `app_settings` 里的 key。 */
+export const MISTAKE_REASONS_SETTING_KEY = "track.mistake_reasons";
 
 export type MistakeReason = (typeof MISTAKE_REASONS)[number];
 
 export const DEFAULT_MISTAKE_REASON: MistakeReason = "其他";
 
-/** 未知 / 空错因统一落到「其他」，与后端 `normalize_reason` 行为一致。 */
-export function normalizeReason(raw: string): MistakeReason {
+/**
+ * 赛道级错因白名单。
+ *
+ * 没配置 / 配坏了（空表）就用内置的那份。
+ */
+export function resolveMistakeReasons(
+  configured: readonly string[] | null | undefined,
+): string[] {
+  const list = (configured ?? [])
+    .map((reason) => reason.trim())
+    .filter((reason) => reason.length > 0);
+  return list.length > 0 ? [...new Set(list)] : [...MISTAKE_REASONS];
+}
+
+/**
+ * 未知 / 空错因统一落到「其他」，与后端 `normalize_reason` 行为一致。
+ *
+ * `reasons` 传赛道级白名单；不传就用内置的。
+ */
+export function normalizeReason(
+  raw: string,
+  reasons: readonly string[] = MISTAKE_REASONS,
+): MistakeReason {
   const value = raw.trim();
-  return MISTAKE_REASONS.find((r) => r === value) ?? DEFAULT_MISTAKE_REASON;
+  const found = reasons.find((reason) => reason === value);
+  if (found) return found as MistakeReason;
+  const fallback =
+    reasons.find((reason) => reason === DEFAULT_MISTAKE_REASON) ??
+    reasons[0] ??
+    DEFAULT_MISTAKE_REASON;
+  return fallback as MistakeReason;
 }
 
 /** 科目是开放字符串：去空白，空的归「其他」，与后端 `normalize_subject` 一致。 */
@@ -93,10 +119,13 @@ export function topicCount(mistakes: Mistake[]): number {
 }
 
 /** 错因分布：从多到少，同数按名称排，用来提示「哪一类错最多」。 */
-export function reasonCounts(mistakes: Mistake[]): { reason: string; count: number }[] {
+export function reasonCounts(
+  mistakes: Mistake[],
+  reasons: readonly string[] = MISTAKE_REASONS,
+): { reason: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const m of mistakes) {
-    const key = normalizeReason(m.reason);
+    const key = normalizeReason(m.reason, reasons);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return [...counts.entries()]

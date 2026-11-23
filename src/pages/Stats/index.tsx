@@ -18,7 +18,11 @@ import {
   useTagTypeTotals,
   useUserStats,
 } from "../../hooks/useStats";
-import { METHODS, SUBJECTS, TAG_TYPES } from "../../lib/constants";
+import { TAG_TYPES } from "../../lib/constants";
+import { resolveSubjects } from "../../lib/content";
+import { useSubjects } from "../../hooks/useSubjects";
+import { useStudyMethods } from "../../hooks/useStudyMethods";
+import { useActiveTrack } from "../../hooks/useTracks";
 import { todayStr } from "../../lib/date";
 import {
   generateLearningReport,
@@ -85,6 +89,21 @@ export function Stats() {
     period: string;
     rangeLabel: string;
   } | null>(null);
+  // 快速记录里的科目 / 方式跟着当前赛道走：换赛道就换一套。
+  const { trackId } = useActiveTrack();
+  const { data: trackSubjects = [] } = useSubjects(trackId);
+  const subjectOptions = useMemo(
+    () => resolveSubjects(trackSubjects),
+    [trackSubjects],
+  );
+  const methodOptions = useStudyMethods();
+  // 选中项不在清单里就落到第一项：换赛道后旧科目不该留在表单里。
+  const subjectValue = subjectOptions.includes(logForm.subject)
+    ? logForm.subject
+    : subjectOptions[0];
+  const methodValue = methodOptions.includes(logForm.method)
+    ? logForm.method
+    : methodOptions[0];
   const closeReport = useCallback(() => setReportView(null), []);
 
   const reportReady = planFetched && tagsFetched && unitsFetched && userFetched;
@@ -288,8 +307,8 @@ export function Stats() {
                   date: logForm.date,
                   startAt: `${logForm.date}T${logForm.startAt}:00`,
                   endAt: `${logForm.date}T${logForm.endAt}:00`,
-                  subject: logForm.subject,
-                  method: logForm.method,
+                  subject: subjectValue,
+                  method: methodValue,
                   tagType: logForm.tagType,
                   note: logForm.note || null,
                 });
@@ -322,12 +341,12 @@ export function Stats() {
             <span className="text-ink-muted">科目</span>
             <select
               className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2"
-              value={logForm.subject}
+              value={subjectValue}
               onChange={(e) =>
                 setLogForm({ ...logForm, subject: e.target.value })
               }
             >
-              {SUBJECTS.map((s) => (
+              {subjectOptions.map((s) => (
                 <option key={s}>{s}</option>
               ))}
             </select>
@@ -336,12 +355,12 @@ export function Stats() {
             <span className="text-ink-muted">方式</span>
             <select
               className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2"
-              value={logForm.method}
+              value={methodValue}
               onChange={(e) =>
                 setLogForm({ ...logForm, method: e.target.value })
               }
             >
-              {METHODS.map((m) => (
+              {methodOptions.map((m) => (
                 <option key={m}>{m}</option>
               ))}
             </select>

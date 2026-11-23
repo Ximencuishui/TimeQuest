@@ -63,12 +63,18 @@ const session: TaskSession = {
 };
 
 function renderCompleteDialog() {
+  // 弹窗要读赛道级学习方式（走 React Query），所以渲染得带上 QueryClientProvider。
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
+  });
   return render(
-    <CompleteDialog
-      session={session}
-      onClose={() => undefined}
-      onSubmit={() => undefined}
-    />,
+    <QueryClientProvider client={client}>
+      <CompleteDialog
+        session={session}
+        onClose={() => undefined}
+        onSubmit={() => undefined}
+      />
+    </QueryClientProvider>,
   );
 }
 

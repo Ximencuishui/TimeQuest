@@ -7,10 +7,11 @@ use rusqlite::{params, Connection};
 use sqlx::sqlite::SqlitePoolOptions;
 use std::path::PathBuf;
 use timequest_lib::{
-    builtin_plugin_resources, install_plugin_impl, list_plugins_impl, plugin_options_impl,
-    plugin_resource_text, seed_track_provides, set_plugin_option_impl, uninstall_plugin_impl,
-    GoalSeed, PluginInfo, SubjectSeed, TrackProvides, TrackSeed,
-    INSTALLED_PLUGINS_KEY, PLUGIN_RESOURCES_DIR, PLUGIN_RESOURCE_KIND_MOTIVATION_PACK,
+    builtin_plugin_resources, get_list_setting_impl, install_plugin_impl, list_plugins_impl,
+    plugin_options_impl, plugin_resource_text, reason_whitelist, seed_track_provides,
+    set_plugin_option_impl, uninstall_plugin_impl, GoalSeed, PluginInfo, SubjectSeed,
+    TrackProvides, TrackSeed, INSTALLED_PLUGINS_KEY, PLUGIN_RESOURCES_DIR,
+    PLUGIN_RESOURCE_KIND_MOTIVATION_PACK, TRACK_METHODS_SETTING_KEY,
 };
 
 async fn open_rusqlite_migrated() -> (PathBuf, Connection) {
@@ -503,6 +504,8 @@ fn kaoyan_provides() -> TrackProvides {
             date_rule: None,
         }],
         motivation_pack: None,
+        mistake_reasons: None,
+        methods: None,
     }
 }
 
@@ -698,6 +701,66 @@ async fn track_package_falls_back_to_the_default_kind() {
         .expect("赛道");
     assert_eq!(kind, "exam");
     assert_eq!(score_mode, "total");
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 赛道包带的语料配置（错因表 / 学习方式）装上就写进 app_settings，
+/// 前后端读的是同一份。
+#[tokio::test]
+async fn seeding_a_track_package_writes_the_content_settings() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    let provides = TrackProvides {
+        track: Some(TrackSeed {
+            name: "考研".to_string(),
+            kind: Some("exam".to_string()),
+            score_mode: Some("total".to_string()),
+            is_primary: Some(false),
+            color: None,
+        }),
+        mistake_reasons: Some(vec![
+            "概念不清".to_string(),
+            "背不下来".to_string(),
+            "其他".to_string(),
+        ]),
+        methods: Some(vec!["听课".to_string(), "刷题".to_string()]),
+        ..Default::default()
+    };
+
+    seed_track_provides(&conn, &provides).expect("seed");
+
+    assert_eq!(
+        reason_whitelist(&conn),
+        vec![
+            "概念不清".to_string(),
+            "背不下来".to_string(),
+            "其他".to_string()
+        ]
+    );
+    assert_eq!(
+        get_list_setting_impl(&conn, TRACK_METHODS_SETTING_KEY),
+        vec!["听课".to_string(), "刷题".to_string()]
+    );
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 赛道包没带语料配置时，不动已有的配置：内置那份继续生效。
+#[tokio::test]
+async fn seeding_a_track_package_without_content_keeps_the_builtin_lists() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    seed_track_provides(&conn, &kaoyan_provides()).expect("seed");
+
+    assert!(
+        get_list_setting_impl(&conn, TRACK_METHODS_SETTING_KEY).is_empty(),
+        "没带学习方式就不该写这个 key"
+    );
+    assert!(
+        reason_whitelist(&conn).contains(&"概念不清".to_string()),
+        "没带错因表就用内置那份"
+    );
 
     let _ = std::fs::remove_file(&path);
 }
