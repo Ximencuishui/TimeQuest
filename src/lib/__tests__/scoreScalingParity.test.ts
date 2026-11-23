@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { examScoreBreakdown, scaledTotalNote } from "../scoreScaling";
 import { SUBJECT_FIXTURES, examSession } from "../../test/subjectFixtures";
+import type { Subject } from "../../types";
 
 /**
  * 4.0 升级前后的折算口径逐位比对。
@@ -10,7 +11,9 @@ import { SUBJECT_FIXTURES, examSession } from "../../test/subjectFixtures";
  * 否则老用户升级后成绩页上的折算分会漂。
  *
  * 这里的 `legacyBreakdown` 是升级前实现的逐行照抄（只把 key 从
- * `chinese_score` 换成科目 key，便于逐项比对）。
+ * `chinese_score` 换成科目 key，便于逐项比对）。比对始终用老口径的
+ * 科目满分（LEGACY_SUBJECT_FIXTURES）；现役种子（语数英 150 / 其余 100）
+ * 的合计另用一个用例锁定。
  */
 
 const LEGACY_SUBJECT_FIELDS = [
@@ -24,6 +27,17 @@ const LEGACY_SUBJECT_FIELDS = [
 
 const LEGACY_TOTAL_FULL_MARKS = 610;
 const LEGACY_MIN_SUBJECTS_FOR_SCALING = 2;
+
+const LEGACY_SUBJECT_FIXTURES: Subject[] = LEGACY_SUBJECT_FIELDS.map((field, index) => ({
+  id: index + 1,
+  key: field.key,
+  label: field.label,
+  fullMark: field.fullMark,
+  goal: field.fullMark,
+  unit: "分",
+  orderIndex: index,
+  trackId: null,
+}));
 
 type LegacyBreakdown = {
   filled: { key: string; label: string; score: number }[];
@@ -91,9 +105,9 @@ const CASES: { name: string; scores: (number | null)[] }[] = [
 
 describe("4.0 升级前后折算口径逐位一致", () => {
   it.each(CASES)("$name：新旧口径给出同一个折算总分", ({ scores }) => {
-    const session = examSession(7, "期中", "2026-11-01", scores);
+    const session = examSession(7, "期中", "2026-11-01", scores, LEGACY_SUBJECT_FIXTURES);
     const legacy = legacyBreakdown(scores);
-    const current = examScoreBreakdown(session, SUBJECT_FIXTURES);
+    const current = examScoreBreakdown(session, LEGACY_SUBJECT_FIXTURES);
 
     expect(current.sum).toBe(legacy.sum);
     expect(current.takenFullMarks).toBe(legacy.takenFullMarks);
@@ -105,13 +119,13 @@ describe("4.0 升级前后折算口径逐位一致", () => {
     expect(current.missing.map((row) => row.label)).toEqual(
       legacy.missing.map((row) => row.label),
     );
-    expect(scaledTotalNote(session, SUBJECT_FIXTURES)).toBe(legacyNote(scores));
+    expect(scaledTotalNote(session, LEGACY_SUBJECT_FIXTURES)).toBe(legacyNote(scores));
   });
 
-  it("六科种子数据下总分仍是 610", () => {
-    const session = examSession(8, "满卷", "2026-11-02", [120, 130, 120, 80, 80, 80]);
+  it("六科种子数据下总分是 750", () => {
+    const session = examSession(8, "满卷", "2026-11-02", [150, 150, 150, 100, 100, 100]);
     const current = examScoreBreakdown(session, SUBJECT_FIXTURES);
-    expect(current.takenFullMarks).toBe(610);
-    expect(current.scaledTotal).toBe(610);
+    expect(current.takenFullMarks).toBe(750);
+    expect(current.scaledTotal).toBe(750);
   });
 });

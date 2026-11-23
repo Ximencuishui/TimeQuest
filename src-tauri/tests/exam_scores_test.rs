@@ -93,14 +93,14 @@ async fn seed_subjects_are_six_with_the_documented_full_marks() {
     assert_eq!(subjects.len(), 6);
     assert_eq!(subjects[0].key, "chinese");
     assert_eq!(subjects[0].label, "语文");
-    assert_eq!(subjects[0].full_mark, Some(120.0));
+    assert_eq!(subjects[0].full_mark, Some(150.0));
     assert_eq!(subjects[0].goal, Some(120.0));
     assert_eq!(subjects[1].key, "math");
-    assert_eq!(subjects[1].full_mark, Some(130.0));
+    assert_eq!(subjects[1].full_mark, Some(150.0));
     assert_eq!(subjects[5].key, "biology");
-    assert_eq!(subjects[5].full_mark, Some(80.0));
+    assert_eq!(subjects[5].full_mark, Some(100.0));
     let total: f64 = subjects.iter().map(|s| s.full_mark.unwrap_or(0.0)).sum();
-    assert_eq!(total, 610.0);
+    assert_eq!(total, 750.0);
 
     let _ = std::fs::remove_file(&path);
 }

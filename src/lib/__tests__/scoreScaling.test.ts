@@ -24,7 +24,7 @@ describe("score scaling", () => {
     );
     expect(breakdown.missing).toHaveLength(0);
     expect(breakdown.sum).toBe(613);
-    expect(breakdown.takenFullMarks).toBe(610);
+    expect(breakdown.takenFullMarks).toBe(750);
     expect(breakdown.scaledTotal).toBe(613);
     expect(
       scaledTotalNote(sitting([118, 135, 118, 82, 80, 80]), SUBJECT_FIXTURES),
@@ -38,11 +38,11 @@ describe("score scaling", () => {
 
     expect(breakdown.missing.map((m) => m.label)).toEqual(["生物"]);
     expect(breakdown.sum).toBe(500);
-    // 已考科目满分：语文 120 + 数学 130 + 英语 120 + 物理 80 + 化学 80
-    expect(breakdown.takenFullMarks).toBe(530);
-    expect(breakdown.scaledTotal).toBe(575);
-    expect(breakdown.rate).toBeCloseTo(500 / 530);
-    expect(scaledTotalNote(session, SUBJECT_FIXTURES)).toBe("实考 500 / 530 · 折算 575 / 610");
+    // 已考科目满分：语文 150 + 数学 150 + 英语 150 + 物理 100 + 化学 100
+    expect(breakdown.takenFullMarks).toBe(650);
+    expect(breakdown.scaledTotal).toBe(577);
+    expect(breakdown.rate).toBeCloseTo(500 / 650);
+    expect(scaledTotalNote(session, SUBJECT_FIXTURES)).toBe("实考 500 / 650 · 折算 577 / 750");
   });
 
   it("several_missing_subjects_scale_by_the_taken_share", () => {
@@ -55,8 +55,8 @@ describe("score scaling", () => {
       "化学",
       "生物",
     ]);
-    expect(breakdown.takenFullMarks).toBe(370);
-    expect(breakdown.scaledTotal).toBe(585);
+    expect(breakdown.takenFullMarks).toBe(450);
+    expect(breakdown.scaledTotal).toBe(592);
   });
 
   it("a_single_subject_is_not_scaled", () => {
@@ -76,18 +76,18 @@ describe("score scaling", () => {
   });
 
   it("total_full_marks_come_from_the_subject_list", () => {
-    expect(totalFullMarks(SUBJECT_FIXTURES)).toBe(610);
+    expect(totalFullMarks(SUBJECT_FIXTURES)).toBe(750);
   });
 
   it("scales_against_a_four_subject_paper", () => {
     const four: Subject[] = SUBJECT_FIXTURES.slice(0, 4);
-    // 语文 120 + 数学 130 + 英语 120 + 物理 80 = 450
+    // 语文 150 + 数学 150 + 英语 150 + 物理 100 = 550
     const session = examSession(2, "四科考", "2026-11-02", [100, 120, 100, null], four);
     const breakdown = examScoreBreakdown(session, four);
     expect(breakdown.missing.map((m) => m.label)).toEqual(["物理"]);
-    expect(breakdown.takenFullMarks).toBe(370);
-    expect(breakdown.scaledTotal).toBe(389);
-    expect(scaledTotalNote(session, four)).toBe("实考 320 / 370 · 折算 389 / 450");
+    expect(breakdown.takenFullMarks).toBe(450);
+    expect(breakdown.scaledTotal).toBe(391);
+    expect(scaledTotalNote(session, four)).toBe("实考 320 / 450 · 折算 391 / 550");
   });
 
   it("subjects_without_a_full_mark_do_not_break_the_scaling", () => {

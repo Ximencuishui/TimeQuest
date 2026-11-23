@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/tauri";
+import { Modal } from "./Modal";
 import { useActiveTrack, useTrackMutations, useTracks } from "../hooks/useTracks";
 import { useGoalMutations, useGoals } from "../hooks/useGoals";
 import { resolvePrimaryGoal } from "../lib/goals";
@@ -30,9 +31,15 @@ export function TrackSetting() {
   const { data: goals = [] } = useGoals();
   const { upsert: upsertGoal } = useGoalMutations();
   const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [templateId, setTemplateId] = useState<TrackTemplateId>("custom");
   const [msg, setMsg] = useState("");
+
+  const openDialog = () => {
+    setMsg("");
+    setOpen(true);
+  };
 
   /** 主目标跟着主赛道走，否则倒计时会挂在上一条赛道上。 */
   const movePrimaryGoal = async (trackId: number) => {
@@ -61,6 +68,7 @@ export function TrackSetting() {
       });
       await movePrimaryGoal(track.id);
       await queryClient.invalidateQueries({ queryKey: ["subjects"] });
+      setOpen(false);
       setMsg(`已切换到「${track.name}」。`);
     } catch (error) {
       setMsg(`切换失败：${String(error)}`);
@@ -95,6 +103,7 @@ export function TrackSetting() {
       await movePrimaryGoal(track.id);
       await queryClient.invalidateQueries({ queryKey: ["subjects"] });
       setName("");
+      setOpen(false);
       setMsg(`已切换到「${title}」。`);
     } catch (error) {
       setMsg(`创建失败：${String(error)}`);
@@ -107,6 +116,7 @@ export function TrackSetting() {
     try {
       await remove.mutateAsync(track.id);
       await queryClient.invalidateQueries({ queryKey: ["subjects"] });
+      setOpen(false);
       setMsg(`已删除「${track.name}」。`);
     } catch (error) {
       setMsg(`删除失败：${String(error)}`);
@@ -115,87 +125,143 @@ export function TrackSetting() {
 
   return (
     <section className="space-y-3 rounded-2xl border border-white/5 bg-surface-2/80 p-4">
-      <h2 className="font-display text-lg">学习方向</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-display text-lg">学习方向</h2>
+        <button
+          type="button"
+          className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-ink-muted hover:bg-white/5 hover:text-ink"
+          onClick={openDialog}
+        >
+          切换
+        </button>
+      </div>
       <p className="text-xs text-ink-muted">
         一条赛道就是一套科目 + 一套目标。切换后，个人档案里的科目清单和成绩页都会跟着换。
       </p>
 
       <ul className="space-y-2">
-        {tracks.map((track) => {
-          const current = active?.id === track.id;
-          return (
-            <li
-              key={track.id}
-              className="flex flex-wrap items-center gap-2 rounded-lg bg-surface-3/60 px-3 py-2 text-sm"
-            >
-              <span className="font-medium text-ink">{track.name}</span>
-              <span className="text-xs text-ink-muted">
-                {KIND_LABELS[track.kind] ?? track.kind}
+        {tracks.map((track) => (
+          <li
+            key={track.id}
+            className="flex flex-wrap items-center gap-2 rounded-lg bg-surface-3/60 px-3 py-2 text-sm"
+          >
+            <span className="font-medium text-ink">{track.name}</span>
+            <span className="text-xs text-ink-muted">
+              {KIND_LABELS[track.kind] ?? track.kind}
+            </span>
+            {active?.id === track.id ? (
+              <span className="rounded bg-accent/20 px-2 py-0.5 text-xs text-accent-soft">
+                当前
               </span>
-              {current ? (
-                <span className="rounded bg-accent/20 px-2 py-0.5 text-xs text-accent-soft">
-                  当前
-                </span>
-              ) : null}
-              {current ? null : (
-                <button
-                  type="button"
-                  className="rounded border border-white/15 px-2 py-1 text-xs"
-                  onClick={() => void switchTo(track)}
-                >
-                  切换
-                </button>
-              )}
-              {tracks.length > 1 ? (
-                <button
-                  type="button"
-                  className="text-xs text-ink-muted hover:text-ink"
-                  onClick={() => void drop(track)}
-                >
-                  删除
-                </button>
-              ) : null}
-            </li>
-          );
-        })}
+            ) : null}
+          </li>
+        ))}
       </ul>
 
-      <div className="mt-4 flex flex-wrap items-end gap-2">
-        <label htmlFor="track-template" className="block text-sm">
-          模板
-          <select
-            id="track-template"
-            className="mt-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
-            value={templateId}
-            onChange={(event) => setTemplateId(event.target.value as TrackTemplateId)}
-          >
-            {TRACK_TEMPLATES.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label htmlFor="track-name" className="block text-sm">
-          名称
-          <input
-            id="track-name"
-            className="mt-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
-            placeholder={trackTemplateById(templateId).name}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-        <button
-          type="button"
-          className="rounded-lg bg-accent px-3 py-2 text-sm text-white"
-          onClick={() => void create()}
-        >
-          新建并切换
-        </button>
-      </div>
+      {!open && msg ? <p className="text-sm text-ink-muted">{msg}</p> : null}
 
-      {msg ? <p className="text-sm text-ink-muted">{msg}</p> : null}
+      <Modal
+        open={open}
+        title="切换学习方向"
+        onClose={() => setOpen(false)}
+        footer={
+          <button
+            type="button"
+            className="rounded-lg border border-white/20 bg-surface-3 px-4 py-2 text-sm hover:bg-white/10"
+            onClick={() => setOpen(false)}
+          >
+            取消
+          </button>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <h3 className="mb-2 text-sm text-ink">已有赛道</h3>
+            <ul className="space-y-2">
+              {tracks.map((track) => {
+                const current = active?.id === track.id;
+                return (
+                  <li
+                    key={track.id}
+                    className="flex flex-wrap items-center gap-2 rounded-lg bg-surface-3/60 px-3 py-2 text-sm"
+                  >
+                    <span className="font-medium text-ink">{track.name}</span>
+                    <span className="text-xs text-ink-muted">
+                      {KIND_LABELS[track.kind] ?? track.kind}
+                    </span>
+                    {current ? (
+                      <span className="rounded bg-accent/20 px-2 py-0.5 text-xs text-accent-soft">
+                        当前
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="rounded border border-white/15 px-2 py-1 text-xs"
+                        onClick={() => void switchTo(track)}
+                      >
+                        切换到此
+                      </button>
+                    )}
+                    {tracks.length > 1 ? (
+                      <button
+                        type="button"
+                        className="text-xs text-ink-muted hover:text-ink"
+                        onClick={() => void drop(track)}
+                      >
+                        删除
+                      </button>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          <div className="border-t border-white/5 pt-4">
+            <h3 className="mb-2 text-sm text-ink">新建赛道</h3>
+            <div className="flex flex-wrap items-end gap-2">
+              <label htmlFor="track-template" className="block text-sm">
+                模板
+                <select
+                  id="track-template"
+                  className="mt-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
+                  value={templateId}
+                  onChange={(event) => setTemplateId(event.target.value as TrackTemplateId)}
+                >
+                  {TRACK_TEMPLATES.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label htmlFor="track-name" className="block text-sm">
+                名称
+                <input
+                  id="track-name"
+                  className="mt-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
+                  placeholder={trackTemplateById(templateId).name}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="rounded-lg bg-accent px-3 py-2 text-sm text-white"
+                onClick={() => void create()}
+              >
+                新建并切换
+              </button>
+            </div>
+          </div>
+
+          {msg ? (
+            <p role="status" className="text-sm text-ink-muted">
+              {msg}
+            </p>
+          ) : null}
+        </div>
+      </Modal>
     </section>
   );
 }

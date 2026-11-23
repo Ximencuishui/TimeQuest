@@ -729,7 +729,7 @@
 | goals_import_v1_payload_without_goals_key_falls_back_to_default | v1 payload 无 `goals` 键时回落默认目标 | `src-tauri/tests/goals_test.rs` |
 | exam_session_stores_one_row_per_subject_and_lists_newest_first | 一场考试每科一行成绩；列表按场次新→旧 | `src-tauri/tests/exam_scores_test.rs` |
 | exam_score_is_real_so_fractions_survive | `score` 是 REAL，6.5 这类小数能存 | `src-tauri/tests/exam_scores_test.rs` |
-| seed_subjects_are_six_with_the_documented_full_marks | 迁移种子出六科且满分与文档一致 | `src-tauri/tests/exam_scores_test.rs` |
+| seed_subjects_are_six_with_the_documented_full_marks | 迁移种子出六科：语数英满分 150、物化生 100，合计 750；目标分仍按老口径 | `src-tauri/tests/exam_scores_test.rs` |
 | deleting_a_session_removes_its_score_rows | 删场次级联清掉它的成绩行 | `src-tauri/tests/exam_scores_test.rs` |
 | export_import_round_trip_keeps_sessions_and_scores | 场次与成绩行导出导入往返一致 | `src-tauri/tests/exam_scores_test.rs` |
 | import_v1_payload_with_flat_exam_records_expands_into_score_rows | 导入 v1 扁平 `exam_records` 会展开成成绩行 | `src-tauri/tests/exam_scores_test.rs` |
@@ -746,6 +746,7 @@
 | export_import_round_trip_keeps_tracks_and_subject_ownership | 赛道与科目归属导出导入往返一致 | `src-tauri/tests/tracks_test.rs` |
 | legacy_exam_records_expand_into_sessions_and_score_rows | 旧 `exam_records` 升级成场次 + 成绩行 | `src-tauri/tests/migration_test.rs` |
 | legacy_subject_targets_move_into_the_subject_dictionary | 旧 `subject_targets` 迁进科目字典 | `src-tauri/tests/migration_test.rs` |
+| gaokao_full_marks_migration_keeps_custom_values | 老库满分归一为语数英 150 / 物化生 100；用户改过的满分与目标分不动 | `src-tauri/tests/migration_test.rs` |
 | core_modules_have_no_domain_constants | 内核模块源码里没有领域常量（护栏） | `src-tauri/tests/domain_isolation_test.rs` |
 | core_modules_do_not_read_the_legacy_score_table | 内核模块不再读旧 `exam_records` 表 | `src-tauri/tests/domain_isolation_test.rs` |
 | domain_constants_live_outside_the_core | 领域常量只落在赛道/内容包层 | `src-tauri/tests/domain_isolation_test.rs` |
@@ -784,7 +785,7 @@
 | subjects_without_a_full_mark_do_not_break_the_scaling | 没配满分的科目不进折算分母：折算总分按已配满分的那科算（90），不再虚高 | `src/lib/__tests__/scoreScaling.test.ts` |
 | scales_against_a_four_subject_paper | 四科卷按自己的满分折算 | `src/lib/__tests__/scoreScaling.test.ts` |
 | 新旧口径给出同一个折算总分 | 9 组样例下 4.0 前后折算口径逐位一致（实考和 / 已考满分 / 折算分 / 得分率 / 明细 / 说明行） | `src/lib/__tests__/scoreScalingParity.test.ts` |
-| 六科种子数据下总分仍是 610 | 六科种子数据的已考满分合计与折算总分都仍是 610 | `src/lib/__tests__/scoreScalingParity.test.ts` |
+| 六科种子数据下总分是 750 | 语数英 150 / 物化生 100 的种子满分合计与折算总分都是 750 | `src/lib/__tests__/scoreScalingParity.test.ts` |
 | every_built_in_template_is_available | 内置赛道模板都在 | `src/lib/__tests__/track.test.ts` |
 | gaokao_is_the_only_template_requiring_grade_and_region | 只有高考模板要年级与地区 | `src/lib/__tests__/track.test.ts` |
 | gives_each_track_its_own_full_marks | 每条赛道有自己的满分 | `src/lib/__tests__/track.test.ts` |
@@ -804,7 +805,8 @@
 | falls_back_to_the_custom_template_for_an_unknown_id | 未知模板 id 回退到自定义模板 | `src/lib/__tests__/track.test.ts` |
 | asks_for_the_grade_only_when_the_rule_needs_it | 只有规则需要时才问年级 | `src/lib/__tests__/track.test.ts` |
 | lists_the_tracks_and_marks_the_active_one | 赛道列表标出当前主赛道 | `src/components/__tests__/track_setting.test.tsx` |
-| switching_to_another_track_makes_it_primary_and_moves_the_goal | 切赛道即改主赛道并把目标挪过去 | `src/components/__tests__/track_setting.test.tsx` |
+| switch_form_is_hidden_until_the_switch_button_is_clicked | 模板/名称表单默认不在设置页；点标题右侧「切换」才在弹窗里出现，关闭后收起 | `src/components/__tests__/track_setting.test.tsx` |
+| switching_to_another_track_makes_it_primary_and_moves_the_goal | 切赛道即改主赛道并把目标挪过去（在弹窗里操作） | `src/components/__tests__/track_setting.test.tsx` |
 | creating_a_track_seeds_the_template_subjects | 新建赛道时按模板播种科目 | `src/components/__tests__/track_setting.test.tsx` |
 | deleting_a_track_keeps_history_and_reports_it | 删赛道保留历史并如实提示 | `src/components/__tests__/track_setting.test.tsx` |
 | onboarding_kaoyan_track_uses_its_own_subjects | 选高考赛道时科目用它自己那套 | `src/components/__tests__/onboarding.test.tsx` |
@@ -1317,12 +1319,12 @@
 
 ### 成绩缺考折算
 
-- **公式**（`src/lib/scoreScaling.ts`）：`折算总分 = 实考总分 × 总满分 ÷ 已考科目满分之和`，四舍五入。也就是把缺考科目按已考科目的得分率补齐，得到与「各科都考了」可比的分数。总满分不再写死 610，由 `totalFullMarks(subjects)` 跟着 `subjects` 表算（没配满分的科目按 0 计）。高考赛道的种子科目仍是语文 120 / 数学 130 / 英语 120 / 物理、化学、生物各 80，合计 610。
+- **公式**（`src/lib/scoreScaling.ts`）：`折算总分 = 实考总分 × 总满分 ÷ 已考科目满分之和`，四舍五入。也就是把缺考科目按已考科目的得分率补齐，得到与「各科都考了」可比的分数。总满分不再写死，由 `totalFullMarks(subjects)` 跟着 `subjects` 表算（没配满分的科目按 0 计）。高考赛道的种子满分是语文 / 数学 / 英语各 150，物理 / 化学 / 生物各 100，合计 750；默认目标分仍按老口径 120 / 130 / 120 / 80 / 80 / 80。满分由 `GAOKAO_SUBJECT_FULL_MARKS`（`src/lib/profile.ts`）、Rust `DEFAULT_TRACK_SUBJECTS`、赛道包 `track-gaokao.json` 三处种子给出，老库由 `20261123060000_gaokao_subject_full_marks.sql` 归一（只改仍是旧默认满分的行，用户改过的满分与目标不动）。
 - **留空 = 缺考**：录入弹窗文案明确「没考的科目留空——留空就是缺考，总分会按已考科目比例折算」。`null` 就是缺考，不写 0。
 - **单科不折算**：只记一科时 `scaledTotalNote` 返回 `null`，界面不显示折算说明（拿一科推六科没有意义）。六科齐全时折算分等于实考总分。空记录没有折算分。
 - **胶囊与档案页**：`ScoreOverview` 的第三分支是 `kind: "scaled"`（带 `score / sum / count / missing / gap / tone`），胶囊显示折算分 + 「折算 · 缺考生物」，档案页 `RecordCard` 额外渲染 `data-testid="scaled-total-note"` 说明行与缺考提示行。
 - **趋势图口径不变**：`ScoreTrendChart` 仍然只收「当前赛道的科目都有分」的场次计入总分（不折算），避免历史趋势被改写。`examTotal(session, subjects)` 缺任意一科就返回 `null`。这与胶囊的折算是两套口径，属有意为之。
-- 由 `full_paper_needs_no_scaling` / `missing_biology_scales_the_total_to_the_six_subject_scale` / `several_missing_subjects_scale_by_the_taken_share` / `a_single_subject_is_not_scaled` / `an_empty_paper_has_no_scaled_total` / `total_full_marks_come_from_the_subject_list` / `subjects_without_a_full_mark_do_not_break_the_scaling` / `scales_against_a_four_subject_paper` / `scales a partial paper so the gap to the target stays comparable` / `does not scale a paper that only has one score` 锁定。升级前后口径一致由 `新旧口径给出同一个折算总分` / `六科种子数据下总分仍是 610` 锁定。
+- 由 `full_paper_needs_no_scaling` / `missing_biology_scales_the_total_to_the_six_subject_scale` / `several_missing_subjects_scale_by_the_taken_share` / `a_single_subject_is_not_scaled` / `an_empty_paper_has_no_scaled_total` / `total_full_marks_come_from_the_subject_list` / `subjects_without_a_full_mark_do_not_break_the_scaling` / `scales_against_a_four_subject_paper` / `scales a partial paper so the gap to the target stays comparable` / `does not scale a paper that only has one score` 锁定。升级前后口径一致由 `新旧口径给出同一个折算总分` 锁定（用老满分夹具比对，刻意保留 610 口径）；现役种子的 750 合计由 `六科种子数据下总分是 750` 锁定。
 
 ### 教材源插件契约
 

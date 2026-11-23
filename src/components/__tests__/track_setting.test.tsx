@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   Goal,
@@ -49,6 +49,11 @@ function renderSetting() {
       <TrackSetting />
     </QueryClientProvider>,
   );
+}
+
+async function openDialog() {
+  fireEvent.click(await screen.findByRole("button", { name: "切换" }));
+  return screen.findByRole("dialog");
 }
 
 describe("学习方向设置", () => {
@@ -134,7 +139,6 @@ describe("学习方向设置", () => {
   it("lists_the_tracks_and_marks_the_active_one", async () => {
     renderSetting();
     // 「当前」只出现在赛道列表里：等它出现才说明列表数据真的到了。
-    // 不能用「高考」当等待条件——模板下拉的 <option> 里也有它，会提前放行。
     expect(await screen.findByText("当前")).toBeInTheDocument();
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(2);
@@ -145,11 +149,30 @@ describe("学习方向设置", () => {
     expect(items[1]).not.toHaveTextContent("当前");
   });
 
+  it("switch_form_is_hidden_until_the_switch_button_is_clicked", async () => {
+    renderSetting();
+    expect(await screen.findByText("当前")).toBeInTheDocument();
+    expect(screen.queryByLabelText("模板")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "新建并切换" })).not.toBeInTheDocument();
+
+    const dialog = await openDialog();
+    expect(within(dialog).getByLabelText("模板")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("名称")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "新建并切换" })).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "取消" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("模板")).not.toBeInTheDocument();
+  });
+
   it("switching_to_another_track_makes_it_primary_and_moves_the_goal", async () => {
     renderSetting();
-    const switchButton = await screen.findByRole("button", { name: "切换" });
-
-    fireEvent.click(switchButton);
+    const dialog = await openDialog();
+    const kaoyanRow = within(dialog)
+      .getAllByRole("listitem")
+      .find((item) => item.textContent?.includes("考研"));
+    expect(kaoyanRow).toBeDefined();
+    fireEvent.click(within(kaoyanRow!).getByRole("button", { name: "切换到此" }));
 
     await waitFor(() => {
       expect(trackUpserts).toHaveLength(1);
@@ -171,10 +194,11 @@ describe("学习方向设置", () => {
 
   it("creating_a_track_seeds_the_template_subjects", async () => {
     renderSetting();
+    const dialog = await openDialog();
     // 选「高考」模板再新建：科目按模板铺一套。
-    const template = await screen.findByLabelText("模板");
+    const template = within(dialog).getByLabelText("模板");
     fireEvent.change(template, { target: { value: "gaokao" } });
-    fireEvent.click(screen.getByRole("button", { name: "新建并切换" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "新建并切换" }));
 
     await waitFor(() => {
       expect(trackUpserts).toHaveLength(1);
@@ -198,7 +222,7 @@ describe("学习方向设置", () => {
     }
     expect(subjectUpserts.find((payload) => payload.key === "math")).toMatchObject({
       label: "数学",
-      fullMark: 130,
+      fullMark: 150,
       goal: 130,
     });
   });
@@ -206,7 +230,8 @@ describe("学习方向设置", () => {
   it("deleting_a_track_keeps_history_and_reports_it", async () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderSetting();
-    const deleteButtons = await screen.findAllByRole("button", { name: "删除" });
+    const dialog = await openDialog();
+    const deleteButtons = within(dialog).getAllByRole("button", { name: "删除" });
     fireEvent.click(deleteButtons[0]);
     await waitFor(() => {
       expect(screen.getByText(/已删除「/)).toBeInTheDocument();

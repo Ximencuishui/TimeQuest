@@ -20,17 +20,18 @@ pub const TRACK_SCORE_MODE_TOTAL: &str = "total";
 /// 默认赛道名称。老库升级后先落在它身上。
 pub const DEFAULT_TRACK_NAME: &str = "高考";
 
-/// 默认赛道（高考）的种子科目：key、显示名、满分。
+/// 默认赛道（高考）的种子科目：key、显示名、满分、默认目标。
 ///
+/// 语数英满分 150，物化生各 100（合计 750）；目标分沿用老口径，不强推满分。
 /// 赛道本身不携带学科常量——这里只是「高考」这条赛道出厂时带的六科。
 /// 别的赛道由赛道包（P2-1）提供自己的科目。
-pub const DEFAULT_TRACK_SUBJECTS: [(&str, &str, f64); 6] = [
-    ("chinese", "语文", 120.0),
-    ("math", "数学", 130.0),
-    ("english", "英语", 120.0),
-    ("physics", "物理", 80.0),
-    ("chemistry", "化学", 80.0),
-    ("biology", "生物", 80.0),
+pub const DEFAULT_TRACK_SUBJECTS: [(&str, &str, f64, f64); 6] = [
+    ("chinese", "语文", 150.0, 120.0),
+    ("math", "数学", 150.0, 130.0),
+    ("english", "英语", 150.0, 120.0),
+    ("physics", "物理", 100.0, 80.0),
+    ("chemistry", "化学", 100.0, 80.0),
+    ("biology", "生物", 100.0, 80.0),
 ];
 
 const SELECT_TRACK: &str =
@@ -240,7 +241,7 @@ pub fn seed_default_track_impl(conn: &Connection) -> Result<Track, String> {
 ///
 /// 导入旧备份时也可能用到：老备份不带科目字典，库里一科都没有时要补齐。
 pub(crate) fn seed_track_subjects(conn: &Connection, track: &Track) -> Result<(), String> {
-    for (index, (key, label, full_mark)) in DEFAULT_TRACK_SUBJECTS.iter().enumerate() {
+    for (index, (key, label, full_mark, goal)) in DEFAULT_TRACK_SUBJECTS.iter().enumerate() {
         // 用户主动删过的科目不再补回来：删了就是删了，下次启动也一样。
         let removed: bool = conn
             .query_row(
@@ -275,8 +276,8 @@ pub(crate) fn seed_track_subjects(conn: &Connection, track: &Track) -> Result<()
         }
         conn.execute(
             "INSERT INTO subjects (key, label, full_mark, goal, unit, order_index, track_id)
-             VALUES (?1, ?2, ?3, ?3, '分', ?4, ?5)",
-            params![key, label, full_mark, index as i64, track.id],
+             VALUES (?1, ?2, ?3, ?4, '分', ?5, ?6)",
+            params![key, label, full_mark, goal, index as i64, track.id],
         )
         .map_err(|e| e.to_string())?;
     }

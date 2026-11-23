@@ -54,6 +54,21 @@ export const PROVINCES = [
 const PROVINCE_SET = new Set<string>(PROVINCES);
 
 /**
+ * 高考六科的满分：语数英各 150，物化生各 100，合计 750。
+ *
+ * 4.0 起这只是「高考」赛道模板的种子数据——
+ * 真正的满分落在 `subjects` 表的 `full_mark` 列上，用户可以自己改。
+ */
+export const GAOKAO_SUBJECT_FULL_MARKS = {
+  chinese: 150,
+  math: 150,
+  english: 150,
+  physics: 100,
+  chemistry: 100,
+  biology: 100,
+};
+
+/**
  * 高考六科的默认目标分。
  *
  * 4.0 起这只是「高考」赛道模板的种子数据，不再是权威来源——

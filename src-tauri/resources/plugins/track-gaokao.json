@@ -20,12 +20,12 @@
       "is_primary": true
     },
     "subjects": [
-      { "key": "chinese", "label": "语文", "full_mark": 120, "goal": 120, "unit": "分", "order_index": 0 },
-      { "key": "math", "label": "数学", "full_mark": 130, "goal": 130, "unit": "分", "order_index": 1 },
-      { "key": "english", "label": "英语", "full_mark": 120, "goal": 120, "unit": "分", "order_index": 2 },
-      { "key": "physics", "label": "物理", "full_mark": 80, "goal": 80, "unit": "分", "order_index": 3 },
-      { "key": "chemistry", "label": "化学", "full_mark": 80, "goal": 80, "unit": "分", "order_index": 4 },
-      { "key": "biology", "label": "生物", "full_mark": 80, "goal": 80, "unit": "分", "order_index": 5 }
+      { "key": "chinese", "label": "语文", "full_mark": 150, "goal": 120, "unit": "分", "order_index": 0 },
+      { "key": "math", "label": "数学", "full_mark": 150, "goal": 130, "unit": "分", "order_index": 1 },
+      { "key": "english", "label": "英语", "full_mark": 150, "goal": 120, "unit": "分", "order_index": 2 },
+      { "key": "physics", "label": "物理", "full_mark": 100, "goal": 80, "unit": "分", "order_index": 3 },
+      { "key": "chemistry", "label": "化学", "full_mark": 100, "goal": 80, "unit": "分", "order_index": 4 },
+      { "key": "biology", "label": "生物", "full_mark": 100, "goal": 80, "unit": "分", "order_index": 5 }
     ],
     "goals": [
       {

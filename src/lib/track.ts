@@ -1,5 +1,9 @@
 import type { DateRule, Goal, PluginInfo, Subject, Track } from "../types";
-import { DEFAULT_SUBJECT_TARGETS, SUBJECT_FIELDS } from "./profile";
+import {
+  DEFAULT_SUBJECT_TARGETS,
+  GAOKAO_SUBJECT_FULL_MARKS,
+  SUBJECT_FIELDS,
+} from "./profile";
 import { GAOKAO_DATE_RULE, resolveDateRule } from "./examDate";
 
 export { subjectsByKey } from "./subjects";
@@ -61,11 +65,11 @@ export type TrackTemplate = {
   dateRule?: DateRule;
 };
 
-/** 高考的六科：科目清单沿用档案里的默认目标。 */
+/** 高考的六科：满分按语数英 150 / 其余 100，目标沿用档案里的默认分。 */
 const GAOKAO_SUBJECTS: TrackSubjectTemplate[] = SUBJECT_FIELDS.map((field) => ({
   key: field.key,
   label: field.label,
-  fullMark: DEFAULT_SUBJECT_TARGETS[field.key],
+  fullMark: GAOKAO_SUBJECT_FULL_MARKS[field.key],
   goal: DEFAULT_SUBJECT_TARGETS[field.key],
   unit: "分",
 }));

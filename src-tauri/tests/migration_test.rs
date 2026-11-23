@@ -111,7 +111,7 @@ async fn legacy_exam_records_expand_into_sessions_and_score_rows() {
     let subjects = list_subjects_impl(&conn, None).expect("subjects");
     assert_eq!(subjects.len(), 6);
     assert_eq!(subjects[0].key, "chinese");
-    assert_eq!(subjects[1].full_mark, Some(130.0));
+    assert_eq!(subjects[1].full_mark, Some(150.0));
     assert_eq!(subjects[5].key, "biology");
 
     // 两场考试 → 两行场次。
@@ -207,6 +207,45 @@ async fn legacy_subject_targets_move_into_the_subject_dictionary() {
         .find(|goal| goal.is_primary)
         .expect("primary goal");
     assert_eq!(primary.target_score, Some(565.0));
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 老库升级到新满分口径：语数英 150、物化生 100；用户自己改过的满分和目标分不动。
+#[tokio::test]
+async fn gaokao_full_marks_migration_keeps_custom_values() {
+    let path = temp_path("full-marks");
+    let url = url_for(&path);
+    let mut conn = SqliteConnection::connect(&url).await.expect("connect");
+    let migrator = sqlx::migrate!("./migrations");
+    // 跑到满分归一迁移之前，模拟老库：此时六科还是 120/130/120/80/80/80。
+    apply_up_to(&mut conn, &migrator, 20261123060000 - 1).await;
+    sqlx::query("UPDATE subjects SET full_mark = 135, goal = 140 WHERE key = 'math'")
+        .execute(&mut conn)
+        .await
+        .expect("seed custom math values");
+
+    migrator
+        .run(&mut conn)
+        .await
+        .expect("run remaining migrations");
+    conn.close().await.expect("close");
+
+    let conn = Connection::open(&path).expect("rusqlite open");
+    let subjects = list_subjects_impl(&conn, None).expect("subjects");
+    let by_key = |key: &str| {
+        subjects
+            .iter()
+            .find(|subject| subject.key == key)
+            .expect("subject")
+    };
+    assert_eq!(by_key("chinese").full_mark, Some(150.0));
+    assert_eq!(by_key("english").full_mark, Some(150.0));
+    assert_eq!(by_key("physics").full_mark, Some(100.0));
+    assert_eq!(by_key("biology").full_mark, Some(100.0));
+    assert_eq!(by_key("math").full_mark, Some(135.0), "改过的满分不该被覆盖");
+    assert_eq!(by_key("math").goal, Some(140.0), "目标分不随满分改");
+    assert_eq!(by_key("chinese").goal, Some(120.0));
 
     let _ = std::fs::remove_file(&path);
 }

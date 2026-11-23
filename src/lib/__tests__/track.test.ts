@@ -85,7 +85,7 @@ describe("赛道模板", () => {
 
   it("template_scores_add_up", () => {
     const gaokao = trackTemplateById("gaokao");
-    expect(templateFullMarks(gaokao.subjects)).toBe(610);
+    expect(templateFullMarks(gaokao.subjects)).toBe(750);
     expect(templateGoalSum(gaokao.subjects)).toBe(610);
     expect(templateFullMarks(trackTemplateById("custom").subjects)).toBe(0);
   });
@@ -236,8 +236,8 @@ describe("科目目标合计", () => {
 
 describe("折算口径跟着科目集走", () => {
   it("total_full_marks_comes_from_the_subject_list", () => {
-    expect(totalFullMarks(SUBJECT_FIXTURES)).toBe(610);
-    expect(totalFullMarks(SUBJECT_FIXTURES.slice(0, 4))).toBe(450);
+    expect(totalFullMarks(SUBJECT_FIXTURES)).toBe(750);
+    expect(totalFullMarks(SUBJECT_FIXTURES.slice(0, 4))).toBe(550);
     expect(
       totalFullMarks([
         { fullMark: null },
@@ -252,9 +252,9 @@ describe("折算口径跟着科目集走", () => {
     const session = examSession(2, "四科考", "2026-11-02", [100, 120, 100, null], four);
     const breakdown = examScoreBreakdown(session, four);
     expect(breakdown.missing.map((item) => item.label)).toEqual(["物理"]);
-    expect(breakdown.takenFullMarks).toBe(370);
-    // 320 × 450 ÷ 370 = 389
-    expect(breakdown.scaledTotal).toBe(389);
+    expect(breakdown.takenFullMarks).toBe(450);
+    // 320 × 550 ÷ 450 = 391
+    expect(breakdown.scaledTotal).toBe(391);
   });
 
   it("keeps_the_single_subject_score_as_is", () => {

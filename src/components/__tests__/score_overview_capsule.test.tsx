@@ -90,9 +90,9 @@ describe("Score overview capsule", () => {
     renderCapsule([sitting(2, "2026-11-01", [110, 130, 115, 70, 75, null])], 600);
 
     expect(screen.getByText("最近成绩：")).toBeInTheDocument();
-    expect(screen.getByText("575")).toBeInTheDocument();
+    expect(screen.getByText("577")).toBeInTheDocument();
     expect(screen.getByText("折算 · 缺考生物")).toBeInTheDocument();
-    expect(screen.getByText("-25 分")).toBeInTheDocument();
+    expect(screen.getByText("-23 分")).toBeInTheDocument();
   });
 
   it("does not scale a paper that only has one score", () => {
