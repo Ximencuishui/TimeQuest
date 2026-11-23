@@ -235,6 +235,20 @@ fn seed_full_dataset(conn: &Connection) -> (i64, i64) {
     )
     .unwrap();
 
+    // 4.0 起倒计时目标也进备份：一条主目标 + 一条模考。
+    conn.execute(
+        r#"INSERT INTO goals (id, track_id, name, date, kind, is_primary, target_score, created_at)
+           VALUES (1, NULL, '高考', '2027-06-07', 'exam', 1, 650, '2026-01-01 08:00:00')"#,
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        r#"INSERT INTO goals (id, track_id, name, date, kind, is_primary, target_score, created_at)
+           VALUES (2, NULL, '第一次模考', '2026-11-25', 'exam', 0, NULL, '2026-01-02 08:00:00')"#,
+        [],
+    )
+    .unwrap();
+
     (session_a, session_b)
 }
 
@@ -446,6 +460,85 @@ async fn export_import_round_trip_preserves_rows() {
         .unwrap();
     assert_eq!(linked, 1);
     assert_eq!(unlinked, 2);
+
+    // 4.0：倒计时目标也得跟着备份走。
+    let goals_before: i64 = conn
+        .query_row("SELECT COUNT(*) FROM goals", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(goals_before, 2);
+    let primary_date: String = conn
+        .query_row(
+            "SELECT date FROM goals WHERE is_primary = 1",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(primary_date, "2027-06-07");
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 导出 payload 的版本号升到 2，并带上 `goals` 键。
+#[tokio::test]
+async fn export_payload_is_version_2_and_carries_goals() {
+    let (path, conn) = open_rusqlite_migrated().await;
+    seed_full_dataset(&conn);
+
+    let payload = export_json_impl(&conn).expect("export");
+    let parsed: Value = serde_json::from_str(&payload).expect("parse export json");
+
+    assert_eq!(parsed["version"].as_i64(), Some(2));
+    let goals = parsed["goals"].as_array().expect("goals key must exist");
+    assert_eq!(goals.len(), 2);
+    let primary = goals
+        .iter()
+        .find(|g| g["isPrimary"] == Value::Bool(true))
+        .expect("primary goal in export");
+    assert_eq!(primary["name"].as_str(), Some("高考"));
+    assert_eq!(primary["date"].as_str(), Some("2027-06-07"));
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// v1 旧备份没有 `goals` 键：导入不能报错，且要补一条默认目标。
+#[tokio::test]
+async fn import_v1_payload_without_goals_key_still_succeeds() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    let v1 = serde_json::json!({
+        "version": 1,
+        "exported_at": "2026-11-01T00:00:00+08:00",
+        "tasks": [],
+        "task_sessions": [],
+        "actual_logs": [],
+        "notes": [],
+        "mistakes": [],
+        "user_stats": null,
+        "user_achievements": [],
+        "user_profile": null,
+        "app_settings": [],
+        "imported_textbooks": [],
+        "exam_records": [],
+        "task_knowledge_points": [],
+    })
+    .to_string();
+
+    import_json_impl(&conn, &v1).expect("import v1 payload must not fail");
+
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM goals", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 1, "v1 import must seed one default goal");
+    let (name, date, is_primary): (String, String, i64) = conn
+        .query_row(
+            "SELECT name, date, is_primary FROM goals WHERE id = 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(name, "高考");
+    assert_eq!(date, "2027-06-07");
+    assert_eq!(is_primary, 1);
 
     let _ = std::fs::remove_file(&path);
 }

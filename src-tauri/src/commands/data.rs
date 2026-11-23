@@ -1,6 +1,7 @@
 use crate::commands::mistakes::{normalize_graph_link, normalize_reason, normalize_subject};
 use crate::commands::notes::{normalize_color, normalize_note_date};
 use crate::commands::profile::{upsert_user_profile_row, user_profile_from_export};
+use crate::commands::subjects::subject_id_for_key;
 use crate::db::{db_path, with_db, DbState};
 use crate::models::UserProfile;
 use rusqlite::{params, Connection};
@@ -10,6 +11,16 @@ use std::fs;
 use tauri::{AppHandle, State};
 
 use crate::db::AppPrefs;
+
+/// 旧备份（3.x）里一行六科的成绩，展开成成绩行时用的对应关系。
+const LEGACY_SCORE_FIELDS: [(&str, &str); 6] = [
+    ("chinese_score", "chinese"),
+    ("math_score", "math"),
+    ("english_score", "english"),
+    ("physics_score", "physics"),
+    ("chemistry_score", "chemistry"),
+    ("biology_score", "biology"),
+];
 
 /// Reject `actual_logs.session_id` that is non-null but missing from payload `task_sessions`.
 /// `session_id: null` (manual log) is allowed. Runs before any write so the Err names the log.
@@ -347,28 +358,69 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         rows
     };
 
-    let exam_records: Vec<Value> = {
+    // 科目字典。折算口径、成绩表单都从这里读科目集合。
+    let subjects: Vec<Value> = {
+        let mut stmt = conn
+            .prepare("SELECT id, key, label, full_mark, goal, unit, order_index FROM subjects ORDER BY id")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(json!({
+                    "id": r.get::<_, i64>(0)?,
+                    "key": r.get::<_, String>(1)?,
+                    "label": r.get::<_, String>(2)?,
+                    "fullMark": r.get::<_, Option<f64>>(3)?,
+                    "goal": r.get::<_, Option<f64>>(4)?,
+                    "unit": r.get::<_, Option<String>>(5)?,
+                    "orderIndex": r.get::<_, i64>(6)?,
+                }))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    };
+
+    // 4.0 成绩是「场次 + 成绩行」两张表。旧的 exam_records 只读留档，
+    // 导出时留一个空数组，旧版读取器不会报错。
+    let exam_sessions: Vec<Value> = {
         let mut stmt = conn
             .prepare(
-                "SELECT id, exam_name, exam_date, chinese_score, math_score, english_score,
-                        physics_score, chemistry_score, biology_score, created_at, is_mock
-                 FROM exam_records ORDER BY id",
+                "SELECT id, track_id, name, date, is_mock, created_at FROM exam_sessions ORDER BY id",
             )
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |r| {
                 Ok(json!({
                     "id": r.get::<_, i64>(0)?,
-                    "exam_name": r.get::<_, String>(1)?,
-                    "exam_date": r.get::<_, String>(2)?,
-                    "chinese_score": r.get::<_, Option<i64>>(3)?,
-                    "math_score": r.get::<_, Option<i64>>(4)?,
-                    "english_score": r.get::<_, Option<i64>>(5)?,
-                    "physics_score": r.get::<_, Option<i64>>(6)?,
-                    "chemistry_score": r.get::<_, Option<i64>>(7)?,
-                    "biology_score": r.get::<_, Option<i64>>(8)?,
-                    "created_at": r.get::<_, String>(9)?,
-                    "is_mock": r.get::<_, i64>(10)?,
+                    "trackId": r.get::<_, Option<i64>>(1)?,
+                    "name": r.get::<_, String>(2)?,
+                    "date": r.get::<_, String>(3)?,
+                    "isMock": r.get::<_, i64>(4)? != 0,
+                    "createdAt": r.get::<_, String>(5)?,
+                }))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    };
+
+    let exam_scores: Vec<Value> = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT es.id, es.exam_id, s.key, es.score
+                 FROM exam_scores es JOIN subjects s ON s.id = es.subject_id
+                 ORDER BY es.id",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(json!({
+                    "id": r.get::<_, i64>(0)?,
+                    "examId": r.get::<_, i64>(1)?,
+                    "subjectKey": r.get::<_, String>(2)?,
+                    "score": r.get::<_, Option<f64>>(3)?,
                 }))
             })
             .map_err(|e| e.to_string())?
@@ -444,7 +496,10 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         "user_profile": user_profile,
         "app_settings": app_settings,
         "imported_textbooks": imported_textbooks,
-        "exam_records": exam_records,
+        "exam_sessions": exam_sessions,
+        "exam_scores": exam_scores,
+        "exam_records": Vec::<Value>::new(),
+        "subjects": subjects,
         "task_knowledge_points": task_knowledge_points,
         "goals": goals,
     });
@@ -472,6 +527,8 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
             DELETE FROM tasks;
             DELETE FROM app_settings;
             DELETE FROM imported_textbooks;
+            DELETE FROM exam_scores;
+            DELETE FROM exam_sessions;
             DELETE FROM exam_records;
             DELETE FROM goals;
             UPDATE user_stats SET total_xp=0, current_level=1, current_streak=0, longest_streak=0, last_done_date=NULL WHERE id=1;
@@ -718,28 +775,128 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
         }
     }
 
-    if let Some(arr) = data.get("exam_records").and_then(|v| v.as_array()) {
+    // 科目字典：按 key 覆盖，不换 id。成绩行靠 key 找回科目。
+    if let Some(arr) = data.get("subjects").and_then(|v| v.as_array()) {
+        for row in arr {
+            let key = row.get("key").and_then(|v| v.as_str()).unwrap_or("");
+            if key.is_empty() {
+                continue;
+            }
+            tx.execute(
+                r#"INSERT INTO subjects (key, label, full_mark, goal, unit, order_index)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                   ON CONFLICT(key) DO UPDATE SET
+                     label = excluded.label,
+                     full_mark = excluded.full_mark,
+                     goal = excluded.goal,
+                     unit = excluded.unit,
+                     order_index = excluded.order_index"#,
+                params![
+                    key,
+                    row.get("label").and_then(|v| v.as_str()).unwrap_or(key),
+                    row.get("fullMark")
+                        .or_else(|| row.get("full_mark"))
+                        .and_then(|v| v.as_f64()),
+                    row.get("goal").and_then(|v| v.as_f64()),
+                    row.get("unit").and_then(|v| v.as_str()),
+                    row.get("orderIndex")
+                        .or_else(|| row.get("order_index"))
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0),
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
+    // 成绩：4.0 起是「场次 + 成绩行」。
+    // 有 exam_sessions 走新路径；只有旧备份的 exam_records 就展开成场次 + 成绩行。
+    let has_sessions = data.get("exam_sessions").and_then(|v| v.as_array()).is_some();
+    if has_sessions {
+        if let Some(arr) = data.get("exam_sessions").and_then(|v| v.as_array()) {
+            for row in arr {
+                tx.execute(
+                    r#"INSERT INTO exam_sessions (id, track_id, name, date, is_mock, created_at)
+                       VALUES (?1, ?2, ?3, ?4, ?5, COALESCE(?6, datetime('now','localtime')))"#,
+                    params![
+                        row.get("id").and_then(|v| v.as_i64()),
+                        row.get("trackId")
+                            .or_else(|| row.get("track_id"))
+                            .and_then(|v| v.as_i64()),
+                        row.get("name").and_then(|v| v.as_str()).unwrap_or(""),
+                        row.get("date").and_then(|v| v.as_str()).unwrap_or(""),
+                        row.get("isMock")
+                            .or_else(|| row.get("is_mock"))
+                            .and_then(|v| v.as_i64().or_else(|| v.as_bool().map(i64::from)))
+                            .unwrap_or(0),
+                        row.get("createdAt")
+                            .or_else(|| row.get("created_at"))
+                            .and_then(|v| v.as_str()),
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+        }
+        if let Some(arr) = data.get("exam_scores").and_then(|v| v.as_array()) {
+            for row in arr {
+                let subject_id = match row
+                    .get("subjectKey")
+                    .or_else(|| row.get("subject_key"))
+                    .and_then(|v| v.as_str())
+                {
+                    Some(key) => subject_id_for_key(&tx, key)?,
+                    None => row
+                        .get("subjectId")
+                        .or_else(|| row.get("subject_id"))
+                        .and_then(|v| v.as_i64()),
+                };
+                // 科目已经不在字典里的成绩行直接跳过。留着会让成绩页报错。
+                let Some(subject_id) = subject_id else {
+                    continue;
+                };
+                tx.execute(
+                    r#"INSERT OR IGNORE INTO exam_scores (exam_id, subject_id, score)
+                       VALUES (?1, ?2, ?3)"#,
+                    params![
+                        row.get("examId")
+                            .or_else(|| row.get("exam_id"))
+                            .and_then(|v| v.as_i64())
+                            .unwrap_or(0),
+                        subject_id,
+                        row.get("score").and_then(|v| v.as_f64()),
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+        }
+    } else if let Some(arr) = data.get("exam_records").and_then(|v| v.as_array()) {
+        // 旧备份：一行六科，展开成一场 + 六行成绩。
         for row in arr {
             tx.execute(
-                r#"INSERT INTO exam_records (
-                     id, exam_name, exam_date, chinese_score, math_score, english_score,
-                     physics_score, chemistry_score, biology_score, created_at, is_mock
-                   ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, COALESCE(?10, datetime('now','localtime')), ?11)"#,
+                r#"INSERT INTO exam_sessions (id, name, date, is_mock, created_at)
+                   VALUES (?1, ?2, ?3, ?4, COALESCE(?5, datetime('now','localtime')))"#,
                 params![
                     row.get("id").and_then(|v| v.as_i64()),
                     row.get("exam_name").and_then(|v| v.as_str()).unwrap_or(""),
                     row.get("exam_date").and_then(|v| v.as_str()).unwrap_or(""),
-                    row.get("chinese_score").and_then(|v| v.as_i64()),
-                    row.get("math_score").and_then(|v| v.as_i64()),
-                    row.get("english_score").and_then(|v| v.as_i64()),
-                    row.get("physics_score").and_then(|v| v.as_i64()),
-                    row.get("chemistry_score").and_then(|v| v.as_i64()),
-                    row.get("biology_score").and_then(|v| v.as_i64()),
-                    row.get("created_at").and_then(|v| v.as_str()),
                     row.get("is_mock").and_then(|v| v.as_i64()).unwrap_or(0),
+                    row.get("created_at").and_then(|v| v.as_str()),
                 ],
             )
             .map_err(|e| e.to_string())?;
+            let exam_id = tx.last_insert_rowid();
+            for (field, key) in LEGACY_SCORE_FIELDS {
+                let score = row.get(field).and_then(|v| v.as_i64()).map(|v| v as f64);
+                let Some(subject_id) = subject_id_for_key(&tx, key)? else {
+                    continue;
+                };
+                tx.execute(
+                    r#"INSERT OR IGNORE INTO exam_scores (exam_id, subject_id, score)
+                       VALUES (?1, ?2, ?3)"#,
+                    params![exam_id, subject_id, score],
+                )
+                .map_err(|e| e.to_string())?;
+            }
         }
     }
 

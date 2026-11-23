@@ -67,9 +67,15 @@ fn seed_real_rows(conn: &Connection) -> (i64, i64) {
     .unwrap();
     let session_id = conn.last_insert_rowid();
     conn.execute(
-        r#"INSERT INTO exam_records (exam_name, exam_date, math_score, is_mock)
-           VALUES ('真实月考', '2026-10-01', 100, 0)"#,
+        r#"INSERT INTO exam_sessions (name, date, is_mock) VALUES ('真实月考', '2026-10-01', 0)"#,
         [],
+    )
+    .unwrap();
+    let exam_id = conn.last_insert_rowid();
+    conn.execute(
+        r#"INSERT INTO exam_scores (exam_id, subject_id, score)
+           SELECT ?1, id, 100 FROM subjects WHERE key = 'math'"#,
+        params![exam_id],
     )
     .unwrap();
     conn.execute(
@@ -143,18 +149,19 @@ async fn generate_mock_data_marks_every_inserted_row() {
         4
     );
 
-    assert_eq!(count_where(&conn, "SELECT COUNT(*) FROM exam_records"), 2);
+    assert_eq!(count_where(&conn, "SELECT COUNT(*) FROM exam_sessions"), 2);
     assert_eq!(
-        count_where(&conn, "SELECT COUNT(*) FROM exam_records WHERE is_mock = 1"),
+        count_where(&conn, "SELECT COUNT(*) FROM exam_sessions WHERE is_mock = 1"),
         2
     );
     assert_eq!(
         count_where(
             &conn,
-            &format!("SELECT COUNT(*) FROM exam_records WHERE exam_date < '{today}'")
+            &format!("SELECT COUNT(*) FROM exam_sessions WHERE date < '{today}'")
         ),
         2
     );
+    assert_eq!(count_where(&conn, "SELECT COUNT(*) FROM exam_scores"), 12);
     assert_eq!(count_where(&conn, "SELECT COUNT(*) FROM actual_logs"), 0);
 
     let (xp, level, streak, longest, last) = stats(&conn);
@@ -170,13 +177,23 @@ async fn generate_mock_data_marks_every_inserted_row() {
     assert_eq!(stats(&conn).0, xp_before);
 
     let exported: Value = serde_json::from_str(&export_json_impl(&conn).unwrap()).unwrap();
-    for key in ["tasks", "task_sessions", "exam_records"] {
+    for key in ["tasks", "task_sessions"] {
         let rows = exported[key].as_array().unwrap();
         assert!(!rows.is_empty());
         for row in rows {
             assert_eq!(row["is_mock"], 1, "{key} export must keep is_mock");
         }
     }
+    let exam_sessions = exported["exam_sessions"].as_array().unwrap();
+    assert!(!exam_sessions.is_empty());
+    for row in exam_sessions {
+        assert_eq!(row["isMock"], true, "exam_sessions export must keep isMock");
+    }
+    assert_eq!(
+        exported["exam_scores"].as_array().unwrap().len(),
+        12,
+        "每场考试展开六行成绩"
+    );
 
     let _ = std::fs::remove_file(&path);
 }
@@ -238,7 +255,7 @@ async fn clear_mock_data_removes_only_mock_rows() {
         0
     );
     assert_eq!(
-        count_where(&conn, "SELECT COUNT(*) FROM exam_records WHERE is_mock = 1"),
+        count_where(&conn, "SELECT COUNT(*) FROM exam_sessions WHERE is_mock = 1"),
         0
     );
 
@@ -254,7 +271,7 @@ async fn clear_mock_data_removes_only_mock_rows() {
         1
     );
     assert_eq!(
-        count_where(&conn, "SELECT COUNT(*) FROM exam_records WHERE is_mock = 0"),
+        count_where(&conn, "SELECT COUNT(*) FROM exam_sessions WHERE is_mock = 0"),
         1
     );
     let title: String = conn
@@ -273,14 +290,17 @@ async fn clear_mock_data_removes_only_mock_rows() {
         )
         .unwrap();
     assert_eq!(status, "planned");
-    let math: i64 = conn
+    let math: Option<f64> = conn
         .query_row(
-            "SELECT math_score FROM exam_records WHERE exam_name = '真实月考'",
+            "SELECT es.score FROM exam_scores es
+             JOIN subjects s ON s.id = es.subject_id
+             JOIN exam_sessions e ON e.id = es.exam_id
+             WHERE e.name = '真实月考' AND s.key = 'math'",
             [],
             |row| row.get(0),
         )
         .unwrap();
-    assert_eq!(math, 100);
+    assert_eq!(math, Some(100.0));
     assert_eq!(
         count_where(
             &conn,
@@ -315,7 +335,7 @@ async fn clear_mock_data_resets_stats_when_no_real_rows() {
 
     assert_eq!(count_where(&conn, "SELECT COUNT(*) FROM tasks"), 0);
     assert_eq!(count_where(&conn, "SELECT COUNT(*) FROM task_sessions"), 0);
-    assert_eq!(count_where(&conn, "SELECT COUNT(*) FROM exam_records"), 0);
+    assert_eq!(count_where(&conn, "SELECT COUNT(*) FROM exam_sessions"), 0);
     assert_eq!(count_where(&conn, "SELECT COUNT(*) FROM actual_logs"), 0);
     let (xp, level, streak, longest, last) = stats(&conn);
     assert_eq!(xp, 0);
@@ -333,10 +353,13 @@ async fn import_missing_is_mock_defaults_to_zero() {
     generate_mock_data_impl(&conn).expect("generate");
     let exported = export_json_impl(&conn).unwrap();
     let mut payload: Value = serde_json::from_str(&exported).unwrap();
-    for key in ["tasks", "task_sessions", "exam_records"] {
+    for key in ["tasks", "task_sessions"] {
         for row in payload[key].as_array_mut().unwrap() {
             row.as_object_mut().unwrap().remove("is_mock");
         }
+    }
+    for row in payload["exam_sessions"].as_array_mut().unwrap() {
+        row.as_object_mut().unwrap().remove("isMock");
     }
     let stripped = serde_json::to_string(&payload).unwrap();
     import_json_impl(&conn, &stripped).expect("import old backup");
@@ -357,7 +380,7 @@ async fn import_missing_is_mock_defaults_to_zero() {
         4
     );
     assert_eq!(
-        count_where(&conn, "SELECT COUNT(*) FROM exam_records WHERE is_mock = 0"),
+        count_where(&conn, "SELECT COUNT(*) FROM exam_sessions WHERE is_mock = 0"),
         2
     );
     assert!(!has_mock_data_impl(&conn).unwrap());

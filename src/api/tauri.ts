@@ -6,9 +6,9 @@ import type {
   AvgRatingRow,
   CompleteSessionInput,
   CompleteSessionResult,
-  CreateExamRecordPayload,
+  CreateExamSessionPayload,
   DownloadedTextbook,
-  ExamRecord,
+  ExamSession,
   CompletionRate,
   EnsureTodayScheduleResult,
   Goal,
@@ -33,6 +33,7 @@ import type {
   PrerequisiteConflict,
   PrerequisiteResult,
   RescheduleInput,
+  Subject,
   TagTypeRow,
   Task,
   TaskKnowledgePoint,
@@ -273,10 +274,11 @@ export const api = {
   getUserProfile: () => invoke<UserProfile>("get_user_profile"),
   updateUserProfile: (profile: UserProfile) =>
     invoke<UserProfile>("update_user_profile", { profile }),
-  listExamRecords: () => invoke<ExamRecord[]>("list_exam_records"),
-  createExamRecord: (payload: CreateExamRecordPayload) =>
-    invoke<ExamRecord>("create_exam_record", { payload }),
-  deleteExamRecord: (id: number) => invoke<void>("delete_exam_record", { id }),
+  listSubjects: () => invoke<Subject[]>("list_subjects"),
+  listExamSessions: () => invoke<ExamSession[]>("list_exam_sessions"),
+  createExamSession: (payload: CreateExamSessionPayload) =>
+    invoke<ExamSession>("create_exam_session", { payload }),
+  deleteExamSession: (id: number) => invoke<void>("delete_exam_session", { id }),
 
   // goals (countdown targets)
   listGoals: () => invoke<Goal[]>("list_goals"),

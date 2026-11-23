@@ -417,37 +417,82 @@ impl Default for UserProfile {
     }
 }
 
-/// One sitting. A missing subject score is `None` (that paper was not taken).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ExamRecord {
+/// 科目字典的一行。
+///
+/// 4.0 起成绩按科目逐行落库，科目集合放在 `subjects` 表里，不再写死六科。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Subject {
     pub id: i64,
-    pub exam_name: String,
-    pub exam_date: String,
-    pub chinese_score: Option<i64>,
-    pub math_score: Option<i64>,
-    pub english_score: Option<i64>,
-    pub physics_score: Option<i64>,
-    pub chemistry_score: Option<i64>,
-    pub biology_score: Option<i64>,
+    /// 稳定标识，如 `chinese`。前端拿它当 key。
+    pub key: String,
+    /// 显示名，如「语文」。
+    pub label: String,
+    /// 满分，可空（这条赛道没固定满分时可以不填）。
+    pub full_mark: Option<f64>,
+    /// 目标分，可空。
+    pub goal: Option<f64>,
+    /// 计量单位，如「分」。可空。
+    pub unit: Option<String>,
+    /// 排序序号，越小越靠前。
+    pub order_index: i64,
+}
+
+/// 一条成绩行：一次考试里的一科。
+///
+/// `score` 为 `None` 表示这场没考这科（不是 0 分）。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExamScore {
+    pub id: i64,
+    pub exam_id: i64,
+    pub subject_id: i64,
+    pub score: Option<f64>,
+}
+
+/// 一次考试（场次）。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExamSession {
+    pub id: i64,
+    /// 所属赛道。`tracks` 表要等 P1-2 才建，先允许为空。
+    pub track_id: Option<i64>,
+    /// 考试名称，如「一模」。
+    pub name: String,
+    /// 考试日期，`YYYY-MM-DD`。
+    pub date: String,
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct CreateExamRecordPayload {
-    pub exam_name: String,
-    pub exam_date: String,
-    #[serde(default)]
-    pub chinese_score: Option<i64>,
-    #[serde(default)]
-    pub math_score: Option<i64>,
-    #[serde(default)]
-    pub english_score: Option<i64>,
-    #[serde(default)]
-    pub physics_score: Option<i64>,
-    #[serde(default)]
-    pub chemistry_score: Option<i64>,
-    #[serde(default)]
-    pub biology_score: Option<i64>,
+/// 一次考试（场次）+ 它的各科成绩。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExamSessionWithScores {
+    pub id: i64,
+    pub track_id: Option<i64>,
+    pub name: String,
+    pub date: String,
+    pub created_at: String,
+    /// 各科成绩。没考的科目也会有一行，`score` 为 `None`。
+    pub scores: Vec<ExamScore>,
+}
+
+/// 录入成绩时的一科。`score` 为 `None` 表示这场没考这科。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExamScoreInput {
+    pub subject_key: String,
+    pub score: Option<f64>,
+}
+
+/// 新建一次考试（场次 + 各科成绩）。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateExamSessionPayload {
+    pub track_id: Option<i64>,
+    pub name: String,
+    pub date: String,
+    pub scores: Vec<ExamScoreInput>,
 }
 
 /// 一条倒计时目标。

@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
-import { useExamRecords } from "../hooks/useExamRecords";
+import { useExamSessions } from "../hooks/useExamSessions";
+import { useSubjects } from "../hooks/useSubjects";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { buildScoreOverview, type ScoreOverview } from "../lib/scoreOverview";
-import type { ExamRecord } from "../types";
+import type { ExamSession, Subject } from "../types";
 
 const GAP_CLASS = {
   above: "bg-green-500/20 text-green-400",
@@ -10,13 +11,15 @@ const GAP_CLASS = {
 } as const;
 
 export function ScoreOverviewCapsule({
-  records,
+  sessions,
+  subjects,
   totalTarget,
 }: {
-  records: ExamRecord[];
+  sessions: ExamSession[];
+  subjects: Subject[];
   totalTarget: number | null;
 }) {
-  const overview = buildScoreOverview(records, totalTarget);
+  const overview = buildScoreOverview(sessions, totalTarget, subjects);
   if (!overview) return null;
   return (
     <Link
@@ -71,11 +74,15 @@ function CapsuleBody({ overview }: { overview: ScoreOverview }) {
 }
 
 export function DashboardScoreOverview() {
-  const { data: records } = useExamRecords();
+  const { data: sessions } = useExamSessions();
+  const { data: subjects } = useSubjects();
   const { data: profile } = useUserProfile();
+  // 总分目标暂时还从旧档案读：`goals.target_score` 要等档案迁移那步才补上，
+  // 在那之前读它会让旧库用户凭空丢掉总分目标线。
   return (
     <ScoreOverviewCapsule
-      records={records ?? []}
+      sessions={sessions ?? []}
+      subjects={subjects ?? []}
       totalTarget={profile ? profile.total_target : null}
     />
   );

@@ -97,34 +97,34 @@ const MOCK_SESSIONS: &[MockSession] = &[
 struct MockExam {
     name: &'static str,
     days_ago: i64,
-    chinese: i64,
-    math: i64,
-    english: i64,
-    physics: i64,
-    chemistry: i64,
-    biology: i64,
+    /// 各科分数。科目 key 对应 `subjects` 表。
+    scores: &'static [(&'static str, f64)],
 }
 
 const MOCK_EXAMS: &[MockExam] = &[
     MockExam {
         name: "高二上期中",
         days_ago: 45,
-        chinese: 105,
-        math: 118,
-        english: 112,
-        physics: 68,
-        chemistry: 71,
-        biology: 74,
+        scores: &[
+            ("chinese", 105.0),
+            ("math", 118.0),
+            ("english", 112.0),
+            ("physics", 68.0),
+            ("chemistry", 71.0),
+            ("biology", 74.0),
+        ],
     },
     MockExam {
         name: "高二月考",
         days_ago: 18,
-        chinese: 110,
-        math: 124,
-        english: 115,
-        physics: 73,
-        chemistry: 69,
-        biology: 76,
+        scores: &[
+            ("chinese", 110.0),
+            ("math", 124.0),
+            ("english", 115.0),
+            ("physics", 73.0),
+            ("chemistry", 69.0),
+            ("biology", 76.0),
+        ],
     },
 ];
 
@@ -149,7 +149,7 @@ fn has_real_rows(conn: &Connection) -> Result<bool, String> {
             r#"SELECT
                  (SELECT COUNT(*) FROM tasks WHERE is_mock = 0)
                + (SELECT COUNT(*) FROM task_sessions WHERE is_mock = 0)
-               + (SELECT COUNT(*) FROM exam_records WHERE is_mock = 0)
+               + (SELECT COUNT(*) FROM exam_sessions WHERE is_mock = 0)
                + (SELECT COUNT(*) FROM actual_logs)"#,
             [],
             |row| row.get(0),
@@ -175,7 +175,7 @@ pub fn has_mock_data_impl(conn: &Connection) -> Result<bool, String> {
             r#"SELECT
                  (SELECT COUNT(*) FROM tasks WHERE is_mock = 1)
                + (SELECT COUNT(*) FROM task_sessions WHERE is_mock = 1)
-               + (SELECT COUNT(*) FROM exam_records WHERE is_mock = 1)"#,
+               + (SELECT COUNT(*) FROM exam_sessions WHERE is_mock = 1)"#,
             [],
             |row| row.get(0),
         )
@@ -254,22 +254,25 @@ pub fn generate_mock_data_impl(conn: &Connection) -> Result<(), String> {
 
     for exam in MOCK_EXAMS {
         tx.execute(
-            r#"INSERT INTO exam_records (
-                 exam_name, exam_date, chinese_score, math_score, english_score,
-                 physics_score, chemistry_score, biology_score, is_mock
-               ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1)"#,
-            params![
-                exam.name,
-                days_before(today, exam.days_ago),
-                exam.chinese,
-                exam.math,
-                exam.english,
-                exam.physics,
-                exam.chemistry,
-                exam.biology,
-            ],
+            r#"INSERT INTO exam_sessions (name, date, is_mock) VALUES (?1, ?2, 1)"#,
+            params![exam.name, days_before(today, exam.days_ago)],
         )
         .map_err(|e| e.to_string())?;
+        let exam_id = tx.last_insert_rowid();
+        for (key, score) in exam.scores {
+            let subject_id: i64 = tx
+                .query_row(
+                    "SELECT id FROM subjects WHERE key = ?1",
+                    params![key],
+                    |row| row.get(0),
+                )
+                .map_err(|e| e.to_string())?;
+            tx.execute(
+                r#"INSERT INTO exam_scores (exam_id, subject_id, score) VALUES (?1, ?2, ?3)"#,
+                params![exam_id, subject_id, score],
+            )
+            .map_err(|e| e.to_string())?;
+        }
     }
 
     if apply_stats {
@@ -311,8 +314,17 @@ pub fn clear_mock_data_impl(conn: &Connection) -> Result<(), String> {
     let sessions = tx
         .execute("DELETE FROM task_sessions WHERE is_mock = 1", [])
         .map_err(|e| e.to_string())?;
+    // 成绩行先删，再删场次，不依赖连接上的 `foreign_keys` 开关。
+    tx.execute(
+        "DELETE FROM exam_scores WHERE exam_id IN (SELECT id FROM exam_sessions WHERE is_mock = 1)",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
     let exams = tx
-        .execute("DELETE FROM exam_records WHERE is_mock = 1", [])
+        .execute("DELETE FROM exam_sessions WHERE is_mock = 1", [])
+        .map_err(|e| e.to_string())?;
+    // 4.0 之前的演示成绩写在那张旧表里，一并清掉。
+    tx.execute("DELETE FROM exam_records WHERE is_mock = 1", [])
         .map_err(|e| e.to_string())?;
     // A mock task that still has a real session stays. Deleting it would
     // either fail the foreign key or take the real session with it.

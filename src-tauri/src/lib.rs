@@ -13,7 +13,7 @@ mod textbooks;
 pub use commands::app_settings::{get_setting_impl, set_setting_impl};
 pub use commands::data::{export_json_impl, import_json_impl};
 pub use commands::exams::{
-    create_exam_record_impl, delete_exam_record_impl, list_exam_records_impl,
+    create_exam_session_impl, delete_exam_session_impl, list_exam_sessions_impl,
 };
 pub use commands::goals::{
     list_goals_impl, remove_goal_impl, seed_default_goal_impl, set_primary_goal_impl,
@@ -61,6 +61,7 @@ pub use commands::stats::{
     stats_completion_rate_impl, stats_daily_units_impl, stats_method_share_impl,
     stats_plan_vs_actual_impl, stats_tag_type_totals_impl,
 };
+pub use commands::subjects::{list_subjects_impl, subject_id_for_key, subject_label};
 pub use commands::tasks::{
     advance_round_impl, archive_task_impl, delete_task_impl, fetch_task_impl,
     list_deleted_tasks_impl, list_tasks_impl, purge_task_impl, restore_task_impl,
@@ -83,11 +84,12 @@ pub use knowledge_graph::{
     STAGE_JUNIOR, STAGE_PRIMARY, STAGE_SENIOR, STAGE_UNKNOWN, STRENGTH_HARD,
 };
 pub use models::{
-    CompleteSessionResult, CompletionRate, CreateExamRecordPayload, CreateLogPayload,
-    CreateMistakePayload, DailyUnitsRow, ExamRecord, Goal, MethodShareRow, Mistake,
-    PlanVsActualRow, RemainderSchedule, SubjectTargets, TagTypeRow, Task, TaskProgress,
-    TaskSession, TopicMistake, TopicMistakes, UpdateMistakePayload, UpdateNotePayload,
-    UpdateTaskPayload, UpsertGoalPayload, UserProfile,
+    CompleteSessionResult, CompletionRate, CreateExamSessionPayload, CreateLogPayload,
+    CreateMistakePayload, DailyUnitsRow, ExamScore, ExamScoreInput, ExamSession,
+    ExamSessionWithScores, Goal, MethodShareRow, Mistake, PlanVsActualRow, RemainderSchedule,
+    Subject, SubjectTargets, TagTypeRow, Task, TaskProgress, TaskSession, TopicMistake,
+    TopicMistakes, UpdateMistakePayload, UpdateNotePayload, UpdateTaskPayload,
+    UpsertGoalPayload, UserProfile,
 };
 pub use pdf_outline::{
     extract_outline, extract_outline_lines, inspect_pdf_pages, outline_to_textbook,
@@ -277,9 +279,10 @@ pub fn run() {
             commands::set_setting,
             commands::get_user_profile,
             commands::update_user_profile,
-            commands::create_exam_record,
-            commands::list_exam_records,
-            commands::delete_exam_record,
+            commands::list_subjects,
+            commands::create_exam_session,
+            commands::list_exam_sessions,
+            commands::delete_exam_session,
             commands::list_goals,
             commands::upsert_goal,
             commands::remove_goal,

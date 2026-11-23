@@ -271,28 +271,61 @@ export type UserProfile = {
   subject_targets: SubjectTargets;
 };
 
-export type ExamRecord = {
+/**
+ * 科目字典的一行。
+ *
+ * 4.0 起科目集合落在 SQLite 的 `subjects` 表，不再写死六科。
+ */
+export type Subject = {
   id: number;
-  exam_name: string;
-  exam_date: string;
-  chinese_score: number | null;
-  math_score: number | null;
-  english_score: number | null;
-  physics_score: number | null;
-  chemistry_score: number | null;
-  biology_score: number | null;
-  created_at: string;
+  /** 稳定标识，如 `chinese` / `math`。 */
+  key: string;
+  /** 显示名，如「语文」。 */
+  label: string;
+  /** 满分，可空（这条赛道没固定满分时可以不填）。 */
+  fullMark: number | null;
+  /** 目标分，可空。 */
+  goal: number | null;
+  /** 单位，如「分」。 */
+  unit: string | null;
+  /** 排序序号，越小越靠前。 */
+  orderIndex: number;
 };
 
-export type CreateExamRecordPayload = {
-  exam_name: string;
-  exam_date: string;
-  chinese_score: number | null;
-  math_score: number | null;
-  english_score: number | null;
-  physics_score: number | null;
-  chemistry_score: number | null;
-  biology_score: number | null;
+/** 一条成绩行：一次考试里的一科。 */
+export type ExamScore = {
+  id: number;
+  examId: number;
+  subjectId: number;
+  /** 分数。`null` 表示这场没考这科。 */
+  score: number | null;
+};
+
+/** 一次考试（场次）。各科成绩挂在 `scores` 里。 */
+export type ExamSession = {
+  id: number;
+  /** 所属赛道。赛道表要等 P1-2 才建，先允许为 null。 */
+  trackId: number | null;
+  /** 考试名称，如「一模」。 */
+  name: string;
+  /** 考试日期，`YYYY-MM-DD`。 */
+  date: string;
+  createdAt: string;
+  scores: ExamScore[];
+};
+
+/** 录入成绩时的一科。按科目 key 提交，后端查回 subject_id。 */
+export type ExamScoreInput = {
+  subjectKey: string;
+  score: number | null;
+};
+
+/** 新建一次考试的请求体。 */
+export type CreateExamSessionPayload = {
+  trackId?: number | null;
+  name: string;
+  date: string;
+  scores: ExamScoreInput[];
 };
 
 export type UserStats = {

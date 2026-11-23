@@ -4,7 +4,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { Children, cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_USER_PROFILE } from "../../lib/profile";
-import type { CreateExamRecordPayload, ExamRecord, UserProfile } from "../../types";
+import { SUBJECT_FIXTURES, examSession } from "../../test/subjectFixtures";
+import type { CreateExamSessionPayload, ExamSession, UserProfile } from "../../types";
 import { Scores } from "../Scores";
 
 vi.mock("recharts", async (importOriginal) => {
@@ -46,29 +47,38 @@ function renderScores() {
 }
 
 describe("Scores entry", () => {
-  let records: ExamRecord[];
+  let sessions: ExamSession[];
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 10, 6, 12, 0, 0));
-    records = [];
+    sessions = [];
     mockedInvoke.mockReset();
     mockedInvoke.mockImplementation(async (cmd: string, args?: unknown) => {
       if (cmd === "get_user_profile") return PROFILE;
-      if (cmd === "list_exam_records") return records;
-      if (cmd === "create_exam_record") {
-        const payload = (args as { payload: CreateExamRecordPayload }).payload;
-        const row: ExamRecord = {
-          id: records.length + 1,
-          ...payload,
-          created_at: "2026-11-06 13:00:00",
+      if (cmd === "list_subjects") return SUBJECT_FIXTURES;
+      if (cmd === "list_exam_sessions") return sessions;
+      if (cmd === "create_exam_session") {
+        const payload = (args as { payload: CreateExamSessionPayload }).payload;
+        const row: ExamSession = {
+          id: sessions.length + 1,
+          trackId: null,
+          name: payload.name,
+          date: payload.date,
+          createdAt: "2026-11-06 13:00:00",
+          scores: payload.scores.map((row, index) => ({
+            id: index + 1,
+            examId: sessions.length + 1,
+            subjectId: SUBJECT_FIXTURES[index]?.id ?? index + 1,
+            score: row.score,
+          })),
         };
-        records = [row, ...records];
+        sessions = [row, ...sessions];
         return row;
       }
-      if (cmd === "delete_exam_record") {
+      if (cmd === "delete_exam_session") {
         const id = (args as { id: number }).id;
-        records = records.filter((row) => row.id !== id);
+        sessions = sessions.filter((row) => row.id !== id);
         return null;
       }
       return null;
@@ -89,7 +99,7 @@ describe("Scores entry", () => {
     fireEvent.click(screen.getByRole("button", { name: "录入新成绩" }));
     const date = screen.getByLabelText("考试日期");
     expect(date).toHaveValue("2026-11-06");
-    expect(screen.getByText(/按你的档案（高三 · 湖南）录入这六科/)).toBeInTheDocument();
+    expect(screen.getByText(/按你的档案（高三 · 湖南）录入这 6 科/)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("考试名称"), {
       target: { value: EXAM_NAME },
@@ -104,19 +114,21 @@ describe("Scores entry", () => {
 
     await waitFor(() => {
       const calls = mockedInvoke.mock.calls.filter(
-        (call) => call[0] === "create_exam_record",
+        (call) => call[0] === "create_exam_session",
       );
       expect(calls).toHaveLength(1);
       expect(calls[0]?.[1]).toEqual({
         payload: {
-          exam_name: EXAM_NAME,
-          exam_date: "2026-11-06",
-          chinese_score: 110,
-          math_score: 130,
-          english_score: 115,
-          physics_score: 70,
-          chemistry_score: 75,
-          biology_score: null,
+          name: EXAM_NAME,
+          date: "2026-11-06",
+          scores: [
+            { subjectKey: "chinese", score: 110 },
+            { subjectKey: "math", score: 130 },
+            { subjectKey: "english", score: 115 },
+            { subjectKey: "physics", score: 70 },
+            { subjectKey: "chemistry", score: 75 },
+            { subjectKey: "biology", score: null },
+          ],
         },
       });
     });
@@ -161,19 +173,8 @@ describe("Scores entry", () => {
   });
 
   it("deleting_the_last_record_returns_to_the_empty_state", async () => {
-    const only: ExamRecord = {
-      id: 7,
-      exam_name: "月考",
-      exam_date: "2026-09-01",
-      chinese_score: 100,
-      math_score: 120,
-      english_score: 100,
-      physics_score: 70,
-      chemistry_score: 70,
-      biology_score: 70,
-      created_at: "2026-09-01 12:00:00",
-    };
-    records = [only];
+    const only = examSession(7, "月考", "2026-09-01", [100, 120, 100, 70, 70, 70]);
+    sessions = [only];
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
     renderScores();

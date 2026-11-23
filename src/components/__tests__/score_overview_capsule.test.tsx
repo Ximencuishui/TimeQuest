@@ -1,36 +1,33 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
-import type { ExamRecord } from "../../types";
+import { SUBJECT_FIXTURES, examSession } from "../../test/subjectFixtures";
 import { ScoreOverviewCapsule } from "../ScoreOverviewCapsule";
 
 function sitting(
   id: number,
   date: string,
   scores: [number | null, number | null, number | null, number | null, number | null, number | null],
-): ExamRecord {
-  const [chinese, math, english, physics, chemistry, biology] = scores;
-  return {
-    id,
-    exam_name: `考试${id}`,
-    exam_date: date,
-    chinese_score: chinese,
-    math_score: math,
-    english_score: english,
-    physics_score: physics,
-    chemistry_score: chemistry,
-    biology_score: biology,
-    created_at: `${date} 12:00:00`,
-  };
+) {
+  return examSession(id, `考试${id}`, date, scores);
 }
 
-function renderCapsule(records: ExamRecord[], totalTarget: number | null) {
+function renderCapsule(
+  sessions: ReturnType<typeof sitting>[],
+  totalTarget: number | null,
+) {
   return render(
     <MemoryRouter initialEntries={["/"]}>
       <Routes>
         <Route
           path="/"
-          element={<ScoreOverviewCapsule records={records} totalTarget={totalTarget} />}
+          element={
+            <ScoreOverviewCapsule
+              sessions={sessions}
+              subjects={SUBJECT_FIXTURES}
+              totalTarget={totalTarget}
+            />
+          }
         />
         <Route path="/scores" element={<h1>成绩档案</h1>} />
       </Routes>

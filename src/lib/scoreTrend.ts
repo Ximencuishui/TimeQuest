@@ -1,11 +1,11 @@
-import type { ExamRecord, SubjectTargets } from "../types";
-import { EXAM_SCORE_FIELDS, type ExamScoreKey } from "./examRecord";
+import type { ExamSession, Subject } from "../types";
+import { sessionScore } from "./subjects";
 
-export type ScoreTrendSubject = "total" | keyof SubjectTargets;
+/** 「总分」是特殊值，其余是科目 key。 */
+export type ScoreTrendSubject = "total" | (string & {});
 
-export type ScoreTargets = {
-  [K in keyof SubjectTargets]: number | null;
-} & { total: number | null };
+/** 总分目标 + 每个科目的目标分。 */
+export type ScoreTargets = { total: number | null } & Record<string, number | null>;
 
 export type TrendPoint = {
   id: number;
@@ -17,21 +17,26 @@ export type TrendPoint = {
   latest: boolean;
 };
 
-/** Six papers present → comparable total. A skipped subject stays out of the total line. */
-export function examTotal(record: ExamRecord): number | null {
+/** Every subject present → comparable total. A skipped subject stays out of the total line. */
+export function examTotal(session: ExamSession, subjects: Subject[]): number | null {
   let sum = 0;
-  for (const field of EXAM_SCORE_FIELDS) {
-    const value = record[field.key];
+  for (const subject of subjects) {
+    const value = sessionScore(session, subject);
     if (value == null) return null;
     sum += value;
   }
   return sum;
 }
 
-export function scoreForSubject(record: ExamRecord, subject: ScoreTrendSubject): number | null {
-  if (subject === "total") return examTotal(record);
-  const key = `${subject}_score` as ExamScoreKey;
-  return record[key];
+export function scoreForSubject(
+  session: ExamSession,
+  subject: ScoreTrendSubject,
+  subjects: Subject[],
+): number | null {
+  if (subject === "total") return examTotal(session, subjects);
+  const target = subjects.find((item) => item.key === subject);
+  if (!target) return null;
+  return sessionScore(session, target);
 }
 
 /** `null` / 非有限数表示还没设目标，图表不画参考线。 */
@@ -53,25 +58,26 @@ export function formatScoreGap(score: number, target: number): string {
 
 /** Oldest exam on the left. Same-day sittings keep id order and get a distinct axis label. */
 export function buildTrendPoints(
-  records: ExamRecord[],
+  sessions: ExamSession[],
   subject: ScoreTrendSubject,
   targets: ScoreTargets,
+  subjects: Subject[],
 ): TrendPoint[] {
   const target = targetForSubject(targets, subject);
-  const sorted = [...records].sort(
-    (a, b) => a.exam_date.localeCompare(b.exam_date) || a.id - b.id,
+  const sorted = [...sessions].sort(
+    (a, b) => a.date.localeCompare(b.date) || a.id - b.id,
   );
   const seen = new Map<string, number>();
-  const points = sorted.map((record) => {
-    const count = seen.get(record.exam_date) ?? 0;
-    seen.set(record.exam_date, count + 1);
-    const label = count === 0 ? record.exam_date : `${record.exam_date} (${count + 1})`;
+  const points = sorted.map((session) => {
+    const count = seen.get(session.date) ?? 0;
+    seen.set(session.date, count + 1);
+    const label = count === 0 ? session.date : `${session.date} (${count + 1})`;
     return {
-      id: record.id,
-      examName: record.exam_name,
-      examDate: record.exam_date,
+      id: session.id,
+      examName: session.name,
+      examDate: session.date,
       label,
-      score: scoreForSubject(record, subject),
+      score: scoreForSubject(session, subject, subjects),
       target,
       latest: false,
     };

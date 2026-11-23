@@ -13,6 +13,7 @@ pub mod presets;
 pub mod profile;
 pub mod sessions;
 pub mod stats;
+pub mod subjects;
 pub mod tasks;
 pub mod textbook;
 
@@ -31,5 +32,6 @@ pub use presets::*;
 pub use profile::*;
 pub use sessions::*;
 pub use stats::*;
+pub use subjects::*;
 pub use tasks::*;
 pub use textbook::*;

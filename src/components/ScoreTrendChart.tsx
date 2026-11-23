@@ -10,7 +10,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { EXAM_SCORE_FIELDS } from "../lib/examRecord";
 import {
   buildTrendChart,
   buildTrendPoints,
@@ -22,17 +21,22 @@ import {
   type ScoreTrendSubject,
   type TrendChartRow,
 } from "../lib/scoreTrend";
-import type { ExamRecord } from "../types";
+import type { ExamSession, Subject } from "../types";
 
 const ABOVE = "#4ade80";
 const BELOW = "#f97316";
 const PLAIN = "#d4d4d8";
 const AXIS_TICK = { fill: "#a1a1aa", fontSize: 12 } as const;
 
-const TABS: { id: ScoreTrendSubject; label: string }[] = [
-  { id: "total", label: "总分" },
-  ...EXAM_SCORE_FIELDS.map((field) => ({ id: field.subject, label: field.label })),
-];
+type Tab = { id: ScoreTrendSubject; label: string };
+
+/** 「总分」置前，其余科目按 `subjects` 的顺序排。 */
+function buildTabs(subjects: Subject[]): Tab[] {
+  return [
+    { id: "total", label: "总分" },
+    ...subjects.map((subject) => ({ id: subject.key, label: subject.label })),
+  ];
+}
 
 type DotProps = {
   cx?: number;
@@ -102,24 +106,27 @@ function TrendTooltip({
 }
 
 export function ScoreTrendChart({
-  records,
+  sessions,
+  subjects,
   targets,
 }: {
-  records: ExamRecord[];
+  sessions: ExamSession[];
+  subjects: Subject[];
   targets: ScoreTargets;
 }) {
   const [subject, setSubject] = useState<ScoreTrendSubject>("total");
-  const points = buildTrendPoints(records, subject, targets);
+  const tabs = buildTabs(subjects);
+  const points = buildTrendPoints(sessions, subject, targets, subjects);
   const { rows, segments } = buildTrendChart(points);
   const target = points[0]?.target ?? targetForSubject(targets, subject);
   const domain = trendDomain(points);
   const plotted = points.filter((point) => point.score != null).length;
-  const tabLabel = TABS.find((tab) => tab.id === subject)?.label ?? "总分";
+  const tabLabel = tabs.find((tab) => tab.id === subject)?.label ?? "总分";
   const caption =
     subject === "total"
       ? target == null
-        ? "还没有总分目标，先不画虚线。六科都有分才计入总分。"
-        : "虚线是当前高考总目标。六科都有分才计入总分。"
+        ? "还没有总分目标，先不画虚线。科目都有分才计入总分。"
+        : "虚线是当前总分目标。科目都有分才计入总分。"
       : target == null
         ? `还没有${tabLabel}目标，先不画虚线。`
         : `虚线是当前${tabLabel}目标。`;
@@ -133,7 +140,7 @@ export function ScoreTrendChart({
         </div>
       </div>
       <div role="tablist" aria-label="成绩科目" className="mt-3 flex gap-1 overflow-x-auto">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const selected = tab.id === subject;
           return (
             <button
