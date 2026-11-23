@@ -1,7 +1,7 @@
 [package]
 name = "timequest"
-version = "3.10.1"
-description = "TimeQuest — 高考倒计时 · 自习推进器"
+version = "4.0.0"
+description = "TimeQuest — 目标倒计时 · 自习推进器"
 authors = ["hao"]
 edition = "2021"
 

@@ -203,16 +203,16 @@
 | accumulation_wall_colors_match_unit_buckets | 7 天单位 0/1/3/4/6/7/12 分别是 zinc-800、orange-900、orange-900、orange-600、orange-600、orange-400、orange-400；title 含日期和完成数；今天 `data-today="true"` 且 `ring-orange-500`；左侧有 Mon/Wed/Fri | `src/components/__tests__/accumulation_wall.test.tsx` |
 | accumulation_wall_zero_units_is_zinc_800 | 显式 0 与窗口内缺记录的日期都是 `bg-zinc-800`，title 为「完成 0」；今天边框 `ring-zinc-500`；最近 7 天为 0 时出现「开始第一课」链接 | `src/components/__tests__/accumulation_wall.test.tsx` |
 | accumulation_wall_month_labels_when_range_crosses | 2026-10-09 至 2026-11-05 在对应周列上方标「10月」「11月」 | `src/components/__tests__/accumulation_wall.test.tsx` |
-| settings_past_exam_date_shows_confirmation_before_write | 本地今天 2026-01-01 选 2025-06-07：确认框含「已过去」「已到达」；确认前不写 store / `timequest.exams`；输入框先显示所选日期 | `src/pages/Settings/__tests__/settings_exam_date.test.tsx` |
-| settings_past_exam_date_cancel_does_not_write | 取消后 store 与 localStorage 仍是原日期，输入框恢复原值，确认框关闭，无错误提示 | `src/pages/Settings/__tests__/settings_exam_date.test.tsx` |
-| settings_past_exam_date_confirm_writes | 确认后 `upsertExam` 写入 2025-06-07（Zustand + `timequest.exams`）；无 `upsert_exam` command；确认框关闭；输入框保持该日期 | `src/pages/Settings/__tests__/settings_exam_date.test.tsx` |
-| settings_future_exam_date_writes_without_confirmation | 选 2026-06-07：不弹确认框，直接写入 store 与 localStorage | `src/pages/Settings/__tests__/settings_exam_date.test.tsx` |
+| settings_past_exam_date_shows_confirmation_before_write | 本地今天 2026-01-01 选 2025-06-07：确认框含「已过去」「已到达」；确认前不写库；输入框先显示所选日期 | `src/pages/Settings/__tests__/settings_exam_date.test.tsx` |
+| settings_past_exam_date_cancel_does_not_write | 取消后库里仍是原日期，输入框恢复原值，确认框关闭，无错误提示 | `src/pages/Settings/__tests__/settings_exam_date.test.tsx` |
+| settings_past_exam_date_confirm_writes | 确认后 `upsertGoal` 把 2025-06-07 写进 SQLite `goals` 表；确认框关闭；输入框保持该日期 | `src/pages/Settings/__tests__/settings_exam_date.test.tsx` |
+| settings_future_exam_date_writes_without_confirmation | 选 2026-06-07：不弹确认框，直接写入库 | `src/pages/Settings/__tests__/settings_exam_date.test.tsx` |
 | settings_date_change_does_not_write_on_every_keystroke | **跳过**：已有目标是原生 `type="date"`，`onChange` 只在完整日期时触发，不逐字符写 | `src/pages/Settings/__tests__/settings_exam_date.test.tsx` |
-| dashboard_countdown_updates_when_exam_date_changes_in_store | 仪表盘挂着时 `setExams` 从 2026-06-07 改为 2026-07-01：天数立刻更新，旧 interval 清理并新建，无 console.error | `src/pages/Dashboard/__tests__/dashboard_countdown.test.tsx` |
-| dashboard_countdown_does_not_use_stale_date_after_remount | `upsertExam` 写成日期 B 后卸载再挂载：显示 B 的天数；卸载时清掉当时的 interval，重新挂载新建一条 | `src/pages/Dashboard/__tests__/dashboard_countdown.test.tsx` |
+| dashboard_countdown_updates_when_exam_date_changes_in_store | 仪表盘挂着时主目标日期从 2026-06-07 改为 2026-07-01：天数立刻更新，墙钟 interval 不重建，无 console.error | `src/pages/Dashboard/__tests__/dashboard_countdown.test.tsx` |
+| dashboard_countdown_does_not_use_stale_date_after_remount | 目标写成日期 B 后卸载再挂载：显示 B 的天数；卸载时清掉当时的 interval，重新挂载新建一条 | `src/pages/Dashboard/__tests__/dashboard_countdown.test.tsx` |
 | daily_motivation_index_is_yyyymmdd_modulo_length | `YYYY-MM-DD` 去横线后对句数取余；同日同一句，次日换一句 | `src/lib/__tests__/motivation.test.ts` |
 | resolve_motivation_uses_custom_text_and_treats_blank_as_unset | 非空自定义原文（trim）优先；`null` / 缺省 / 空白回落到当天默认句 | `src/lib/__tests__/motivation.test.ts` |
-| dashboard_motivation_uses_default_when_setting_empty | `useAppSetting('motivation_text')` 为 null：标题行右侧渲染 `DEFAULT_MOTIVATIONS` 中的一句，`text-zinc-400` + italic；同日重挂不变，次日更换 | `src/pages/Dashboard/__tests__/dashboard_motivation.test.tsx` |
+| dashboard_motivation_uses_default_when_setting_empty | `useAppSetting('motivation_text')` 为 null：标题行右侧渲染当前赛道语料（无包时是 `FALLBACK_MOTIVATIONS`）中的一句，`text-zinc-400` + italic；同日重挂不变，次日更换 | `src/pages/Dashboard/__tests__/dashboard_motivation.test.tsx` |
 | dashboard_motivation_renders_custom_text | 设置为「我要上清华」时原文出现在标题行右侧，不渲染默认句 | `src/pages/Dashboard/__tests__/dashboard_motivation.test.tsx` |
 | settings_motivation_save_invokes_set_setting | 输入框先显示 `get_setting` 的已存句子；改成新文本点「保存」后 `invoke('set_setting', { key: 'motivation_text', value })` | `src/pages/Settings/__tests__/settings_motivation.test.tsx` |
 | settings_motivation_clear_writes_empty_and_shows_default | 「清空」把输入框置空，`set_setting` 的 value 为 `""`，并显示当天默认句 | `src/pages/Settings/__tests__/settings_motivation.test.tsx` |
@@ -301,7 +301,7 @@
 | format_hhmm_pads_and_clamps | 时间补零并夹取 | `src/lib/__tests__/timeField.test.ts` |
 | add_minutes_to_hhmm_keeps_clock_valid | 加分钟不越界 | `src/lib/__tests__/timeField.test.ts` |
 | format_duration_label_reads_in_chinese | 时长中文文案 | `src/lib/__tests__/timeField.test.ts` |
-| presets_cover_morning_afternoon_and_evening | 时段快捷预设 | `src/lib/__tests__/timeField.test.ts` |
+| presets_cover_morning_afternoon_and_evening | 时段快捷预设 | `src/lib/__tests__/timePresets.test.ts` |
 | hour_and_minute_choices_are_in_school_day_range | 时/分选项落在作息范围内 | `src/lib/__tests__/timeField.test.ts` |
 | weekday_label_starts_on_monday | 星期从周一开始 | `src/lib/__tests__/dateField.test.ts` |
 | short_date_label_drops_year | 短日期不显示年份 | `src/lib/__tests__/dateField.test.ts` |
@@ -329,11 +329,11 @@
 | glossary_hint_renders_nothing_for_unknown_id | 未知词条不渲染 | `src/components/__tests__/glossary_hint.test.tsx` |
 | glossary_hint_closes_on_confirm | 关闭后弹窗消失 | `src/components/__tests__/glossary_hint.test.tsx` |
 | glossary_list_shows_every_term_with_its_source | 术语列表带来源说明 | `src/components/__tests__/glossary_hint.test.tsx` |
-| mock_exam_picks_the_nearest_future_non_primary_exam | 取最近的非主考目标 | `src/lib/__tests__/mockExam.test.ts` |
-| mock_exam_ignores_the_primary_exam | 主考（高考）不算模考 | `src/lib/__tests__/mockExam.test.ts` |
-| mock_exam_ignores_past_exams | 过去的模考不倒计时 | `src/lib/__tests__/mockExam.test.ts` |
-| mock_exam_marks_today_as_is_today | 今天就是模考日 | `src/lib/__tests__/mockExam.test.ts` |
-| mock_exam_returns_null_without_any_exam | 没有模考返回 null | `src/lib/__tests__/mockExam.test.ts` |
+| mock_exam_picks_the_nearest_future_non_primary_exam | 取最近的非主考目标 | `src/lib/__tests__/goals.test.ts` |
+| mock_exam_ignores_the_primary_exam | 主考（高考）不算模考 | `src/lib/__tests__/goals.test.ts` |
+| mock_exam_ignores_past_exams | 过去的模考不倒计时 | `src/lib/__tests__/goals.test.ts` |
+| mock_exam_marks_today_as_is_today | 今天就是模考日 | `src/lib/__tests__/goals.test.ts` |
+| mock_exam_returns_null_without_any_exam | 没有模考返回 null | `src/lib/__tests__/goals.test.ts` |
 | mock_countdown_shows_days_until_next_mock_exam | 面板显示模考倒计时 | `src/components/__tests__/mock_countdown.test.tsx` |
 | mock_countdown_hides_when_there_is_no_mock_exam | 没有模考不显示 | `src/components/__tests__/mock_countdown.test.tsx` |
 | create_note_with_date_stores_bound_date | 建便签时写 `note_date` | `src-tauri/tests/notes_test.rs` |
@@ -395,9 +395,17 @@
 | several_missing_subjects_scale_by_the_taken_share | 缺多科按已考占比折算 | `src/lib/__tests__/scoreScaling.test.ts` |
 | a_single_subject_is_not_scaled | 只记一科不折算 | `src/lib/__tests__/scoreScaling.test.ts` |
 | an_empty_paper_has_no_scaled_total | 空记录无折算分 | `src/lib/__tests__/scoreScaling.test.ts` |
-| subject_full_marks_match_the_default_targets | 各科满分与默认目标一致 | `src/lib/__tests__/scoreScaling.test.ts` |
 | scales a partial paper so the gap to the target stays comparable | 折算后与目标的差值可比 | `src/components/__tests__/score_overview_capsule.test.tsx` |
 | does not scale a paper that only has one score | 单科成绩不显示折算 | `src/components/__tests__/score_overview_capsule.test.tsx` |
+| draws the total target line and switches the series with the subject tab | 趋势图画总分目标线，点科目 tab 切到该科序列（总分 530/570/613 ↔ 数学 120/125/135） | `src/components/__tests__/score_trend_chart.test.tsx` |
+| omits the reference line when the total or subject target is missing | 目标缺失时不画参考线，改出「还没有总分目标」提示；换到有目标的科目又画回 | `src/components/__tests__/score_trend_chart.test.tsx` |
+| keeps a zero score inside the axis and skips an unfilled subject | 0 分留在坐标轴内，缺考的科目记 null 不画点，页面无 NaN/Infinity | `src/components/__tests__/score_trend_chart.test.tsx` |
+| lifts the axis above a target that is higher than every score | 目标高于所有分数时抬高纵轴上界 | `src/components/__tests__/score_trend_chart.test.tsx` |
+| renders the single plotted point when only one exam exists | 只有一场考试时只画一个点，不画折线 | `src/components/__tests__/score_trend_chart.test.tsx` |
+| builds the subject tabs from the subject list | 科目 tab 由科目清单生成：传前两科就只有「总分 / 语文 / 数学」，不写死六科 | `src/components/__tests__/score_trend_chart.test.tsx` |
+| shortens a province suffix for the sidebar | 省份去「省 / 自治区 / 特别行政区」后缀；档案行是「年级 · 省份」 | `src/lib/__tests__/profile.test.ts` |
+| canonical province keeps the 34 short names | 34 个省级行政区的简称归一；认不出的返回 null | `src/lib/__tests__/profile.test.ts` |
+| 各科目标合计与总分目标一致 | 种子六科的目标合计等于总分目标；`targetHint` 三种差额文案 | `src/lib/__tests__/profile.test.ts` |
 | catalog_lists_builtin_plugins_not_installed_yet | 内置插件仓库清单非空；新装的应用没有已安装插件 | `src-tauri/tests/plugins_test.rs` |
 | install_plugin_writes_package_and_marks_installed | 安装后包落到 `plugins/<id>/plugin.json`；settings 记一条；列表标 installed | `src-tauri/tests/plugins_test.rs` |
 | install_plugin_twice_keeps_one_record | 重复下载不重复登记，settings 只占一行 | `src-tauri/tests/plugins_test.rs` |
@@ -480,12 +488,12 @@
 | plugin_detail_shows_friendly_choice_names_instead_of_raw_values | 下拉显示「标准通道（推荐）」，不是 blob / raw | `src/pages/__tests__/plugin_detail.test.tsx` |
 | plugin_detail_masks_the_token_field_and_explains_it | 令牌用密码框渲染，并带一句给普通用户看的说明 | `src/pages/__tests__/plugin_detail.test.tsx` |
 | plugin_detail_keeps_normal_options_flat_without_an_advanced_section | 普通选项平铺显示；没有高级选项时不多一个折叠区 | `src/pages/__tests__/plugin_detail.test.tsx` |
-| plugin_library_lists_catalog_books_with_stage_and_subject_filters | 教材库按学段与科目筛选 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
-| plugin_library_searches_the_catalog_by_title | 教材库按书名搜索 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
-| plugin_library_downloads_a_book_and_parses_its_outline | 下载后调 `import_textbook_pdf` 并显示「已导入 N 章」 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
-| plugin_library_reports_a_failed_download | 下载失败只报错误，不假装成功 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
-| plugin_library_shows_the_retry_attempt_when_the_download_resumes | 续传时进度条标出「重试第 N 次」 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
-| plugin_library_turns_the_parsed_outline_into_a_task | 解析结果直接进向导：勾选已掌握 → 生成任务与排期 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
+| lists_the_catalog_books_with_stage_and_subject_filters | 教材库按学段与科目筛选 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
+| searches_the_catalog_by_title | 教材库按书名搜索 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
+| downloads_a_book_and_parses_its_outline | 下载后调 `import_textbook_pdf` 并显示「已导入 N 章」 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
+| reports_a_failed_download_without_pretending_it_worked | 下载失败只报错误，不假装成功 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
+| shows_the_retry_attempt_when_the_download_resumes | 续传时进度条标出「重试第 N 次」 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
+| turns_the_parsed_outline_into_a_task_through_the_import_wizard | 解析结果直接进向导：勾选已掌握 → 生成任务与排期 | `src/components/__tests__/plugin_textbook_library.test.tsx` |
 | packs_manifest_builtin_math_and_physics | 学科包清单锁仓库与 commit、写明 CC BY-NC 4.0；只内置数学与物理 | `src-tauri/tests/knowledge_graph_test.rs` |
 | packs_manifest_records_subject_prefixes | 学科包记 id 前缀；「其他学科」是多个前缀合起来的 | `src-tauri/tests/knowledge_graph_test.rs` |
 | builtin_math_topics_match_upstream_count | 内置数学 870 个知识点，id 都是数学前缀，学段已填 | `src-tauri/tests/knowledge_graph_test.rs` |
@@ -751,8 +759,13 @@
 | track_package_falls_back_to_the_default_kind | 包里非法的赛道类型/折算口径退回默认值 | `src-tauri/tests/plugins_test.rs` |
 | seeding_a_track_package_writes_the_content_settings | 赛道包的错因表/学习方式装上就写进 `app_settings` | `src-tauri/tests/plugins_test.rs` |
 | seeding_a_track_package_without_content_keeps_the_builtin_lists | 没带语料配置时不动已有配置，内置表继续生效 | `src-tauri/tests/plugins_test.rs` |
+| catalog_distinguishes_track_packages_from_regular_plugins | 插件仓库清单里赛道包是 `kind="track"` 且带 `provides`，普通插件仍是 `kind="plugin"` | `src-tauri/tests/plugins_test.rs` |
 | configured_reason_whitelist_replaces_the_builtin_one | `app_settings` 的赛道级错因表覆盖内置表；表外错因归「其他」 | `src-tauri/tests/mistakes_test.rs` |
 | normalize_reason_in_uses_the_given_whitelist | 按给定白名单归一错因；无「其他」退到第一项 | `src-tauri/tests/mistakes_test.rs` |
+| broken_reason_whitelist_falls_back_to_the_builtin_one | 白名单配坏（不是 JSON）时回落内置表，不把错因表搞空 | `src-tauri/tests/mistakes_test.rs` |
+| update_mistake_normalizes_with_the_configured_whitelist | 改错因也按当前生效的白名单归一 | `src-tauri/tests/mistakes_test.rs` |
+| mock_demo_scores_match_the_pre_4_0_baseline | 演示成绩拆成成绩行后，分数与科目顺序与升级前逐位一致 | `src-tauri/tests/parity_test.rs` |
+| mock_demo_minutes_and_rate_match_the_pre_4_0_baseline | 演示数据各科计划分钟数与达成率与升级前逐位一致 | `src-tauri/tests/parity_test.rs` |
 | goals_primary_goal_prefers_the_flagged_one | 主目标取标记了 `is_primary` 的那条 | `src/lib/__tests__/goals.test.ts` |
 | goals_primary_goal_falls_back_to_the_first_row | 没有主目标就退回第一行 | `src/lib/__tests__/goals.test.ts` |
 | goals_primary_goal_is_undefined_without_any_goal | 一条目标都没有时是 undefined | `src/lib/__tests__/goals.test.ts` |
@@ -770,6 +783,8 @@
 | total_full_marks_come_from_the_subject_list | 总分满分由科目清单算出 | `src/lib/__tests__/scoreScaling.test.ts` |
 | subjects_without_a_full_mark_do_not_break_the_scaling | 没有满分的科目不影响折算 | `src/lib/__tests__/scoreScaling.test.ts` |
 | scales_against_a_four_subject_paper | 四科卷按自己的满分折算 | `src/lib/__tests__/scoreScaling.test.ts` |
+| 新旧口径给出同一个折算总分 | 9 组样例下 4.0 前后折算口径逐位一致（实考和 / 已考满分 / 折算分 / 得分率 / 明细 / 说明行） | `src/lib/__tests__/scoreScalingParity.test.ts` |
+| 六科种子数据下总分仍是 610 | 六科种子数据的已考满分合计与折算总分都仍是 610 | `src/lib/__tests__/scoreScalingParity.test.ts` |
 | every_built_in_template_is_available | 内置赛道模板都在 | `src/lib/__tests__/track.test.ts` |
 | gaokao_is_the_only_template_requiring_grade_and_region | 只有高考模板要年级与地区 | `src/lib/__tests__/track.test.ts` |
 | gives_each_track_its_own_full_marks | 每条赛道有自己的满分 | `src/lib/__tests__/track.test.ts` |
@@ -860,25 +875,25 @@
 ### 考试日期设置
 
 - **已有目标的日期框**仍是 `type="date"`，没有 `min`。过去与否用本地日历日：合法的 `YYYY-MM-DD` 字符串 `< format(now, "yyyy-MM-dd")`，不含时刻。今天不弹确认。
-- **过去日期先暂存再确认。** 选中后 `pendingDate` 让输入框显示新日期，确认前不调用 `upsertExam`。文案包含「已过去」和「倒计时将显示「已到达」」。取消清掉暂存，输入框回到 store 里的原日期。确认后 `upsertExam` 写入 Zustand，并 `JSON.stringify` 到 `localStorage` 键 `timequest.exams`。不调用 Tauri，不进 SQLite。
-- **未来日期（含今天）**选完直接 `upsertExam`，不弹确认。
-- **倒计时如何感知：** `CountdownPanel` 订阅同一份 `useUiStore.exams`。确认写入时若面板还挂着，当次渲染按新日期重算并重建 interval。人在设置页时面板已卸载，回到看板的新实例读到已更新的 store。过去日期确认写入后，面板按 `computeCountdown` 显示「已到达」和 `00:00:00`。
-- **「添加」一行**仍只更新本地 state，要点「添加」才 `upsertExam`。名称框仍是每敲一字就写。原生日期框的 `onChange` 只在完整日期时触发，因此 `settings_date_change_does_not_write_on_every_keystroke` 跳过。
+- **过去日期先暂存再确认。** 选中后 `pendingDate` 让输入框显示新日期，确认前不调用 `upsertGoal`。文案包含「已过去」和「倒计时将显示「已到达」」。取消清掉暂存，输入框回到库里的原日期。确认后走 `useGoalMutations().upsert` → `upsert_goal` command，写进 SQLite `goals` 表。写成功后 React Query 失效 `["goals"]`，不写 `localStorage`。
+- **未来日期（含今天）**选完直接 `upsertGoal`，不弹确认。
+- **倒计时如何感知：** `CountdownPanel` 用 `useGoals()` 取列表、`resolvePrimaryGoal(goals)` 取主目标日期。写入成功后 `["goals"]` 失效，挂着面板的那次渲染按新日期重算，墙钟 interval 不重建。人在设置页时面板已卸载，回到看板的新实例读到库里的新值。过去日期确认写入后，面板按 `computeCountdown` 显示「已到达」和 `00:00:00`。
+- **「添加」一行**仍只更新本地 state（`newName` / `newDate`），要点「添加」才 `upsertGoal`。名称框仍是每敲一字就写。原生日期框的 `onChange` 只在完整日期时触发，因此 `settings_date_change_does_not_write_on_every_keystroke` 跳过。
 - 由 `settings_past_exam_date_shows_confirmation_before_write` / `settings_past_exam_date_cancel_does_not_write` / `settings_past_exam_date_confirm_writes` / `settings_future_exam_date_writes_without_confirmation` 锁定。
 
 ### 跨页面状态同步
 
-- **考试目标的活数据是 Zustand `useUiStore.exams`。** `loadExams()` 只在 store 创建时读 `timequest.exams`。设置页写入和仪表盘读取都走这份 store；重新挂载不会再读磁盘。
-- **路由：** `Layout` 的 `<Outlet />` 在 `/` 与 `/settings` 之间切换时卸载 `Dashboard` 和 `CountdownPanel`。离开时 effect cleanup 调用 `clearInterval`；回来是新实例，读当时的 store。
-- **没有事件总线，考试日期不进 React Query。** 只改 `localStorage` 而不调用 `setExams` / `upsertExam`，已经创建的 store 保持原值。
+- **考试目标的活数据是 SQLite `goals` 表。** 前端只经 `useGoals()`（React Query，key `["goals"]`）读，经 `useGoalMutations().upsert` 写。没有 `localStorage` 副本，也不走 Zustand。重新挂载命中 React Query 缓存，不会重读磁盘。
+- **路由：** `Layout` 的 `<Outlet />` 在 `/` 与 `/settings` 之间切换时卸载 `Dashboard` 和 `CountdownPanel`。离开时 effect cleanup 调用 `clearInterval`；回来是新实例，读当时的查询结果。
+- **没有事件总线，但目标走 React Query。** 只改数据库而不让 `["goals"]` 失效，已经挂载的组件保持原值；`upsert` 的 `onSuccess` 会失效 `["goals"]`，所以正常写入链路能推到所有订阅者。
 - 由 `dashboard_countdown_updates_when_exam_date_changes_in_store` / `dashboard_countdown_does_not_use_stale_date_after_remount` 锁定。墙钟 interval 不随目标日重建，由 `countdown_panel_updates_days_without_restarting_the_clock` 锁定。
-- **考试日期影响面**：exam date 影响倒计时。主窗口是 `CountdownPanel`；桌面悬浮窗 `WidgetPage` 读同一份 `useUiStore.exams`，主窗口改日期后通过 `session-updated` 把 exams 推过去。不影响完成弹窗的改期日期（「剩余改到下次」用打开时的本地今天，用户改过的值留在组件 state），也不影响统计页的周/月范围（`rangeFor(new Date())`）。今日排期仍按 `todayStr()` 请求，连击条仍是 `get_user_stats`。每日激励语按本地今天对默认句取余，不读 exam date。由 `exam_date_change_does_not_shift_open_complete_dialog_date` / `exam_date_change_does_not_shift_open_stats_range` / `exam_date_change_only_affects_countdown` / `widget_page_renders_countdown` 锁定。
+- **考试日期影响面**：goal date 影响倒计时。主窗口是 `CountdownPanel`；桌面悬浮窗 `WidgetPage` 同样用 `useGoals()` + `resolvePrimaryGoal`，主窗口改日期后通过 `session-updated` 让悬浮窗失效 `["sessions"]` 与 `["goals"]` 再拉一次。不影响完成弹窗的改期日期（「剩余改到下次」用打开时的本地今天，用户改过的值留在组件 state），也不影响统计页的周/月范围（`rangeFor(new Date())`）。今日排期仍按 `todayStr()` 请求，连击条仍是 `get_user_stats`。每日激励语按本地今天对当前赛道语料取余，不读 goal date。由 `exam_date_change_does_not_shift_open_complete_dialog_date` / `exam_date_change_does_not_shift_open_stats_range` / `exam_date_change_only_affects_countdown` / `widget_page_renders_countdown` 锁定。
 
 ### 每日激励语
 
-- **数据**：看板 `DailyMotivation` 读 `useAppSetting('motivation_text')`。非空字符串 trim 后原样展示。`null`、未返回、以及 trim 后为空，用 `dailyMotivation(todayStr())`。
-- **设置**：设置页「每日激励语」。输入框标签「自定义激励语」，初值来自同一条 `useAppSetting`。未编辑前跟随查询结果；用户改过之后以输入框为准，避免刷新把草稿盖掉。「保存」调用 `useSetSetting('motivation_text')`，即 `invoke('set_setting', { key: 'motivation_text', value })`。「清空」把输入框置为 `""` 并写入空字符串。输入为空时，框下显示当天默认句。
-- **同一天同一句**：下标是 `Number(YYYYMMDD) % DEFAULT_MOTIVATIONS.length`（`2026-01-01` → `20260101`）。不使用 `Math.random()`。刷新页面日期不变则句子不变；本地日期加一天，余数加一，换成下一句。
+- **数据**：看板 `DailyMotivation` 读 `useAppSetting('motivation_text')`，句库来自 `useMotivationLines()`。非空字符串 trim 后原样展示；`null`、未返回、以及 trim 后为空，用 `resolveMotivation(data, todayStr(), lines)` 落到当天那一句。
+- **设置**：设置页「每日激励语」。输入框标签「自定义激励语」，初值来自同一条 `useAppSetting`。未编辑前跟随查询结果；用户改过之后以输入框为准，避免刷新把草稿盖掉。「保存」调用 `useSetSetting('motivation_text')`，即 `invoke('set_setting', { key: 'motivation_text', value })`。「清空」把输入框置为 `""` 并写入空字符串。输入为空时，框下用 `dailyMotivation(todayStr(), lines)` 显示当天那一句，与看板共用同一套句库。
+- **同一天同一句**：下标是 `Number(YYYYMMDD) % lines.length`（`2026-01-01` → `20260101`），句库 `lines` 由 `useMotivationLines()` 给：当前赛道包装了 `motivation_pack` 就用它的，没装包、读不出来或包是坏的都回落到 `FALLBACK_MOTIVATIONS`。不使用 `Math.random()`。刷新页面日期不变则句子不变；本地日期加一天，余数加一，换成下一句。
 - **位置与样式**：`Dashboard` 标题行右侧。`text-zinc-400`、`italic`，两侧引号 `-rotate-6` / `rotate-6`。
 - 由 `daily_motivation_index_is_yyyymmdd_modulo_length` / `resolve_motivation_uses_custom_text_and_treats_blank_as_unset` / `dashboard_motivation_uses_default_when_setting_empty` / `dashboard_motivation_renders_custom_text` / `settings_motivation_save_invokes_set_setting` / `settings_motivation_clear_writes_empty_and_shows_default` 锁定。
 
@@ -891,7 +906,7 @@
 - **全 0，不返回负数**：锚点毫秒差 `totalMs < 1000` 时（已经过去、正好到达、以及最后不足 1 秒），`days` / `weeks` / `months` / `hours` / `minutes` / `seconds` 和返回的 `totalMs` 都是 0，`isPast` 为 true。正好 1000ms 仍是 `totalMs = 1000`、`days` 按日历、`isPast = false`，`hours` / `minutes` / `seconds` 恒为 0。10 年跨度钳制前是有限负数，不会变成 `Infinity`。由 `compute_countdown_returns_zeros_when_target_in_past` / `compute_countdown_returns_zeros_when_target_equals_now` / `compute_countdown_never_returns_negative_for_large_past_gap` / `compute_countdown_returns_one_second_when_target_one_second_ahead` / `compute_countdown_two_days_ahead_returns_days_without_clock` / `countdown_panel_transitions_to_arrived_at_target_moment` 锁定。
 - **「已到达」**：`CountdownPanel` 只看 `c.isPast`。返回结构没有 `totalSeconds`。`days` 是目标日与今天的日历差（两个时间戳各自取本地零点），本地零点前 1 秒仍显示 1 天。目标从未来改成过去时，当次渲染立刻重算。由 `countdown_panel_recomputes_when_target_changes_to_past` 锁定。
 - **时分秒位置是今天的排期，不是把总时长每秒减 1**。`calculateTodayRemainingMinutes` 仍是今天 `planned` 场次的时长合计，这个数不随墙钟减少，完成一场后才变少。旁边的倒计时看当前时刻：正处在一场里，显示到该场 `end_time` 还剩多久；还没到下一场，显示「距离{任务}开始还有」；今天没有 `planned`，显示「今日任务全部完成」。由 `calculate_today_remaining_minutes_sums_planned_sessions` / `calculate_today_remaining_minutes_ignores_done` / `resolve_remaining_study_counts_down_the_current_session` / `resolve_remaining_study_counts_down_to_the_next_session` / `countdown_panel_past_target_shows_arrived_not_negative` 锁定。
-- **年级和默认高考日**：倒计时日期不在 `user_profile`。空的考试列表会种下 `DEFAULT_EXAM_DATE`（`2027-06-07`）。档案年级已经是高二、主考日却还是这颗种子时，`ExamDateSync` 按 `gaokaoDateForGrade` 写成 `2028-06-07` 并 `upsertExam`。用户另选过的日期不动。由 `exam_date_sync_replaces_default_seed_for_grade_two` / `exam_date_sync_keeps_a_date_the_user_already_chose` 锁定。
+- **年级和默认高考日**：倒计时日期不在 `user_profile`，在 `goals` 表。库里没有目标时 `seed_default_goal_impl` 种下 `DEFAULT_EXAM_DATE`（`2027-06-07`）。档案年级已经是高二、主目标却还是这颗种子时，`ExamDateSync` 按 `gaokaoDateForGrade` 算出 `2028-06-07` 并 `upsertGoal` 写回同一条主目标（带 `id` / `name` / `kind` / `isPrimary`）。用户另选过的日期不动。由 `exam_date_sync_replaces_default_seed_for_grade_two` / `exam_date_sync_keeps_a_date_the_user_already_chose` 锁定。
 - **Invalid Date**：不抛异常。返回全 0 且 `isPast = false`。`CountdownPanel` 无 try/catch，抛错会让面板崩溃；`isPast = false` 与「已到达」分开，乱码显示成「0 天」。由 `compute_countdown_handles_invalid_target_date` 锁定。
 - **时区口径（本批不改）**：锚点是 `startOfDay(parseISO(targetDate))`，日期串按本地零点解释。`"2026-06-07"` 在 UTC+8 是本地 2026-06-07 00:00:00，不是 `new Date("2026-06-07")` 的 UTC 午夜（当地 08:00）。字符串里的时刻会被 `startOfDay` 丢掉。改这条会影响已保存目标的剩余天数，需要单独评估，不放进钳制修复里。
 
@@ -901,7 +916,7 @@
 - **权限**：`capabilities/default.json` 的 windows 含 `main` 与 `widget`，并允许 `show` / `hide` / `start-dragging`。主窗口另有 `create-webview-window`，悬浮窗被关掉后可以按同一 label 再建。
 - **入口**：`readWindowLabel()` 为 `widget` 时只渲染 `WidgetPage`，不挂 `Layout`。`BootSync` 的「窗口置顶」只作用在主窗口，避免把悬浮窗的置顶关掉。
 - **页面**：倒计时用 `computeCountdown`（与看板同一口径）。进行中 / 下一场用 `findScrollTargetSession`。拖拽区域是 `data-tauri-drag-region`。关闭按钮调用 `hide()`，不销毁窗口。
-- **同步**：两个 Webview 各有一份 QueryClient 和 Zustand。完成 / 改期 / 新建场次后主窗口 `emit("session-updated")`。改考试日期时同一事件带上 `exams`。悬浮窗 `listen` 后 `invalidateQueries({ queryKey: ["sessions"] })`，并 `setExams`。悬浮窗挂载后发 `widget-ready`，主窗口把当前 exams 再推一次。
+- **同步**：两个 Webview 各有一份 QueryClient。完成 / 改期 / 新建场次后主窗口 `emit("session-updated")`（`broadcastSessionUpdated`）。目标改了也走同一事件：`useMainWindowBroadcast` 监听 `useGoals()` 的结果，目标一变就广播。悬浮窗 `listen` 后 `invalidateQueries({ queryKey: ["sessions"] })` 与 `invalidateQueries({ queryKey: ["goals"] })`，两边读的是同一份数据库数据，不用互传目标列表。悬浮窗挂载后发 `widget-ready`，主窗口再广播一次。
 - **退出**：主窗口真正销毁（不是缩到托盘）时关掉 widget，避免隐藏悬浮窗把进程留住。缩到托盘时悬浮窗可以继续显示。
 - 由 `widget_page_renders_countdown` / `widget_label_skips_main_shell` 锁定页面。窗口 show/hide 靠代码路径，测试环境没有原生窗口。
 
@@ -950,9 +965,9 @@
 
 ### 导入导出语义
 
-- **格式**：JSON（`version: 1`），非 SQLite 文件拷贝。表键：`tasks` / `task_sessions` / `actual_logs` / `notes` / `user_stats`（单对象）/ `user_achievements` / `app_settings`（`{key, value, updated_at}` 数组，按 key 排序）。`archived` / `pinned` 序列化为整数 **0/1**（非 JSON boolean）。前端默认文件名 `timequest-backup-YYYYMMDD.json`。
-- **事务**：`import_json_impl` 在单个 `unchecked_transaction` 内先清空再插入，成功才 `commit`；失败整笔回滚到导入前库内容。清空顺序：`user_achievements` → `actual_logs` → `task_sessions` → `notes` → `tasks` → `app_settings`，再 `UPDATE user_stats` 重置为默认（保留 `id=1` 行，不 `DELETE`）。
-- **`app_settings`**：key-value，`key` 主键。`set_setting` 用 `INSERT ... ON CONFLICT(key) DO UPDATE`，重复写入覆盖 `value` 并刷新 `updated_at`，不新增行。不存在的 key：`get_setting` 返回 `None`（前端 `null`）。时间戳与建表默认一致，用 `datetime('now')`（UTC），不跟其它表的 `localtime`。旧备份没有 `app_settings` 键时，导入清空后表为空。激励语默认值在前端 `DEFAULT_MOTIVATIONS`，不预写入这张表。由 `set_setting_then_get_is_idempotent` 锁定读写幂等。
+- **格式**：JSON（`version: 2`），非 SQLite 文件拷贝。表键：`tasks` / `task_sessions` / `actual_logs` / `notes` / `mistakes` / `task_knowledge_points` / `imported_textbooks` / `user_stats`（单对象）/ `user_achievements` / `user_profile` / `app_settings`（`{key, value, updated_at}` 数组，按 key 排序）/ `tracks` / `subjects` / `exam_sessions` / `exam_scores` / `goals`。`exam_records` 保留为空数组，只为旧 v1 payload 的读取分支不报错。`archived` / `pinned` 序列化为整数 **0/1**（非 JSON boolean）。前端默认文件名 `timequest-backup-YYYYMMDD.json`。
+- **事务**：`import_json_impl` 在单个 `unchecked_transaction` 内先清空再插入，成功才 `commit`；失败整笔回滚到导入前库内容。清空顺序：`user_achievements` → `actual_logs` → `task_sessions` → `notes` → `mistakes` → `task_knowledge_points` → `tasks` → `app_settings` → `imported_textbooks` → `exam_scores` → `exam_sessions` → `exam_records` → `goals` → `UPDATE subjects SET track_id = NULL` → `tracks`，再 `UPDATE user_stats` 重置为默认（保留 `id=1` 行，不 `DELETE`）。`subjects` 本身不清空：先解掉 `track_id` 引用，导入时按 key 覆盖同 key 行。`app_settings` 先行插回，因为导入错题要按同一份错因白名单归一，前后端口径不能分叉。
+- **`app_settings`**：key-value，`key` 主键。`set_setting` 用 `INSERT ... ON CONFLICT(key) DO UPDATE`，重复写入覆盖 `value` 并刷新 `updated_at`，不新增行。不存在的 key：`get_setting` 返回 `None`（前端 `null`）。时间戳与建表默认一致，用 `datetime('now')`（UTC），不跟其它表的 `localtime`。旧备份没有 `app_settings` 键时，导入清空后表为空。激励语默认值在前端 `FALLBACK_MOTIVATIONS`，不预写入这张表；赛道级错因白名单存 `track.mistake_reasons`（`TRACK_MISTAKE_REASONS_SETTING_KEY`），白名单为空或读不出来时回落到内置 `REASON_WHITELIST`。由 `set_setting_then_get_is_idempotent` 锁定读写幂等。
 - **`rescheduled_to` 自引用**：导入时先 `INSERT` 各 session 且 `rescheduled_to=NULL`，全部插入后再 `UPDATE` 写回指针（FK 保持 `ON`，不关 `PRAGMA foreign_keys`）。由 `export_import_round_trip_preserves_rows` / `import_failure_rolls_back_to_pre_import_state` / `import_preserves_foreign_key_integrity` 锁定。
 - **`user_stats` 单例**：导入必须保证恰好一行 `id=1`。写回用 `INSERT ... ON CONFLICT(id) DO UPDATE`（UPSERT）；payload 缺行时清空阶段的 `UPDATE ... WHERE id=1` 仍依赖已有行。显式 `user_stats.id ≠ 1` **拒绝**（`Err`），缺省 `id`（导出格式）视为 1。由 `import_user_stats_update_is_noop_when_id_1_row_missing` / `import_rejects_user_stats_payload_with_wrong_id` 锁定。
 - **`total_xp` / `current_level` 一致性**：理论上应满足 `level_from_total_xp(total_xp) == current_level`。导出/导入**不**对该一致性做校验或修复：导出原样快照；导入原样写入；若数据不一致，视为用户数据状态，不静默改写。未来如需修复，应提供显式「重算等级」操作，而非隐藏在导入导出里。由 `export_keeps_current_level_when_inconsistent_with_total_xp` / `export_does_not_fail_on_level_xp_mismatch` / `import_preserves_inconsistent_level_xp_as_is` 锁定。
@@ -1108,12 +1123,12 @@
 
 ### 演示数据与首次引导
 
-- **标记**：`tasks` / `task_sessions` / `exam_records` 有 `is_mock INTEGER NOT NULL DEFAULT 0`。普通创建、补记、导入缺省都是 0。演示插入显式写 1。
+- **标记**：`tasks` / `task_sessions` / `exam_sessions` 有 `is_mock INTEGER NOT NULL DEFAULT 0`。普通创建、补记、导入缺省都是 0。演示插入显式写 1。演示成绩行写进 `exam_scores`，靠父场次 `exam_sessions.is_mock` 认领。
 - **`generate_mock_data`**：空库时写入 3 条湖南高二主线（数学必修一、物理必修一、英语必修一）、当天 done 与 planned 排期、2 条更早的考试成绩。不写 `actual_logs`，避免没有标记的分钟混进统计。已有 `is_mock=1` 的任务时直接返回，不追加。只有 `user_stats` 仍是初始值（XP/连击/最长连击为 0 且 `last_done_date` 为空）且不存在 `is_mock=0` 的任务、场次、成绩和任何流水时，才把 XP、等级、连击写成演示值。
 - **`clear_mock_data`**：先删指向演示场次的 `actual_logs`，再删 `is_mock=1` 的场次和成绩。演示任务若仍被真实场次引用则留下，避免外键把真实场次一起删掉。只有这次确实删掉了演示行，且删完后没有真实行，才把 `user_stats` 重置为 XP 0、等级 1、连击 0。已有真实 XP 时不会被演示写入覆盖，清除时也不改。
 - **导出**：三张表的 `is_mock` 进出 JSON。旧备份没有该字段时导入为 0。
-- **引导**：`app_settings.onboarding_completed` 不是 `"1"` 时，主窗口盖一层全屏引导。第一步写年级（高一/高二/高三）、地区（34 个省级行政区下拉）、高考目标分到 `user_profile`。年级用 `gaokaoDateForGrade` 推算高考日（6 月 7 日当天仍算今年；次日起已过，再加一年。2026-11：高一 2029-06-07、高二 2028-06-07、高三 2027-06-07）。结束时 `upsertExam` 写入主考日期，真实记录和演示数据都写。日期不进 `user_profile` 表。第二步「开启真实记录（推荐）」只写完成标志；「加载湖南高二演示数据」再调用 `generate_mock_data`。悬浮窗不挂引导。
-- **设置页改年级**：新年级推算出的高考日和当前主考日不同时先确认。确认后保存档案并 `upsertExam`，倒计时读同一份 `useUiStore.exams`，当次刷新。取消则不写档案，年级选择回到已保存的值。年级没变，或推算日已经等于主考日，直接保存档案。
+- **引导**：`app_settings.onboarding_completed` 不是 `"1"` 时，主窗口盖一层全屏引导，三步。第一步选赛道（`TRACK_TEMPLATES`，高考 / 自定义等），后续随时能在设置里改。第二步填目标名称、地区（34 个省级行政区下拉）、总分目标、目标日期和各科目标分；高考赛道还要年级（高一/高二/高三），年级用 `gaokaoDateForGrade` 推算高考日（6 月 7 日当天仍算今年；次日起已过，再加一年。2026-11：高一 2029-06-07、高二 2028-06-07、高三 2027-06-07）。第三步提交：`finish()` 先按赛道模板播种科目并 `upsertSubject` 把各科目标写进科目字典，再 `upsertGoal` 写主目标（名称 / 日期 / `kind` / `isPrimary` / `targetScore` / `trackId`）；高考赛道另把年级、地区、总分目标写进 `user_profile`。总分目标不再硬编码 750，按赛道模板的 `maxScore`（`maxScore = 0` 的赛道不计总分）。日期不进 `user_profile` 表。「开启真实记录（推荐）」只写完成标志；「加载湖南高二演示数据」再调用 `generate_mock_data`。悬浮窗不挂引导。
+- **设置页改年级**：新年级推算出的高考日和当前主考日不同时先确认。确认后保存档案并 `upsertGoal` 写主目标日期，倒计时读同一份 `useGoals()`，当次刷新。取消则不写档案，年级选择回到已保存的值。年级没变，或推算日已经等于主考日，直接保存档案。
 - **设置**：数据管理里的「清除所有演示数据」在 `has_mock_data` 为真时用橙色高亮，确认后才调用 `clear_mock_data`。
 - 由 `generate_mock_data_marks_every_inserted_row` / `clear_mock_data_removes_only_mock_rows` / `clear_mock_data_resets_stats_when_no_real_rows` / `import_missing_is_mock_defaults_to_zero` / `onboarding_real_start_saves_profile_and_skips_mock` / `onboarding_loads_hunan_demo_data` / `onboarding_hides_when_already_completed` / `settings_clear_mock_highlights_and_confirms_before_delete` 锁定。
 
@@ -1259,12 +1274,12 @@
 
 ### 成绩缺考折算
 
-- **公式**（`src/lib/scoreScaling.ts`）：`折算总分 = 实考总分 × 六科满分(610) ÷ 已考科目满分之和`，四舍五入。也就是把缺考科目按已考科目的得分率补齐，得到与「六科都考了」可比的分数。各科满分：语文 120 / 数学 130 / 英语 120 / 物理、化学、生物各 80，合计 610，与设置页默认目标一致。
+- **公式**（`src/lib/scoreScaling.ts`）：`折算总分 = 实考总分 × 总满分 ÷ 已考科目满分之和`，四舍五入。也就是把缺考科目按已考科目的得分率补齐，得到与「各科都考了」可比的分数。总满分不再写死 610，由 `totalFullMarks(subjects)` 跟着 `subjects` 表算（没配满分的科目按 0 计）。高考赛道的种子科目仍是语文 120 / 数学 130 / 英语 120 / 物理、化学、生物各 80，合计 610。
 - **留空 = 缺考**：录入弹窗文案明确「没考的科目留空——留空就是缺考，总分会按已考科目比例折算」。`null` 就是缺考，不写 0。
 - **单科不折算**：只记一科时 `scaledTotalNote` 返回 `null`，界面不显示折算说明（拿一科推六科没有意义）。六科齐全时折算分等于实考总分。空记录没有折算分。
 - **胶囊与档案页**：`ScoreOverview` 的第三分支是 `kind: "scaled"`（带 `score / sum / count / missing / gap / tone`），胶囊显示折算分 + 「折算 · 缺考生物」，档案页 `RecordCard` 额外渲染 `data-testid="scaled-total-note"` 说明行与缺考提示行。
-- **趋势图口径不变**：`ScoreTrendChart` 仍然只收「六科都有分」的场次计入总分（不折算），避免历史趋势被改写。这与胶囊的折算是两套口径，属有意为之。
-- 由 `full_paper_needs_no_scaling` / `missing_biology_scales_the_total_to_the_six_subject_scale` / `several_missing_subjects_scale_by_the_taken_share` / `a_single_subject_is_not_scaled` / `an_empty_paper_has_no_scaled_total` / `subject_full_marks_match_the_default_targets` / `scales a partial paper so the gap to the target stays comparable` / `does not scale a paper that only has one score` 锁定。
+- **趋势图口径不变**：`ScoreTrendChart` 仍然只收「当前赛道的科目都有分」的场次计入总分（不折算），避免历史趋势被改写。`examTotal(session, subjects)` 缺任意一科就返回 `null`。这与胶囊的折算是两套口径，属有意为之。
+- 由 `full_paper_needs_no_scaling` / `missing_biology_scales_the_total_to_the_six_subject_scale` / `several_missing_subjects_scale_by_the_taken_share` / `a_single_subject_is_not_scaled` / `an_empty_paper_has_no_scaled_total` / `total_full_marks_come_from_the_subject_list` / `subjects_without_a_full_mark_do_not_break_the_scaling` / `scales_against_a_four_subject_paper` / `scales a partial paper so the gap to the target stays comparable` / `does not scale a paper that only has one score` 锁定。升级前后口径一致由 `新旧口径给出同一个折算总分` / `六科种子数据下总分仍是 610` 锁定。
 
 ### 教材源插件契约
 
@@ -1282,7 +1297,7 @@
 - **PDF 目录解析必须查字体的 `/ToUnicode` 表**：教材正文用 Type0 字体配 `UniGB-UTF16-H` 编码，lopdf 的内置编码解不出中文（它按 UTF-16BE 直解）。自实现的解码器在 `src-tauri/src/pdf_text.rs`，按 `ObjectId` 缓存。解析 CMap 时遇到 `<< ... >>` 头部的落单 `>` 必须跳过，否则 tokenizer 原地打转会把内存吃光。
 - **目录只到「章 + 节」**，知识点留空让学生在任务详情里自己补。目录页页码列要剥掉；页码前的 `/` 也要剥，否则小节标题尾巴上会留斜杠。
 - **导入后的教材不出现在「从教材导入」的第一步**：那个列表只含内置教材（`list_available_textbooks`）。插件页下载完直接给「勾选已掌握」的入口（`TextbookImportWizard` 的 `preloaded`），不走选书那一步。
-- 由 `builtin_catalog_lists_textbooks_with_dimensions` / `sharded_book_joins_parts_into_one_pdf` / `failed_download_leaves_no_partial_file` / `interrupted_download_resumes_from_where_it_stopped` / `server_ignoring_range_restarts_the_shard` / `size_mismatch_is_reported_and_nothing_is_left` / `decodes_chinese_through_the_font_tounicode_table` / `plugin_library_turns_the_parsed_outline_into_a_task` / `rate_limit_message_points_to_the_channel_not_to_signing_up` / `missing_file_and_server_errors_keep_their_own_wording` 锁定。
+- 由 `builtin_catalog_lists_textbooks_with_dimensions` / `sharded_book_joins_parts_into_one_pdf` / `failed_download_leaves_no_partial_file` / `interrupted_download_resumes_from_where_it_stopped` / `server_ignoring_range_restarts_the_shard` / `size_mismatch_is_reported_and_nothing_is_left` / `decodes_chinese_through_the_font_tounicode_table` / `turns_the_parsed_outline_into_a_task_through_the_import_wizard` / `rate_limit_message_points_to_the_channel_not_to_signing_up` / `missing_file_and_server_errors_keep_their_own_wording` 锁定。
 
 ### 插件选项的文案约定
 

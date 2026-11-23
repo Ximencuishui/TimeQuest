@@ -233,6 +233,10 @@ export type TrackProvides = {
   goals?: GoalSeed[];
   /** 动机语料包的资源路径。 */
   motivation_pack?: string;
+  /** 赛道级错因白名单。装上就写进 `app_settings`，前后端读同一份。 */
+  mistake_reasons?: string[];
+  /** 赛道级学习方式。装上就写进 `app_settings`。 */
+  methods?: string[];
 };
 
 /** 插件选项的当前值：没设置过就用包里的默认值。 */

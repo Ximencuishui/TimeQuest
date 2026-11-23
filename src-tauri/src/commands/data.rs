@@ -1,4 +1,6 @@
-use crate::commands::mistakes::{normalize_graph_link, normalize_reason, normalize_subject};
+use crate::commands::mistakes::{
+    normalize_graph_link, normalize_reason_with, normalize_subject,
+};
 use crate::commands::notes::{normalize_color, normalize_note_date};
 use crate::commands::profile::{upsert_user_profile_row, user_profile_from_export};
 use crate::commands::subjects::subject_id_for_key;
@@ -824,7 +826,8 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
                     m.get("id").and_then(|v| v.as_i64()),
                     normalize_subject(m.get("subject").and_then(|v| v.as_str()).unwrap_or("")),
                     m.get("title").and_then(|v| v.as_str()).unwrap_or(""),
-                    normalize_reason(m.get("reason").and_then(|v| v.as_str()).unwrap_or("其他")),
+                    // 错因跟当前赛道的白名单走：前后端读同一份来源。
+                    normalize_reason_with(&tx, m.get("reason").and_then(|v| v.as_str()).unwrap_or("其他")),
                     m.get("correct_note").and_then(|v| v.as_str()).unwrap_or(""),
                     m.get("is_mastered").and_then(|v| v.as_i64()).unwrap_or(0),
                     m.get("created_at").and_then(|v| v.as_str()),

@@ -5184,7 +5184,7 @@ dependencies = [
 
 [[package]]
 name = "timequest"
-version = "3.10.1"
+version = "4.0.0"
 dependencies = [
  "chrono",
  "lopdf",

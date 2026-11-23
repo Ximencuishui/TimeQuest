@@ -13,6 +13,7 @@ import { useAchievements, useUserStats } from "../hooks/useStats";
 import { useAppSetting, useSetSetting } from "../hooks/useAppSetting";
 import { todayStr } from "../lib/date";
 import { dailyMotivation } from "../lib/motivation";
+import { useMotivationLines } from "../hooks/useMotivationLines";
 import { format } from "date-fns";
 import { ProfileSetting } from "../components/ProfileSetting";
 import { TrackSetting } from "../components/TrackSetting";
@@ -42,7 +43,9 @@ function MotivationSetting() {
   const [draft, setDraft] = useState<string | null>(null);
   const value = draft ?? data ?? "";
   const showingDefault = value.trim() === "";
-  const todayLine = dailyMotivation(todayStr());
+  // 语料跟着赛道走：赛道包装了语料包就用它的。
+  const lines = useMotivationLines();
+  const todayLine = dailyMotivation(todayStr(), lines);
 
   const save = (next: string) => {
     setSetting.mutate(next);

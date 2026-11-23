@@ -9,7 +9,7 @@
 <h1 align="center">TimeQuest</h1>
 
 <p align="center">
-  <strong>TimeQuest — 专为自学者打造的全息时间与目标管理神器。本地优先，无账号，数据全在本地。</strong>
+  <strong>TimeQuest — 专为自学打造的全息时间与目标管理神器。本地优先，无账号，数据全在本地。</strong>
 </p>
 
 <p align="center">

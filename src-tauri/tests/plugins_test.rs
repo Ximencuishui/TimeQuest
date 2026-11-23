@@ -467,6 +467,41 @@ fn gaokao_track_package(conn: &Connection) -> PluginInfo {
         .expect("内置仓库里应该有高考赛道包")
 }
 
+/// 赛道包与普通插件在清单里能区分开。
+#[tokio::test]
+async fn catalog_distinguishes_track_packages_from_regular_plugins() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    let plugins = list_plugins_impl(&conn).expect("list plugins");
+    let track_package = plugins
+        .iter()
+        .find(|plugin| plugin.id == "track-gaokao")
+        .expect("内置仓库里要有高考赛道包");
+    assert_eq!(track_package.kind, "track");
+    let provides = track_package.provides.as_ref().expect("provides");
+    assert_eq!(
+        provides.track.as_ref().map(|track| track.name.as_str()),
+        Some("高考")
+    );
+    assert_eq!(provides.subjects.len(), 6);
+    assert_eq!(provides.goals.len(), 1);
+    // 目标日期由包里的日期规则算出来，不硬编码。
+    assert!(provides
+        .goals
+        .first()
+        .and_then(|goal| goal.date_rule.as_ref())
+        .is_some());
+
+    for plugin in &plugins {
+        if plugin.id == "track-gaokao" {
+            continue;
+        }
+        assert_eq!(plugin.kind, "plugin", "其它插件还是普通插件");
+    }
+
+    let _ = std::fs::remove_file(&path);
+}
+
 /// 一条自定义赛道包提供的内容：考研。
 fn kaoyan_provides() -> TrackProvides {
     TrackProvides {

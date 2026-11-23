@@ -11,7 +11,7 @@
 
 mod common;
 
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 use sqlx::sqlite::SqlitePoolOptions;
 use std::path::PathBuf;
 use timequest_lib::{
@@ -225,6 +225,79 @@ fn normalize_reason_in_uses_the_given_whitelist() {
 
     // 空白名单：兜底「其他」。
     assert_eq!(normalize_reason_in(&[], "瞎写的"), "其他");
+}
+
+/// 配坏的白名单（不是 JSON / 空表）→ 回落内置表，不能把错因表搞空。
+#[tokio::test]
+async fn broken_reason_whitelist_falls_back_to_the_builtin_one() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    conn.execute(
+        "INSERT INTO app_settings (key, value, updated_at) VALUES (?1, ?2, datetime('now'))",
+        params![TRACK_MISTAKE_REASONS_SETTING_KEY, "不是 JSON"],
+    )
+    .expect("write broken setting");
+
+    assert_eq!(
+        reason_whitelist(&conn),
+        REASON_WHITELIST
+            .iter()
+            .map(|reason| reason.to_string())
+            .collect::<Vec<_>>()
+    );
+
+    let created = create_mistake_impl(
+        &conn,
+        new_mistake("物理", "题", "概念不清", "", None, None, None),
+    )
+    .expect("create");
+    assert_eq!(created.reason, "概念不清");
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 改错因也按当前白名单归一。
+#[tokio::test]
+async fn update_mistake_normalizes_with_the_configured_whitelist() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    set_list_setting_impl(
+        &conn,
+        TRACK_MISTAKE_REASONS_SETTING_KEY,
+        &["没听懂".to_string(), "其他".to_string()],
+    )
+    .expect("write whitelist");
+
+    let created = create_mistake_impl(
+        &conn,
+        new_mistake("英语", "题", "其他", "", None, None, None),
+    )
+    .expect("create");
+
+    let updated = update_mistake_impl(
+        &conn,
+        created.id,
+        UpdateMistakePayload {
+            reason: Some("没听懂".into()),
+            ..Default::default()
+        },
+    )
+    .expect("update");
+    assert_eq!(updated.reason, "没听懂");
+
+    // 清单外的错因在改的时候也要归到「其他」。
+    let updated = update_mistake_impl(
+        &conn,
+        created.id,
+        UpdateMistakePayload {
+            reason: Some("公式记错".into()),
+            ..Default::default()
+        },
+    )
+    .expect("update");
+    assert_eq!(updated.reason, "其他");
+
+    let _ = std::fs::remove_file(&path);
 }
 
 #[test]
