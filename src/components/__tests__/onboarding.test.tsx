@@ -68,6 +68,7 @@ describe("Onboarding", () => {
               date: payload.date,
               kind: payload.kind ?? existing.kind,
               isPrimary: payload.isPrimary ?? existing.isPrimary,
+              targetScore: payload.targetScore ?? existing.targetScore,
             }
           : {
               id: goals.reduce((max, goal) => Math.max(max, goal.id), 0) + 1,
@@ -76,7 +77,7 @@ describe("Onboarding", () => {
               date: payload.date,
               kind: payload.kind ?? "exam",
               isPrimary: payload.isPrimary ?? false,
-              targetScore: null,
+              targetScore: payload.targetScore ?? null,
               createdAt: "2026-11-06 12:00:00",
             };
         goals = existing
@@ -103,25 +104,44 @@ describe("Onboarding", () => {
     vi.useRealTimers();
   });
 
-  async function reachStepTwo() {
+  /** 第 1 步选方向 → 第 2 步填目标 → 第 3 步确认。 */
+  async function reachStepThree() {
     renderGate();
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "开始之前" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "你在为什么努力" })).toBeInTheDocument();
     });
+    // 方向卡片：高考 / 考研 / 语言学习 / 技能习得 / 自定义
+    expect(screen.getByRole("button", { name: /高考/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /考研/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /语言学习/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /技能习得/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /自定义/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+
+    expect(screen.getByRole("heading", { name: "定下目标" })).toBeInTheDocument();
+    expect(screen.getByLabelText("目标名称")).toHaveValue("高考");
+    // 六科默认值不变
+    expect(screen.getByLabelText("语文")).toHaveValue("120");
+    expect(screen.getByLabelText("数学")).toHaveValue("130");
+    expect(screen.getByLabelText("英语")).toHaveValue("120");
+    expect(screen.getByLabelText("物理")).toHaveValue("80");
+    expect(screen.getByLabelText("化学")).toHaveValue("80");
+    expect(screen.getByLabelText("生物")).toHaveValue("80");
+
     expect(screen.getByRole("button", { name: "下一步" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "高一" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "高二" }));
     fireEvent.change(screen.getByLabelText("地区"), { target: { value: "湖南" } });
-    fireEvent.change(screen.getByLabelText("高考目标分"), { target: { value: "650" } });
+    fireEvent.change(screen.getByLabelText("总分目标"), { target: { value: "650" } });
     expect(screen.getByRole("button", { name: "下一步" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+
     expect(screen.getByRole("button", { name: "开启真实记录（推荐）" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "加载湖南高二演示数据" })).toBeInTheDocument();
-    expect(screen.getByText(/高考日 2028-06-07/)).toBeInTheDocument();
   }
 
   it("onboarding_real_start_saves_profile_and_skips_mock", async () => {
-    await reachStepTwo();
+    await reachStepThree();
     fireEvent.click(screen.getByRole("button", { name: "开启真实记录（推荐）" }));
 
     await waitFor(() => {
@@ -134,10 +154,16 @@ describe("Onboarding", () => {
       total_target: 650,
     });
     expect(goals.find((goal) => goal.isPrimary)?.date).toBe("2028-06-07");
+    expect(mockedInvoke).toHaveBeenCalledWith(
+      "upsert_goal",
+      expect.objectContaining({
+        payload: expect.objectContaining({ date: "2028-06-07", name: "高考" }),
+      }),
+    );
   });
 
   it("onboarding_loads_hunan_demo_data", async () => {
-    await reachStepTwo();
+    await reachStepThree();
     fireEvent.click(screen.getByRole("button", { name: "加载湖南高二演示数据" }));
 
     await waitFor(() => {
@@ -147,6 +173,55 @@ describe("Onboarding", () => {
     expect(saved?.grade).toBe("高二");
     expect(saved?.region).toBe("湖南");
     expect(goals.find((goal) => goal.isPrimary)?.date).toBe("2028-06-07");
+  });
+
+  it("onboarding_placeholder_track_falls_back_to_custom", async () => {
+    renderGate();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "你在为什么努力" })).toBeInTheDocument();
+    });
+
+    // 考研还没落地，选中后按「自定义」分支走。
+    fireEvent.click(screen.getByRole("button", { name: /考研/ }));
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+
+    expect(screen.getByRole("heading", { name: "定下目标" })).toBeInTheDocument();
+    expect(screen.getByLabelText("目标名称")).toHaveValue("我的目标");
+    // 自定义赛道不问年级 / 地区，也没有科目清单。
+    expect(screen.queryByRole("button", { name: "高二" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("地区")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("语文")).not.toBeInTheDocument();
+    // 不计总分，满分上限不写死。
+    expect(screen.getByLabelText("总分目标")).toHaveAttribute("placeholder", "可留空");
+  });
+
+  it("onboarding_custom_track_has_no_subjects", async () => {
+    renderGate();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "你在为什么努力" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /自定义/ }));
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+
+    expect(screen.getByLabelText("目标名称")).toHaveValue("我的目标");
+    expect(screen.queryByRole("button", { name: "高二" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("地区")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("语文")).not.toBeInTheDocument();
+  });
+
+  it("onboarding_target_score_has_no_hardcoded_750_limit", async () => {
+    renderGate();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "你在为什么努力" })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+
+    // 高考模板的满分上限来自模板本身（750），不是写死的常量。
+    expect(screen.getByLabelText("总分目标")).toHaveAttribute("placeholder", "1–750");
+    fireEvent.change(screen.getByLabelText("地区"), { target: { value: "湖南" } });
+    fireEvent.change(screen.getByLabelText("总分目标"), { target: { value: "800" } });
+    expect(screen.getByText(/总分目标需要是 1 到 750 的整数/)).toBeInTheDocument();
   });
 
   it("onboarding_hides_when_already_completed", async () => {
@@ -159,6 +234,6 @@ describe("Onboarding", () => {
       );
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "开始之前" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "你在为什么努力" })).not.toBeInTheDocument();
   });
 });

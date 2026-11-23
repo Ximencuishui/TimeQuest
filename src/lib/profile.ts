@@ -71,6 +71,100 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   subject_targets: { ...DEFAULT_SUBJECT_TARGETS },
 };
 
+/**
+ * 引导第 1 步可选的学习方向。
+ *
+ * 4.0 起高考只是其中一条赛道，不再是产品的形态。其它方向先占位：
+ * 选中后按「自定义」处理，等模板真正落地再各自展开。
+ */
+export type TrackTemplateId = "gaokao" | "kaoyan" | "language" | "skill" | "custom";
+
+export type TrackTemplate = {
+  id: TrackTemplateId;
+  /** 卡片标题。 */
+  name: string;
+  /** 卡片副标题：一句话说清这条赛道要什么。 */
+  tagline: string;
+  /** 是否已经落地。false = 占位，选中后走「自定义」分支。 */
+  available: boolean;
+  /** 默认目标名称。 */
+  goalName: string;
+  /** 科目清单。没有科目的赛道不计总分。 */
+  subjects: { key: SubjectKey; label: string; goal: number }[];
+  /** 总分满分。0 表示这条赛道不计总分。 */
+  maxScore: number;
+  /** 是否需要年级 / 地区这类上下文（高考需要）。 */
+  requiresGaokaoContext: boolean;
+};
+
+/** 高考的六科：科目清单即目标分清单。 */
+const GAOKAO_SUBJECTS = SUBJECT_FIELDS.map((field) => ({
+  key: field.key,
+  label: field.label,
+  goal: DEFAULT_SUBJECT_TARGETS[field.key],
+}));
+
+export const TRACK_TEMPLATES: TrackTemplate[] = [
+  {
+    id: "gaokao",
+    name: "高考",
+    tagline: "按年级计天数到考试日，六科既有满分也有目标分。",
+    available: true,
+    goalName: "高考",
+    subjects: GAOKAO_SUBJECTS,
+    maxScore: 750,
+    requiresGaokaoContext: true,
+  },
+  {
+    id: "kaoyan",
+    name: "考研",
+    tagline: "初试到复试的长线倒计时，分数制。",
+    available: false,
+    goalName: "考研",
+    subjects: [],
+    maxScore: 500,
+    requiresGaokaoContext: false,
+  },
+  {
+    id: "language",
+    name: "语言学习",
+    tagline: "零基础、托福或日常用语，按考试日计时。",
+    available: false,
+    goalName: "语言学习",
+    subjects: [],
+    maxScore: 100,
+    requiresGaokaoContext: false,
+  },
+  {
+    id: "skill",
+    name: "技能习得",
+    tagline: "编程、乐器、健身这类以周为单位的目标。",
+    available: false,
+    goalName: "技能习得",
+    subjects: [],
+    maxScore: 0,
+    requiresGaokaoContext: false,
+  },
+  {
+    id: "custom",
+    name: "自定义",
+    tagline: "自己起名字，定个日期，想考几分填几分。",
+    available: true,
+    goalName: "我的目标",
+    subjects: [],
+    maxScore: 0,
+    requiresGaokaoContext: false,
+  },
+];
+
+/** 取一条赛道模板；认不出来时回落到最后一条（自定义）。 */
+export function trackTemplateById(id: TrackTemplateId): TrackTemplate {
+  return (
+    TRACK_TEMPLATES.find((template) => template.id === id) ??
+    (TRACK_TEMPLATES[TRACK_TEMPLATES.length - 1] as TrackTemplate)
+  );
+}
+
 export function subjectTargetSum(targets: SubjectTargets): number {
   return SUBJECT_FIELDS.reduce((sum, field) => sum + targets[field.key], 0);
 }
