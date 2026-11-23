@@ -42,8 +42,11 @@ import type {
   TextbookCatalogItem,
   TextbookOutline,
   TopicMistakes,
+  Track,
   UpdateMistakePayload,
   UpsertGoalPayload,
+  UpsertSubjectPayload,
+  UpsertTrackPayload,
   UserAchievement,
   UserProfile,
   UserStats,
@@ -274,7 +277,15 @@ export const api = {
   getUserProfile: () => invoke<UserProfile>("get_user_profile"),
   updateUserProfile: (profile: UserProfile) =>
     invoke<UserProfile>("update_user_profile", { profile }),
-  listSubjects: () => invoke<Subject[]>("list_subjects"),
+  listSubjects: (trackId?: number | null) =>
+    invoke<Subject[]>("list_subjects", { trackId: trackId ?? null }),
+  upsertSubject: (payload: UpsertSubjectPayload) =>
+    invoke<Subject>("upsert_subject", { payload }),
+  removeSubject: (id: number) => invoke<void>("remove_subject", { id }),
+  listTracks: () => invoke<Track[]>("list_tracks"),
+  upsertTrack: (payload: UpsertTrackPayload) =>
+    invoke<Track>("upsert_track", { payload }),
+  removeTrack: (id: number) => invoke<void>("remove_track", { id }),
   listExamSessions: () => invoke<ExamSession[]>("list_exam_sessions"),
   createExamSession: (payload: CreateExamSessionPayload) =>
     invoke<ExamSession>("create_exam_session", { payload }),

@@ -3,7 +3,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_USER_PROFILE } from "../../lib/profile";
-import type { Goal, UpsertGoalPayload, UserProfile } from "../../types";
+import { SUBJECT_FIXTURES } from "../../test/subjectFixtures";
+import type {
+  Goal,
+  UpsertGoalPayload,
+  UpsertSubjectPayload,
+  UserProfile,
+} from "../../types";
 import { ONBOARDING_KEY, OnboardingGate } from "../Onboarding";
 
 const mockedInvoke = vi.mocked(invoke);
@@ -57,6 +63,11 @@ describe("Onboarding", () => {
         return saved;
       }
       if (cmd === "list_goals") return goals;
+      if (cmd === "list_subjects") return SUBJECT_FIXTURES;
+      if (cmd === "upsert_subject") {
+        const payload = (args as { payload: UpsertSubjectPayload }).payload;
+        return { ...payload, id: payload.id ?? 0 };
+      }
       if (cmd === "upsert_goal") {
         const payload = (args as { payload: UpsertGoalPayload }).payload;
         const existing =
@@ -158,6 +169,13 @@ describe("Onboarding", () => {
       "upsert_goal",
       expect.objectContaining({
         payload: expect.objectContaining({ date: "2028-06-07", name: "高考" }),
+      }),
+    );
+    // 4.0 起各科目标写进 `subjects` 表，不再塞进档案。
+    expect(mockedInvoke).toHaveBeenCalledWith(
+      "upsert_subject",
+      expect.objectContaining({
+        payload: expect.objectContaining({ key: "math", goal: 130 }),
       }),
     );
   });

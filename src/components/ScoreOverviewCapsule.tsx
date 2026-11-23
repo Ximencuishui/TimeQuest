@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
 import { useExamSessions } from "../hooks/useExamSessions";
+import { useGoals } from "../hooks/useGoals";
 import { useSubjects } from "../hooks/useSubjects";
 import { useUserProfile } from "../hooks/useUserProfile";
+import { resolvePrimaryGoal } from "../lib/goals";
 import { buildScoreOverview, type ScoreOverview } from "../lib/scoreOverview";
 import type { ExamSession, Subject } from "../types";
 
@@ -77,13 +79,16 @@ export function DashboardScoreOverview() {
   const { data: sessions } = useExamSessions();
   const { data: subjects } = useSubjects();
   const { data: profile } = useUserProfile();
-  // 总分目标暂时还从旧档案读：`goals.target_score` 要等档案迁移那步才补上，
-  // 在那之前读它会让旧库用户凭空丢掉总分目标线。
+  const { data: goals = [] } = useGoals();
+  // 总分目标的权威源是主目标的 `target_score`（4.0 起目标落在 `goals` 表）。
+  // 旧库还没回填时退回档案的 `total_target`，别让目标线凭空消失。
+  const primaryGoal = resolvePrimaryGoal(goals);
+  const totalTarget = primaryGoal?.targetScore ?? profile?.total_target ?? null;
   return (
     <ScoreOverviewCapsule
       sessions={sessions ?? []}
       subjects={subjects ?? []}
-      totalTarget={profile ? profile.total_target : null}
+      totalTarget={totalTarget}
     />
   );
 }

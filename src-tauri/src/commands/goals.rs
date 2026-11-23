@@ -107,13 +107,13 @@ pub fn upsert_goal_impl(
             if exists.is_none() {
                 return Err("目标不存在".to_string());
             }
-            // track_id 没传就保持原样，别把已有的赛道抹掉。
+            // track_id / target_score 没传就保持原样，别把已有的赛道与总分目标抹掉。
             tx.execute(
                 r#"UPDATE goals
                       SET name = ?1,
                           date = ?2,
                           kind = ?3,
-                          target_score = ?4,
+                          target_score = COALESCE(?4, target_score),
                           track_id = COALESCE(?5, track_id)
                     WHERE id = ?6"#,
                 params![
@@ -210,7 +210,7 @@ pub fn set_primary_goal_impl(conn: &Connection, id: i64) -> Result<(), String> {
 /// 库里一条目标都没有时补一条默认目标（首次启动 / 导入旧备份用）。
 ///
 /// 已经有目标就什么都不做：这是幂等操作，反复调用不会多出重复行。
-/// 总分目标从旧档案搬过来。
+/// 总分目标从旧档案搬过来，赛道跟着当前主赛道。
 pub fn seed_default_goal_impl(conn: &Connection) -> Result<(), String> {
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM goals", [], |r| r.get(0))
@@ -218,6 +218,14 @@ pub fn seed_default_goal_impl(conn: &Connection) -> Result<(), String> {
     if count > 0 {
         return Ok(());
     }
+    let track_id: Option<i64> = conn
+        .query_row(
+            "SELECT id FROM tracks WHERE is_primary = 1 ORDER BY id ASC LIMIT 1",
+            [],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
     let target_score: Option<f64> = conn
         .query_row("SELECT total_target FROM user_profile WHERE id = 1", [], |r| {
             r.get::<_, i64>(0).map(|value| value as f64)
@@ -226,8 +234,9 @@ pub fn seed_default_goal_impl(conn: &Connection) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     conn.execute(
         "INSERT INTO goals (track_id, name, date, kind, is_primary, target_score)
-         VALUES (NULL, ?1, ?2, ?3, 1, ?4)",
+         VALUES (?1, ?2, ?3, ?4, 1, ?5)",
         params![
+            track_id,
             DEFAULT_GOAL_NAME,
             DEFAULT_GOAL_DATE,
             GOAL_KIND_EXAM,

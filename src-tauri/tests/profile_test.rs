@@ -5,8 +5,7 @@ use serde_json::Value;
 use sqlx::sqlite::SqlitePoolOptions;
 use std::path::PathBuf;
 use timequest_lib::{
-    export_json_impl, get_user_profile_impl, import_json_impl, update_user_profile_impl,
-    SubjectTargets, UserProfile,
+    export_json_impl, get_user_profile_impl, import_json_impl, update_user_profile_impl, UserProfile,
 };
 
 async fn open_rusqlite_migrated() -> (PathBuf, Connection) {
@@ -49,12 +48,7 @@ async fn get_user_profile_reads_migration_default_and_reinserts_when_empty() {
     assert_eq!(profile_count(&conn), 1, "migration inserts the singleton");
     let seeded = get_user_profile_impl(&conn).expect("read seed");
     assert_eq!(seeded, UserProfile::default());
-    assert_eq!(
-        seeded.total_target,
-        seeded.subject_targets.sum(),
-        "default total matches the six subjects"
-    );
-    assert_eq!(seeded.subject_targets, SubjectTargets::default());
+    assert_eq!(seeded.total_target, 610);
     assert!(seeded.avatar.is_none());
 
     conn.execute("DELETE FROM user_profile", [])
@@ -76,14 +70,12 @@ async fn update_user_profile_overwrites_single_row_and_rejects_negative() {
     next.grade = " 高三 ".to_string();
     next.region = " 湖南省 ".to_string();
     next.total_target = 600;
-    next.subject_targets.math = 140;
     next.avatar = Some("data:image/png;base64,abc".to_string());
 
     let saved = update_user_profile_impl(&conn, next.clone()).expect("update");
     assert_eq!(saved.grade, "高三");
     assert_eq!(saved.region, "湖南省");
     assert_eq!(saved.total_target, 600);
-    assert_eq!(saved.subject_targets.math, 140);
     assert_eq!(saved.avatar.as_deref(), Some("data:image/png;base64,abc"));
     assert_eq!(profile_count(&conn), 1, "update stays one row");
 
@@ -101,18 +93,6 @@ async fn update_user_profile_overwrites_single_row_and_rejects_negative() {
         600
     );
 
-    let mut subject_bad = saved.clone();
-    subject_bad.subject_targets.physics = -5;
-    let err = update_user_profile_impl(&conn, subject_bad).expect_err("negative subject");
-    assert!(err.contains("物理"), "got {err}");
-    assert_eq!(
-        get_user_profile_impl(&conn)
-            .expect("unchanged subject")
-            .subject_targets
-            .physics,
-        SubjectTargets::default().physics
-    );
-
     let _ = std::fs::remove_file(&path);
 }
 
@@ -123,7 +103,6 @@ async fn user_profile_survives_export_import_and_old_backup_resets_default() {
     let mut custom = UserProfile::default();
     custom.region = "湖南省".to_string();
     custom.total_target = 600;
-    custom.subject_targets.chinese = 110;
     custom.avatar = Some("data:image/png;base64,qq".to_string());
     update_user_profile_impl(&conn, custom.clone()).expect("seed custom");
 
@@ -131,7 +110,6 @@ async fn user_profile_survives_export_import_and_old_backup_resets_default() {
     let parsed: Value = serde_json::from_str(&exported).expect("parse");
     assert_eq!(parsed["user_profile"]["region"], "湖南省");
     assert_eq!(parsed["user_profile"]["total_target"], 600);
-    assert_eq!(parsed["user_profile"]["subject_targets"]["chinese"], 110);
     assert_eq!(parsed["user_profile"]["avatar"], "data:image/png;base64,qq");
     assert!(parsed["user_profile"].get("id").is_none());
 
@@ -142,7 +120,6 @@ async fn user_profile_survives_export_import_and_old_backup_resets_default() {
     let restored = get_user_profile_impl(&conn).expect("after import");
     assert_eq!(restored.region, "湖南省");
     assert_eq!(restored.total_target, 600);
-    assert_eq!(restored.subject_targets.chinese, 110);
     assert_eq!(restored.avatar.as_deref(), Some("data:image/png;base64,qq"));
 
     let mut without_profile = parsed.clone();

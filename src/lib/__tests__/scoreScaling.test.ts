@@ -92,9 +92,9 @@ describe("score scaling", () => {
 
   it("subjects_without_a_full_mark_do_not_break_the_scaling", () => {
     const noFullMark: Subject[] = [
-      { id: 11, key: "a", label: "甲", fullMark: null, goal: null, unit: null, orderIndex: 0 },
-      { id: 12, key: "b", label: "乙", fullMark: 100, goal: 100, unit: "分", orderIndex: 1 },
-      { id: 13, key: "c", label: "丙", fullMark: null, goal: null, unit: null, orderIndex: 2 },
+      { id: 11, key: "a", label: "甲", fullMark: null, goal: null, unit: null, orderIndex: 0, trackId: 1 },
+      { id: 12, key: "b", label: "乙", fullMark: 100, goal: 100, unit: "分", orderIndex: 1, trackId: 1 },
+      { id: 13, key: "c", label: "丙", fullMark: null, goal: null, unit: null, orderIndex: 2, trackId: 1 },
     ];
     const session = examSession(3, "三科", "2026-11-03", [80, 90, null], noFullMark);
     const breakdown = examScoreBreakdown(session, noFullMark);

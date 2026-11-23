@@ -1,4 +1,4 @@
-import type { SubjectTargets, UserProfile } from "../types";
+import type { UserProfile } from "../types";
 
 export const SUBJECT_FIELDS = [
   { key: "chinese", label: "语文" },
@@ -53,8 +53,13 @@ export const PROVINCES = [
 
 const PROVINCE_SET = new Set<string>(PROVINCES);
 
-/** 语文 120 + 数学 130 + 英语 120 + 理化生各 80。 */
-export const DEFAULT_SUBJECT_TARGETS: SubjectTargets = {
+/**
+ * 高考六科的默认目标分。
+ *
+ * 4.0 起这只是「高考」赛道模板的种子数据，不再是权威来源——
+ * 真正的目标落在 `subjects` 表的 `goal` 列上。
+ */
+export const DEFAULT_SUBJECT_TARGETS = {
   chinese: 120,
   math: 130,
   english: 120,
@@ -68,7 +73,6 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   grade: "高三",
   region: "",
   total_target: 610,
-  subject_targets: { ...DEFAULT_SUBJECT_TARGETS },
 };
 
 /**
@@ -165,10 +169,6 @@ export function trackTemplateById(id: TrackTemplateId): TrackTemplate {
   );
 }
 
-export function subjectTargetSum(targets: SubjectTargets): number {
-  return SUBJECT_FIELDS.reduce((sum, field) => sum + targets[field.key], 0);
-}
-
 /** 短名或带省/市/自治区后缀的写法都收成下拉里的那一项。对不上时返回 null。 */
 export function canonicalProvince(raw: string): string | null {
   const trimmed = raw.trim();
@@ -209,20 +209,14 @@ export type ProfileDraft = {
   grade: string;
   region: string;
   totalTarget: string;
-  subjects: Record<SubjectKey, string>;
 };
 
 export function profileToDraft(profile: UserProfile): ProfileDraft {
-  const subjects = {} as Record<SubjectKey, string>;
-  for (const field of SUBJECT_FIELDS) {
-    subjects[field.key] = String(profile.subject_targets[field.key]);
-  }
   return {
     avatar: profile.avatar,
     grade: profile.grade,
     region: profile.region,
     totalTarget: String(profile.total_target),
-    subjects,
   };
 }
 
@@ -240,14 +234,6 @@ export function parseProfileDraft(
   if (total == null) {
     return { ok: false, message: "总分目标请输入非负整数" };
   }
-  const subjects = {} as SubjectTargets;
-  for (const field of SUBJECT_FIELDS) {
-    const score = parseScore(draft.subjects[field.key].trim());
-    if (score == null) {
-      return { ok: false, message: `${field.label}目标请输入非负整数` };
-    }
-    subjects[field.key] = score;
-  }
   const regionRaw = draft.region.trim();
   const region = canonicalProvince(regionRaw);
   if (regionRaw && !region) {
@@ -260,7 +246,6 @@ export function parseProfileDraft(
       grade: draft.grade.trim(),
       region: region ?? "",
       total_target: total,
-      subject_targets: subjects,
     },
   };
 }

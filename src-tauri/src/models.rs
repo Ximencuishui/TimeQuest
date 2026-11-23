@@ -395,31 +395,31 @@ impl SubjectTargets {
 }
 
 /// Singleton row `user_profile.id = 1`. `avatar` is a data URL or a local path.
+///
+/// 4.0 起各科目标落在 `subjects` 表、总分目标落在 `goals.target_score`，
+/// 档案只留头像 / 年级 / 地区这类上下文信息。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UserProfile {
     pub avatar: Option<String>,
     pub grade: String,
     pub region: String,
     pub total_target: i64,
-    pub subject_targets: SubjectTargets,
 }
 
 impl Default for UserProfile {
     fn default() -> Self {
-        let subject_targets = SubjectTargets::default();
         Self {
             avatar: None,
             grade: "高三".to_string(),
             region: String::new(),
-            total_target: subject_targets.sum(),
-            subject_targets,
+            total_target: 610,
         }
     }
 }
 
-/// 科目字典的一行。
+/// 科目字典里的一科。
 ///
-/// 4.0 起成绩按科目逐行落库，科目集合放在 `subjects` 表里，不再写死六科。
+/// 4.0 起成绩按科目逐行存，科目集合由赛道决定，不再写死六科。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Subject {
@@ -428,7 +428,7 @@ pub struct Subject {
     pub key: String,
     /// 显示名，如「语文」。
     pub label: String,
-    /// 满分，可空（这条赛道没固定满分时可以不填）。
+    /// 满分，可空（不按满分折算的赛道可以不填）。
     pub full_mark: Option<f64>,
     /// 目标分，可空。
     pub goal: Option<f64>,
@@ -436,9 +436,61 @@ pub struct Subject {
     pub unit: Option<String>,
     /// 排序序号，越小越靠前。
     pub order_index: i64,
+    /// 所属赛道。可空（还没归到任何赛道下的历史行）。
+    pub track_id: Option<i64>,
 }
 
-/// 一条成绩行：一次考试里的一科。
+/// 新建 / 修改一科的请求体。
+///
+/// `id` 有值就是改这一科，没有就是新建。`key` 不传就按 label 生成一个。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertSubjectPayload {
+    pub id: Option<i64>,
+    /// 所属赛道。
+    pub track_id: Option<i64>,
+    /// 稳定标识。新建时必填。
+    pub key: Option<String>,
+    /// 显示名。
+    pub label: String,
+    pub full_mark: Option<f64>,
+    pub goal: Option<f64>,
+    pub unit: Option<String>,
+    pub order_index: Option<i64>,
+}
+
+/// 一条赛道：一种学习方向。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Track {
+    pub id: i64,
+    /// 赛道名称，如「高考」。
+    pub name: String,
+    /// 赛道类型：`exam` / `skill` / `course`。
+    pub kind: String,
+    /// 计分方式：`total` / `per_subject` / `band`。
+    pub score_mode: String,
+    /// 是不是当前主赛道。全库最多一个。
+    pub is_primary: bool,
+    /// 主题色，可空。
+    pub color: Option<String>,
+    pub created_at: String,
+}
+
+/// 新建 / 修改一条赛道的请求体。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertTrackPayload {
+    pub id: Option<i64>,
+    pub name: String,
+    /// 不传就沿用旧值 / 默认值。
+    pub kind: Option<String>,
+    pub score_mode: Option<String>,
+    pub is_primary: Option<bool>,
+    pub color: Option<String>,
+}
+
+/// 一场考试里的一科成绩。
 ///
 /// `score` 为 `None` 表示这场没考这科（不是 0 分）。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -450,21 +502,21 @@ pub struct ExamScore {
     pub score: Option<f64>,
 }
 
-/// 一次考试（场次）。
+/// 一次考试场次。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExamSession {
     pub id: i64,
     /// 所属赛道。`tracks` 表要等 P1-2 才建，先允许为空。
     pub track_id: Option<i64>,
-    /// 考试名称，如「一模」。
+    /// 场次名称，如「一模」。
     pub name: String,
     /// 考试日期，`YYYY-MM-DD`。
     pub date: String,
     pub created_at: String,
 }
 
-/// 一次考试（场次）+ 它的各科成绩。
+/// 一次考试场次 + 它的各科成绩。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExamSessionWithScores {
@@ -485,7 +537,7 @@ pub struct ExamScoreInput {
     pub score: Option<f64>,
 }
 
-/// 新建一次考试（场次 + 各科成绩）。
+/// 新建一次考试场次 + 各科成绩。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateExamSessionPayload {
@@ -505,7 +557,7 @@ pub struct Goal {
     pub id: i64,
     /// 所属赛道。`tracks` 表要等 P1-2 才建，先允许为空。
     pub track_id: Option<i64>,
-    /// 目标名称，如「高考」。
+    /// 目标名称，如「高考」「一模」。
     pub name: String,
     /// 目标日期，`YYYY-MM-DD`。
     pub date: String,
@@ -520,7 +572,7 @@ pub struct Goal {
 
 /// 新建 / 修改一条目标的请求体。
 ///
-/// `id` 有值就是改这一条，没有则是新建。
+/// `id` 有值就是改这一条，没有就是新建。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct UpsertGoalPayload {

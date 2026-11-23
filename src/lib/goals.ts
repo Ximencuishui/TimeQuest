@@ -1,7 +1,7 @@
 import { api } from "../api/tauri";
 import { DEFAULT_EXAM_DATE, DEFAULT_GOAL_NAME } from "./constants";
 import { daysBetween } from "./dateField";
-import type { Goal } from "../types";
+import type { Goal, Track } from "../types";
 
 /** 4.0 之前倒计时目标存在 localStorage 里，现在改存数据库。 */
 export const LEGACY_EXAMS_KEY = "timequest.exams";
@@ -101,6 +101,25 @@ export async function migrateLegacyGoals(): Promise<boolean> {
       }
     }
 
+    // 老版本的 localStorage 目标里既没有总分目标也没有赛道。
+    // 总分目标从档案的 `total_target` 搬过来，赛道挂到当前主赛道——
+    // 免得搬完成绩页的目标线凭空消失，目标也游离在赛道之外。
+    let totalTarget: number | null = null;
+    try {
+      const profile = await api.getUserProfile();
+      totalTarget = profile.total_target ?? null;
+    } catch {
+      totalTarget = null;
+    }
+    let tracks: Track[] = [];
+    try {
+      tracks = (await api.listTracks()) ?? [];
+    } catch {
+      tracks = [];
+    }
+    const trackId =
+      tracks.find((track) => track.isPrimary)?.id ?? tracks[0]?.id ?? null;
+
     let hasPrimary = false;
     for (const item of legacy) {
       const goal = await api.upsertGoal({
@@ -108,6 +127,8 @@ export async function migrateLegacyGoals(): Promise<boolean> {
         date: item.date,
         kind: "exam",
         isPrimary: item.isPrimary,
+        trackId,
+        targetScore: item.isPrimary ? totalTarget : undefined,
       });
       created.push(goal.id);
       if (goal.isPrimary) hasPrimary = true;

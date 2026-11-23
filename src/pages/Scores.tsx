@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Modal } from "../components/Modal";
 import { ScoreTrendChart } from "../components/ScoreTrendChart";
 import { useExamSessionMutations, useExamSessions } from "../hooks/useExamSessions";
+import { useGoals } from "../hooks/useGoals";
 import { useSubjects } from "../hooks/useSubjects";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { todayStr } from "../lib/date";
@@ -14,6 +15,7 @@ import {
   type ExamScoreDraft,
 } from "../lib/examRecord";
 import { DEFAULT_USER_PROFILE, profileLine } from "../lib/profile";
+import { resolvePrimaryGoal } from "../lib/goals";
 import { examScoreBreakdown, scaledTotalNote } from "../lib/scoreScaling";
 import type { ScoreTargets } from "../lib/scoreTrend";
 import { sessionScore } from "../lib/subjects";
@@ -187,17 +189,21 @@ export function Scores() {
   const { data: sessions = [], isLoading, isError } = useExamSessions();
   const { data: subjects = [] } = useSubjects();
   const { data: profile } = useUserProfile();
+  const { data: goals = [] } = useGoals();
   const { remove } = useExamSessionMutations();
   const [open, setOpen] = useState(false);
   const line = profile ? profileLine(profile.grade, profile.region) : "";
 
-  // 总分目标暂时还从旧档案读：`goals.target_score` 要等档案迁移那步才补上，
-  // 在那之前读它会让旧库用户凭空丢掉总分目标线。
+  // 总分目标的权威源是主目标的 `target_score`（4.0 起目标落在 `goals` 表）。
+  // 旧库还没回填时退回档案的 `total_target`，别让目标线凭空消失。
+  const primaryGoal = resolvePrimaryGoal(goals);
   const targets = useMemo<ScoreTargets>(() => {
-    const next: ScoreTargets = { total: profile?.total_target ?? null };
+    const next: ScoreTargets = {
+      total: primaryGoal?.targetScore ?? profile?.total_target ?? null,
+    };
     for (const subject of subjects) next[subject.key] = subject.goal;
     return next;
-  }, [profile, subjects]);
+  }, [primaryGoal, profile, subjects]);
 
   const onDelete = (session: ExamSession) => {
     if (window.confirm(`确认删除「${session.name}」？`)) {

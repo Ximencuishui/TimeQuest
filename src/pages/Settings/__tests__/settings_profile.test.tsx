@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+﻿import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,7 +12,8 @@ import {
   resetGoalMocks,
   setGoalFixtures,
 } from "../../../test/mockGoals";
-import type { UserProfile } from "../../../types";
+import { SUBJECT_FIXTURES } from "../../../test/subjectFixtures";
+import type { UpsertSubjectPayload, UserProfile } from "../../../types";
 import { Settings } from "../../Settings.tsx";
 
 vi.mock("../../../hooks/useGoals", async () => await import("../../../test/mockGoals"));
@@ -67,6 +68,10 @@ describe("Settings profile", () => {
       if (cmd === "update_user_profile") {
         return (args as { profile: UserProfile }).profile;
       }
+      if (cmd === "list_subjects") return SUBJECT_FIXTURES;
+      if (cmd === "upsert_subject") {
+        return (args as { payload: UpsertSubjectPayload }).payload;
+      }
       if (cmd === "list_user_achievements") return [];
       return null;
     });
@@ -83,11 +88,13 @@ describe("Settings profile", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("地区")).toHaveValue("湖南");
     });
-    const math = screen.getByLabelText("数学");
-    expect(math).toHaveValue("130");
+    const mathGoal = screen.getByLabelText("数学 目标");
+    expect(mathGoal).toHaveValue("130");
     expect(screen.getByText("各科合计 610，与总分目标一致")).toBeInTheDocument();
 
-    fireEvent.change(math, { target: { value: "140" } });
+    fireEvent.change(mathGoal, { target: { value: "140" } });
+    // React 的 onBlur 跟的是 focusout，所以要 fireEvent.focusOut。
+    fireEvent.focusOut(mathGoal);
     expect(screen.getByText("各科合计 620，比总分目标多 10 分")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("总分目标"), { target: { value: "620" } });
@@ -100,21 +107,30 @@ describe("Settings profile", () => {
         (call) => call[0] === "update_user_profile",
       );
       expect(calls).toHaveLength(1);
+      // 4.0 起科目不再跟档案一起存，档案只留头像/年级/地区/总分目标。
       expect(calls[0]?.[1]).toEqual({
         profile: {
           avatar: LOADED.avatar,
           grade: "高三",
           region: "湖南",
           total_target: 620,
-          subject_targets: {
-            chinese: 120,
-            math: 140,
-            english: 120,
-            physics: 80,
-            chemistry: 80,
-            biology: 80,
-          },
         },
+      });
+    });
+
+    // 改科目目标走 `subjects` 表，不进档案。
+    await waitFor(() => {
+      const subjectCalls = mockedInvoke.mock.calls.filter(
+        (call) => call[0] === "upsert_subject",
+      );
+      expect(subjectCalls).toHaveLength(1);
+      expect(
+        (subjectCalls[0]?.[1] as { payload: UpsertSubjectPayload }).payload,
+      ).toMatchObject({
+        id: 2,
+        key: "math",
+        label: "数学",
+        goal: 140,
       });
     });
   });
@@ -230,3 +246,4 @@ describe("sidebar profile chip", () => {
     expect(images.some((img) => img.getAttribute("src") === LOADED.avatar)).toBe(true);
   });
 });
+

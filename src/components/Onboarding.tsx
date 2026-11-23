@@ -109,18 +109,30 @@ function Onboarding({ initial }: { initial: UserProfile }) {
     setError("");
     try {
       if (template.requiresGaokaoContext) {
-        const subjectTargets = { ...initial.subject_targets };
-        for (const subject of subjectRows) {
-          const raw = subjectGoals[subject.key]?.trim() ?? "";
-          if (/^\d+$/.test(raw)) subjectTargets[subject.key] = Number(raw);
-        }
         await update.mutateAsync({
           ...initial,
           grade,
           region: canonicalProvince(region) ?? region.trim(),
           total_target: score ?? initial.total_target,
-          subject_targets: subjectTargets,
         });
+        // 各科目标落在 `subjects` 表，不再塞进档案。库里已有的按 key 找出来改目标分。
+        const stored = (await api.listSubjects()) ?? [];
+        for (const subject of subjectRows) {
+          const raw = subjectGoals[subject.key]?.trim() ?? "";
+          if (!/^\d+$/.test(raw)) continue;
+          const goal = Number(raw);
+          const existing = stored.find((item) => item.key === subject.key);
+          if (!existing) continue;
+          await api.upsertSubject({
+            id: existing.id,
+            trackId: existing.trackId,
+            key: existing.key,
+            label: existing.label,
+            fullMark: existing.fullMark,
+            goal,
+            unit: existing.unit,
+          });
+        }
       }
 
       const goals = await api.listGoals();
@@ -142,6 +154,7 @@ function Onboarding({ initial }: { initial: UserProfile }) {
       await qc.invalidateQueries({ queryKey: ["user-stats"] });
       await qc.invalidateQueries({ queryKey: ["examRecords"] });
       await qc.invalidateQueries({ queryKey: ["goals"] });
+      await qc.invalidateQueries({ queryKey: ["subjects"] });
       await qc.invalidateQueries({ queryKey: ["hasMockData"] });
       await qc.invalidateQueries({ queryKey: ["stats"] });
     } catch (cause) {

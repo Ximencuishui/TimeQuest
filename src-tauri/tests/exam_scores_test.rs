@@ -89,7 +89,7 @@ fn score_of(conn: &Connection, exam_id: i64, key: &str) -> Option<f64> {
 #[tokio::test]
 async fn seed_subjects_are_six_with_the_documented_full_marks() {
     let (path, conn) = open_rusqlite_migrated().await;
-    let subjects = list_subjects_impl(&conn).expect("list subjects");
+    let subjects = list_subjects_impl(&conn, None).expect("list subjects");
     assert_eq!(subjects.len(), 6);
     assert_eq!(subjects[0].key, "chinese");
     assert_eq!(subjects[0].label, "语文");

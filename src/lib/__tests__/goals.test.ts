@@ -15,6 +15,8 @@ const apiMock = vi.hoisted(() => ({
   upsertGoal: vi.fn(),
   removeGoal: vi.fn(),
   setPrimaryGoal: vi.fn(),
+  listTracks: vi.fn(),
+  getUserProfile: vi.fn(),
 }));
 
 vi.mock("../../api/tauri", () => ({ api: apiMock }));
@@ -107,6 +109,11 @@ describe("老目标一次性迁移", () => {
     apiMock.upsertGoal.mockReset();
     apiMock.removeGoal.mockReset();
     apiMock.setPrimaryGoal.mockReset();
+    apiMock.listTracks.mockReset();
+    apiMock.getUserProfile.mockReset();
+    // 默认没有赛道、也没有档案：迁移只搬目标本身。
+    apiMock.listTracks.mockResolvedValue([]);
+    apiMock.getUserProfile.mockResolvedValue(null);
   });
 
   it("goals_read_legacy_goals_skips_broken_rows", () => {

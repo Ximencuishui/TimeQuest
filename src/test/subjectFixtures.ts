@@ -7,12 +7,12 @@ import type { ExamSession, Subject } from "../types";
  * 与 `subjects` 表的种子数据一致。
  */
 export const SUBJECT_FIXTURES: Subject[] = [
-  { id: 1, key: "chinese", label: "语文", fullMark: 120, goal: 120, unit: "分", orderIndex: 0 },
-  { id: 2, key: "math", label: "数学", fullMark: 130, goal: 130, unit: "分", orderIndex: 1 },
-  { id: 3, key: "english", label: "英语", fullMark: 120, goal: 120, unit: "分", orderIndex: 2 },
-  { id: 4, key: "physics", label: "物理", fullMark: 80, goal: 80, unit: "分", orderIndex: 3 },
-  { id: 5, key: "chemistry", label: "化学", fullMark: 80, goal: 80, unit: "分", orderIndex: 4 },
-  { id: 6, key: "biology", label: "生物", fullMark: 80, goal: 80, unit: "分", orderIndex: 5 },
+  { id: 1, key: "chinese", label: "语文", fullMark: 120, goal: 120, unit: "分", orderIndex: 0, trackId: null },
+  { id: 2, key: "math", label: "数学", fullMark: 130, goal: 130, unit: "分", orderIndex: 1, trackId: null },
+  { id: 3, key: "english", label: "英语", fullMark: 120, goal: 120, unit: "分", orderIndex: 2, trackId: null },
+  { id: 4, key: "physics", label: "物理", fullMark: 80, goal: 80, unit: "分", orderIndex: 3, trackId: null },
+  { id: 5, key: "chemistry", label: "化学", fullMark: 80, goal: 80, unit: "分", orderIndex: 4, trackId: null },
+  { id: 6, key: "biology", label: "生物", fullMark: 80, goal: 80, unit: "分", orderIndex: 5, trackId: null },
 ];
 
 /**

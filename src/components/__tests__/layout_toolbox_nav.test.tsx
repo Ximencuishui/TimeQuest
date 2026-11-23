@@ -36,14 +36,6 @@ describe("Layout toolbox navigation", () => {
           grade: "高二",
           region: "北京",
           total_target: 0,
-          subject_targets: {
-            chinese: 0,
-            math: 0,
-            english: 0,
-            physics: 0,
-            chemistry: 0,
-            biology: 0,
-          },
         };
       }
       return null;

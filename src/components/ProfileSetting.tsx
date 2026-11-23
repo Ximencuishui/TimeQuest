@@ -2,23 +2,48 @@ import { useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { useGoalMutations, useGoals } from "../hooks/useGoals";
+import { useSubjectMutations, useSubjects } from "../hooks/useSubjects";
+import { useActiveTrack } from "../hooks/useTracks";
 import { useUpdateUserProfile, useUserProfile } from "../hooks/useUserProfile";
-import { DEFAULT_GOAL_NAME } from "../lib/constants";
+import { DEFAULT_EXAM_DATE, DEFAULT_GOAL_NAME } from "../lib/constants";
 import { gaokaoDateForGrade } from "../lib/examDate";
 import { resolvePrimaryGoal } from "../lib/goals";
-import type { UserProfile } from "../types";
+import type { Subject, UserProfile } from "../types";
 import { RegionSelect } from "./RegionSelect";
 import {
   DEFAULT_USER_PROFILE,
   GRADES,
   parseProfileDraft,
   profileToDraft,
-  SUBJECT_FIELDS,
-  subjectTargetSum,
   targetHint,
   type ProfileDraft,
-  type SubjectKey,
 } from "../lib/profile";
+
+/** 一科在表单里的临时值。全是字符串，方便直接编辑。 */
+type SubjectDraft = {
+  label: string;
+  fullMark: string;
+  goal: string;
+  unit: string;
+};
+
+function subjectToDraft(subject: Subject): SubjectDraft {
+  return {
+    label: subject.label,
+    fullMark: subject.fullMark == null ? "" : String(subject.fullMark),
+    goal: subject.goal == null ? "" : String(subject.goal),
+    unit: subject.unit ?? "",
+  };
+}
+
+/** 空字符串表示「这一科不按满分折算」。 */
+function parseOptionalNumber(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const value = Number(trimmed);
+  if (!Number.isFinite(value) || value < 0) return null;
+  return value;
+}
 
 function mimeFromPath(path: string): string {
   const ext = path.split(".").pop()?.toLowerCase();
@@ -77,8 +102,13 @@ export function ProfileSetting() {
   const update = useUpdateUserProfile();
   const { data: goals = [] } = useGoals();
   const { upsert: upsertGoal } = useGoalMutations();
+  // 科目跟着当前赛道走：换赛道就是换一套科目。
+  const { trackId: activeTrackId } = useActiveTrack();
+  const { data: subjects = [] } = useSubjects(activeTrackId);
+  const { upsert: upsertSubject, remove: removeSubject } = useSubjectMutations();
   const fileRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<ProfileDraft | null>(null);
+  const [subjectDrafts, setSubjectDrafts] = useState<Record<number, SubjectDraft>>({});
   const [error, setError] = useState("");
   const [pendingExamDate, setPendingExamDate] = useState<string | null>(null);
   const view = draft ?? profileToDraft(data ?? DEFAULT_USER_PROFILE);
@@ -90,8 +120,51 @@ export function ProfileSetting() {
     setDraft({ ...view, ...patch });
   };
 
-  const editSubject = (key: SubjectKey, value: string) => {
-    edit({ subjects: { ...view.subjects, [key]: value } });
+  const editSubject = (id: number, patch: Partial<SubjectDraft>) => {
+    setSubjectDrafts((current) => ({
+      ...current,
+      // 第一次改动时以库里那份为底，不然会把别的字段丢掉。
+      [id]: { ...(current[id] ?? baseSubjectDraft(id)), ...patch },
+    }));
+  };
+
+  /** 某一科的当前表单值。没编辑过就用库里那份。 */
+  const subjectView = (subject: Subject): SubjectDraft =>
+    subjectDrafts[subject.id] ?? subjectToDraft(subject);
+
+  /** 新科目还没有 id 时拿不到底稿，先给一份空的。 */
+  const baseSubjectDraft = (id: number): SubjectDraft => {
+    const subject = subjects.find((item) => item.id === id);
+    return subject
+      ? subjectToDraft(subject)
+      : { label: "", fullMark: "", goal: "", unit: "" };
+  };
+
+  /** 离开输入框就落库：科目在 `subjects` 表，不跟档案一起保存。 */
+  const saveSubject = (subject: Subject) => {
+    const current = subjectView(subject);
+    const label = current.label.trim();
+    if (!label) {
+      setError("科目名称不能为空");
+      return;
+    }
+    upsertSubject.mutate({
+      id: subject.id,
+      trackId: subject.trackId,
+      key: subject.key,
+      label,
+      fullMark: parseOptionalNumber(current.fullMark),
+      goal: parseOptionalNumber(current.goal),
+      unit: current.unit.trim() || null,
+    });
+  };
+
+  const addSubject = () => {
+    upsertSubject.mutate({ label: "新科目", goal: null, fullMark: null, unit: null });
+  };
+
+  const dropSubject = (subject: Subject) => {
+    removeSubject.mutate(subject.id);
   };
 
   const applyAvatar = (avatar: string | null) => {
@@ -120,20 +193,30 @@ export function ProfileSetting() {
     applyAvatar(await fileToAvatar(bytes, file.type || "image/png"));
   };
 
-  const writeExamDate = (date: string) => {
+  /**
+   * 写主目标。
+   *
+   * 总分目标的权威源是主目标的 `target_score`：档案里的 `total_target`
+   * 只是 3.x 留下来的兼容列。两边一起写，成绩页的目标线才跟得上这里的改动。
+   */
+  const writePrimaryGoal = (options: {
+    examDate: string | null;
+    totalTarget: number;
+  }) => {
     const primary = resolvePrimaryGoal(goals);
     upsertGoal.mutate({
       id: primary?.id,
       name: primary?.name ?? DEFAULT_GOAL_NAME,
-      date,
+      date: options.examDate ?? primary?.date ?? DEFAULT_EXAM_DATE,
       kind: primary?.kind ?? "exam",
       isPrimary: true,
+      targetScore: options.totalTarget,
     });
   };
 
   const saveProfile = async (profile: UserProfile, examDate: string | null) => {
     await update.mutateAsync(profile);
-    if (examDate) writeExamDate(examDate);
+    writePrimaryGoal({ examDate, totalTarget: profile.total_target });
     setDraft(null);
     setPendingExamDate(null);
   };
@@ -174,11 +257,15 @@ export function ProfileSetting() {
     });
   };
 
+  // 各科目标合计跟着输入框实时变，方便对照总分目标。
+  const goalSum = subjects.reduce((sum, subject) => {
+    const raw = subjectView(subject).goal;
+    const value = raw.trim() === "" ? 0 : Number(raw);
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0);
+
   const hint = parsed.ok
-    ? targetHint(
-        subjectTargetSum(parsed.profile.subject_targets),
-        parsed.profile.total_target,
-      )
+    ? targetHint(goalSum, parsed.profile.total_target)
     : parsed.message;
 
   return (
@@ -269,20 +356,97 @@ export function ProfileSetting() {
               onChange={(event) => edit({ totalTarget: event.target.value })}
             />
           </label>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {SUBJECT_FIELDS.map((field) => (
-              <label key={field.key} className="block text-sm" htmlFor={`target-${field.key}`}>
-                {field.label}
-                <input
-                  id={`target-${field.key}`}
-                  inputMode="numeric"
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
-                  value={view.subjects[field.key]}
-                  onChange={(event) => editSubject(field.key, event.target.value)}
-                />
-              </label>
-            ))}
+
+          <div className="mt-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm">科目</p>
+              <button
+                type="button"
+                className="rounded-lg border border-white/15 px-3 py-1.5 text-sm"
+                onClick={addSubject}
+              >
+                添加科目
+              </button>
+            </div>
+            {subjects.length === 0 ? (
+              <p className="mt-2 text-sm text-ink-muted">这条赛道还没有科目。</p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {subjects.map((subject) => {
+                  const current = subjectView(subject);
+                  return (
+                    <div
+                      key={subject.id}
+                      className="grid gap-2 rounded-lg border border-white/10 p-3 sm:grid-cols-4"
+                    >
+                      <label className="block text-sm" htmlFor={`subject-label-${subject.id}`}>
+                        科目
+                        <input
+                          id={`subject-label-${subject.id}`}
+                          aria-label={`${current.label || "科目"} 名称`}
+                          className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
+                          value={current.label}
+                          onChange={(event) =>
+                            editSubject(subject.id, { label: event.target.value })
+                          }
+                          onBlur={() => saveSubject(subject)}
+                        />
+                      </label>
+                      <label className="block text-sm" htmlFor={`subject-full-${subject.id}`}>
+                        满分
+                        <input
+                          id={`subject-full-${subject.id}`}
+                          aria-label={`${current.label || "科目"} 满分`}
+                          inputMode="numeric"
+                          className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
+                          value={current.fullMark}
+                          onChange={(event) =>
+                            editSubject(subject.id, { fullMark: event.target.value })
+                          }
+                          onBlur={() => saveSubject(subject)}
+                        />
+                      </label>
+                      <label className="block text-sm" htmlFor={`subject-goal-${subject.id}`}>
+                        目标
+                        <input
+                          id={`subject-goal-${subject.id}`}
+                          aria-label={`${current.label || "科目"} 目标`}
+                          inputMode="numeric"
+                          className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
+                          value={current.goal}
+                          onChange={(event) =>
+                            editSubject(subject.id, { goal: event.target.value })
+                          }
+                          onBlur={() => saveSubject(subject)}
+                        />
+                      </label>
+                      <label className="block text-sm" htmlFor={`subject-unit-${subject.id}`}>
+                        单位
+                        <input
+                          id={`subject-unit-${subject.id}`}
+                          aria-label={`${current.label || "科目"} 单位`}
+                          className="mt-1 w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
+                          value={current.unit}
+                          onChange={(event) =>
+                            editSubject(subject.id, { unit: event.target.value })
+                          }
+                          onBlur={() => saveSubject(subject)}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="text-sm text-ink-muted hover:underline sm:col-span-4 sm:text-right"
+                        onClick={() => dropSubject(subject)}
+                      >
+                        删除「{current.label || subject.label}」
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
+
           <p id="subject-target-hint" className="mt-3 text-sm text-zinc-400">
             {hint}
           </p>

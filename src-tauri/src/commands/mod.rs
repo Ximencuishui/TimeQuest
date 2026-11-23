@@ -16,6 +16,7 @@ pub mod stats;
 pub mod subjects;
 pub mod tasks;
 pub mod textbook;
+pub mod tracks;
 
 pub use app_settings::*;
 pub use data::*;
@@ -35,3 +36,4 @@ pub use stats::*;
 pub use subjects::*;
 pub use tasks::*;
 pub use textbook::*;
+pub use tracks::*;

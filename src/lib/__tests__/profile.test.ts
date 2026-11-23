@@ -6,9 +6,9 @@ import {
   profileLine,
   profileToDraft,
   shortRegion,
-  subjectTargetSum,
   targetHint,
 } from "../profile";
+import { SUBJECT_FIXTURES } from "../../test/subjectFixtures";
 
 describe("profile line", () => {
   it("shortens a province suffix for the sidebar", () => {
@@ -35,10 +35,13 @@ describe("profile line", () => {
     if (parsed.ok) expect(parsed.profile.region).toBe("广东");
   });
 
-  it("default subject scores add up to the total target", () => {
-    expect(subjectTargetSum(DEFAULT_USER_PROFILE.subject_targets)).toBe(
-      DEFAULT_USER_PROFILE.total_target,
+  it("各科目标合计与总分目标一致", () => {
+    // 4.0 起各科目标落在 `subjects` 表：种子六科的合计要跟总分目标对得上。
+    const sum = SUBJECT_FIXTURES.reduce(
+      (total, subject) => total + (subject.goal ?? 0),
+      0,
     );
+    expect(sum).toBe(DEFAULT_USER_PROFILE.total_target);
     expect(targetHint(610, 610)).toBe("各科合计 610，与总分目标一致");
     expect(targetHint(620, 610)).toBe("各科合计 620，比总分目标多 10 分");
     expect(targetHint(600, 610)).toBe("各科合计 600，比总分目标少 10 分");

@@ -254,21 +254,17 @@ export type DownloadedTextbook = {
   bytes: number;
 };
 
-export type SubjectTargets = {
-  chinese: number;
-  math: number;
-  english: number;
-  physics: number;
-  chemistry: number;
-  biology: number;
-};
-
+/**
+ * 个人档案。
+ *
+ * 4.0 起各科目标落在 `subjects` 表、总分目标落在 `goals.target_score`，
+ * 档案只保留头像 / 年级 / 地区这类上下文信息。
+ */
 export type UserProfile = {
   avatar: string | null;
   grade: string;
   region: string;
   total_target: number;
-  subject_targets: SubjectTargets;
 };
 
 /**
@@ -282,7 +278,7 @@ export type Subject = {
   key: string;
   /** 显示名，如「语文」。 */
   label: string;
-  /** 满分，可空（这条赛道没固定满分时可以不填）。 */
+  /** 满分，可空——有些赛道没有固定满分。 */
   fullMark: number | null;
   /** 目标分，可空。 */
   goal: number | null;
@@ -290,6 +286,50 @@ export type Subject = {
   unit: string | null;
   /** 排序序号，越小越靠前。 */
   orderIndex: number;
+  /** 所属赛道。还没归到任何赛道下时为 null。 */
+  trackId: number | null;
+};
+
+/** 新建 / 修改一科的请求体。 */
+export type UpsertSubjectPayload = {
+  id?: number | null;
+  trackId?: number | null;
+  key?: string | null;
+  label: string;
+  fullMark?: number | null;
+  goal?: number | null;
+  unit?: string | null;
+  orderIndex?: number | null;
+};
+
+/**
+ * 一条赛道：一种学习方向。
+ *
+ * 「高考」只是其中一条，换赛道就是换一套科目 + 一套目标分。
+ */
+export type Track = {
+  id: number;
+  /** 赛道名称，如「高考」。 */
+  name: string;
+  /** 赛道类型：`exam` / `skill` / `course`。 */
+  kind: string;
+  /** 计分方式：`total` / `per_subject` / `band`。 */
+  scoreMode: string;
+  /** 是不是当前主赛道。全库最多一个。 */
+  isPrimary: boolean;
+  /** 主题色，可空。 */
+  color: string | null;
+  createdAt: string;
+};
+
+/** 新建 / 修改一条赛道的请求体。 */
+export type UpsertTrackPayload = {
+  id?: number | null;
+  name: string;
+  kind?: string | null;
+  scoreMode?: string | null;
+  isPrimary?: boolean | null;
+  color?: string | null;
 };
 
 /** 一条成绩行：一次考试里的一科。 */
@@ -304,7 +344,7 @@ export type ExamScore = {
 /** 一次考试（场次）。各科成绩挂在 `scores` 里。 */
 export type ExamSession = {
   id: number;
-  /** 所属赛道。赛道表要等 P1-2 才建，先允许为 null。 */
+  /** 所属赛道。赛道表 P1-2 才建，先允许为 null。 */
   trackId: number | null;
   /** 考试名称，如「一模」。 */
   name: string;
@@ -358,12 +398,12 @@ export type Goal = {
   id: number;
   /** 所属赛道；赛道表 P1-2 才建，先允许为 null。 */
   trackId: number | null;
-  /** 目标名称，如「高考」。 */
+  /** 目标名称，如「高考」「一模」。 */
   name: string;
   /** 目标日期，`YYYY-MM-DD`。 */
   date: string;
   kind: GoalKind;
-  /** 是不是主目标。全库最多一个主目标。 */
+  /** 是不是主目标。全库最多一个。 */
   isPrimary: boolean;
   /** 目标分数，可空。 */
   targetScore: number | null;

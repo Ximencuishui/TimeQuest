@@ -2,17 +2,20 @@ use crate::commands::mistakes::{normalize_graph_link, normalize_reason, normaliz
 use crate::commands::notes::{normalize_color, normalize_note_date};
 use crate::commands::profile::{upsert_user_profile_row, user_profile_from_export};
 use crate::commands::subjects::subject_id_for_key;
+use crate::commands::tracks::{
+    DEFAULT_TRACK_NAME, TRACK_KIND_EXAM, TRACK_SCORE_MODE_TOTAL,
+};
 use crate::db::{db_path, with_db, DbState};
-use crate::models::UserProfile;
-use rusqlite::{params, Connection};
+use crate::models::{SubjectTargets, UserProfile};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use tauri::{AppHandle, State};
 
 use crate::db::AppPrefs;
 
-/// 旧备份（3.x）里一行六科的成绩，展开成成绩行时用的对应关系。
+/// 老备份（3.x）里一行六科的成绩，展开成成绩行时用的对应关系。
 const LEGACY_SCORE_FIELDS: [(&str, &str); 6] = [
     ("chinese_score", "chinese"),
     ("math_score", "math"),
@@ -21,6 +24,15 @@ const LEGACY_SCORE_FIELDS: [(&str, &str); 6] = [
     ("chemistry_score", "chemistry"),
     ("biology_score", "biology"),
 ];
+
+/// 备份里的赛道 id 映射到新库。备份没带赛道时（v1）落到主赛道上。
+fn resolve_track_id(
+    track_map: &HashMap<i64, i64>,
+    fallback: Option<i64>,
+    raw: Option<i64>,
+) -> Option<i64> {
+    raw.and_then(|id| track_map.get(&id).copied()).or(fallback)
+}
 
 /// Reject `actual_logs.session_id` that is non-null but missing from payload `task_sessions`.
 /// `session_id: null` (manual log) is allowed. Runs before any write so the Err names the log.
@@ -319,10 +331,24 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
                 }
                 other => other.to_string(),
             })?;
-        let subject_targets: Value = serde_json::from_str(&targets).unwrap_or_else(|_| {
-            serde_json::to_value(UserProfile::default().subject_targets)
-                .expect("default subject targets")
+        // `subject_targets` 是 3.x 的兼容列：4.0 起各科目标在 `subjects` 表里。
+        // 这里仍然导出，并用科目字典里的真实目标覆盖，老版本读这个备份时才不会丢各科目标。
+        let mut subject_targets: Value = serde_json::from_str(&targets).unwrap_or_else(|_| {
+            serde_json::to_value(SubjectTargets::default()).expect("default subject targets")
         });
+        if let Some(map) = subject_targets.as_object_mut() {
+            let mut stmt = conn
+                .prepare("SELECT key, goal FROM subjects WHERE goal IS NOT NULL ORDER BY order_index")
+                .map_err(|e| e.to_string())?;
+            let rows = stmt
+                .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, f64>(1)?)))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            for (key, goal) in rows {
+                map.insert(key, json!(goal.round() as i64));
+            }
+        }
         json!({
             "avatar": avatar,
             "grade": grade,
@@ -358,10 +384,37 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         rows
     };
 
-    // 科目字典。折算口径、成绩表单都从这里读科目集合。
+    // 赛道字典。科目 / 目标 / 成绩场次都挂在赛道下面，导出时一起带走。
+    let tracks: Vec<Value> = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, name, kind, score_mode, is_primary, color, created_at FROM tracks ORDER BY id",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(json!({
+                    "id": r.get::<_, i64>(0)?,
+                    "name": r.get::<_, String>(1)?,
+                    "kind": r.get::<_, String>(2)?,
+                    "scoreMode": r.get::<_, String>(3)?,
+                    "isPrimary": r.get::<_, i64>(4)? != 0,
+                    "color": r.get::<_, Option<String>>(5)?,
+                    "createdAt": r.get::<_, String>(6)?,
+                }))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    };
+
+    // 科目字典。成绩行靠 subject_id 关联科目，导出时带上它才不会被拆散。
     let subjects: Vec<Value> = {
         let mut stmt = conn
-            .prepare("SELECT id, key, label, full_mark, goal, unit, order_index FROM subjects ORDER BY id")
+            .prepare(
+                "SELECT id, key, label, full_mark, goal, unit, order_index, track_id FROM subjects ORDER BY id",
+            )
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |r| {
@@ -373,6 +426,7 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
                     "goal": r.get::<_, Option<f64>>(4)?,
                     "unit": r.get::<_, Option<String>>(5)?,
                     "orderIndex": r.get::<_, i64>(6)?,
+                    "trackId": r.get::<_, Option<i64>>(7)?,
                 }))
             })
             .map_err(|e| e.to_string())?
@@ -381,7 +435,7 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         rows
     };
 
-    // 4.0 成绩是「场次 + 成绩行」两张表。旧的 exam_records 只读留档，
+    // 4.0 起成绩是「场次 + 成绩行」两张表。老的 exam_records 只读留档，
     // 导出时留一个空数组，旧版读取器不会报错。
     let exam_sessions: Vec<Value> = {
         let mut stmt = conn
@@ -496,10 +550,11 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         "user_profile": user_profile,
         "app_settings": app_settings,
         "imported_textbooks": imported_textbooks,
+        "tracks": tracks,
+        "subjects": subjects,
         "exam_sessions": exam_sessions,
         "exam_scores": exam_scores,
         "exam_records": Vec::<Value>::new(),
-        "subjects": subjects,
         "task_knowledge_points": task_knowledge_points,
         "goals": goals,
     });
@@ -531,10 +586,114 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
             DELETE FROM exam_sessions;
             DELETE FROM exam_records;
             DELETE FROM goals;
+            UPDATE subjects SET track_id = NULL;
+            DELETE FROM tracks;
             UPDATE user_stats SET total_xp=0, current_level=1, current_streak=0, longest_streak=0, last_done_date=NULL WHERE id=1;
             "#,
     )
     .map_err(|e| e.to_string())?;
+
+    // 设置先回来：错因白名单、学习方式都存在 `app_settings` 里，
+    // 导入错题时要按同一份白名单归一，前后端口径不能分叉。
+    if let Some(arr) = data.get("app_settings").and_then(|v| v.as_array()) {
+        for row in arr {
+            tx.execute(
+                r#"INSERT INTO app_settings (key, value, updated_at)
+                   VALUES (?1, ?2, COALESCE(?3, datetime('now')))"#,
+                params![
+                    row.get("key").and_then(|v| v.as_str()).unwrap_or(""),
+                    row.get("value").and_then(|v| v.as_str()).unwrap_or(""),
+                    row.get("updated_at").and_then(|v| v.as_str()),
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
+    // 赛道：按备份重建。备份里的 track id 是来源库的，新库不一定对得上，
+    // 所以建一张「旧 id → 新 id」映射表，后面科目 / 目标 / 成绩场次都靠它挂回去。
+    let mut track_map: HashMap<i64, i64> = HashMap::new();
+    if let Some(arr) = data.get("tracks").and_then(|v| v.as_array()) {
+        for row in arr {
+            let Some(old_id) = row.get("id").and_then(|v| v.as_i64()) else {
+                continue;
+            };
+            let name = row
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if name.is_empty() {
+                continue;
+            }
+            let kind = row
+                .get("kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or(TRACK_KIND_EXAM)
+                .to_string();
+            let score_mode = row
+                .get("scoreMode")
+                .or_else(|| row.get("score_mode"))
+                .and_then(|v| v.as_str())
+                .unwrap_or(TRACK_SCORE_MODE_TOTAL)
+                .to_string();
+            tx.execute(
+                r#"INSERT INTO tracks (name, kind, score_mode, is_primary, color, created_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5, COALESCE(?6, datetime('now','localtime')))"#,
+                params![
+                    name,
+                    kind,
+                    score_mode,
+                    row.get("isPrimary")
+                        .or_else(|| row.get("is_primary"))
+                        .and_then(|v| v.as_i64().or_else(|| v.as_bool().map(i64::from)))
+                        .unwrap_or(0),
+                    row.get("color").and_then(|v| v.as_str()),
+                    row.get("createdAt")
+                        .or_else(|| row.get("created_at"))
+                        .and_then(|v| v.as_str()),
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+            track_map.insert(old_id, tx.last_insert_rowid());
+        }
+    }
+
+    // 库里至少要有一条主赛道。v1 旧备份没有赛道，这里补一条默认的。
+    let mut fallback_track: Option<i64> = tx
+        .query_row(
+            "SELECT id FROM tracks WHERE is_primary = 1 ORDER BY id ASC LIMIT 1",
+            [],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
+    if fallback_track.is_none() {
+        let first: Option<i64> = tx
+            .query_row(
+                "SELECT id FROM tracks ORDER BY id ASC LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        match first {
+            Some(id) => {
+                tx.execute("UPDATE tracks SET is_primary = 1 WHERE id = ?1", params![id])
+                    .map_err(|e| e.to_string())?;
+                fallback_track = Some(id);
+            }
+            None => {
+                tx.execute(
+                    "INSERT INTO tracks (name, kind, score_mode, is_primary) VALUES (?1, ?2, ?3, 1)",
+                    params![DEFAULT_TRACK_NAME, TRACK_KIND_EXAM, TRACK_SCORE_MODE_TOTAL],
+                )
+                .map_err(|e| e.to_string())?;
+                fallback_track = Some(tx.last_insert_rowid());
+            }
+        }
+    }
 
     if let Some(arr) = data.get("tasks").and_then(|v| v.as_array()) {
         for t in arr {
@@ -775,22 +934,30 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
         }
     }
 
-    // 科目字典：按 key 覆盖，不换 id。成绩行靠 key 找回科目。
+    // 科目字典：按 key 覆盖，不换 id，成绩行靠 key 找回科目。
     if let Some(arr) = data.get("subjects").and_then(|v| v.as_array()) {
         for row in arr {
             let key = row.get("key").and_then(|v| v.as_str()).unwrap_or("");
             if key.is_empty() {
                 continue;
             }
+            let track_id = resolve_track_id(
+                &track_map,
+                fallback_track,
+                row.get("trackId")
+                    .or_else(|| row.get("track_id"))
+                    .and_then(|v| v.as_i64()),
+            );
             tx.execute(
-                r#"INSERT INTO subjects (key, label, full_mark, goal, unit, order_index)
-                   VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                r#"INSERT INTO subjects (key, label, full_mark, goal, unit, order_index, track_id)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
                    ON CONFLICT(key) DO UPDATE SET
                      label = excluded.label,
                      full_mark = excluded.full_mark,
                      goal = excluded.goal,
                      unit = excluded.unit,
-                     order_index = excluded.order_index"#,
+                     order_index = excluded.order_index,
+                     track_id = COALESCE(excluded.track_id, subjects.track_id)"#,
                 params![
                     key,
                     row.get("label").and_then(|v| v.as_str()).unwrap_or(key),
@@ -803,26 +970,56 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
                         .or_else(|| row.get("order_index"))
                         .and_then(|v| v.as_i64())
                         .unwrap_or(0),
+                    track_id,
                 ],
             )
             .map_err(|e| e.to_string())?;
         }
     }
 
+    // 3.x 旧备份没有 `subjects` 键：各科目标从档案里的 `subject_targets` 回填，
+    // 否则导入后成绩页的目标虚线会退回默认值。
+    if !data.get("subjects").and_then(|v| v.as_array()).is_some() {
+        let legacy_targets = data
+            .get("user_profile")
+            .and_then(|profile| profile.get("subject_targets"))
+            .and_then(|value| match value {
+                Value::String(raw) => serde_json::from_str::<Value>(raw).ok(),
+                other => Some(other.clone()),
+            });
+        if let Some(Value::Object(map)) = legacy_targets {
+            for (key, value) in map {
+                let Some(score) = value.as_f64() else {
+                    continue;
+                };
+                tx.execute(
+                    "UPDATE subjects SET goal = ?1 WHERE key = ?2",
+                    params![score, key],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+        }
+    }
+
     // 成绩：4.0 起是「场次 + 成绩行」。
-    // 有 exam_sessions 走新路径；只有旧备份的 exam_records 就展开成场次 + 成绩行。
+    // 有 exam_sessions 就走新路径；只有老备份的 exam_records 就展开成场次 + 成绩行。
     let has_sessions = data.get("exam_sessions").and_then(|v| v.as_array()).is_some();
     if has_sessions {
         if let Some(arr) = data.get("exam_sessions").and_then(|v| v.as_array()) {
             for row in arr {
+                let track_id = resolve_track_id(
+                    &track_map,
+                    fallback_track,
+                    row.get("trackId")
+                        .or_else(|| row.get("track_id"))
+                        .and_then(|v| v.as_i64()),
+                );
                 tx.execute(
                     r#"INSERT INTO exam_sessions (id, track_id, name, date, is_mock, created_at)
                        VALUES (?1, ?2, ?3, ?4, ?5, COALESCE(?6, datetime('now','localtime')))"#,
                     params![
                         row.get("id").and_then(|v| v.as_i64()),
-                        row.get("trackId")
-                            .or_else(|| row.get("track_id"))
-                            .and_then(|v| v.as_i64()),
+                        track_id,
                         row.get("name").and_then(|v| v.as_str()).unwrap_or(""),
                         row.get("date").and_then(|v| v.as_str()).unwrap_or(""),
                         row.get("isMock")
@@ -850,7 +1047,7 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
                         .or_else(|| row.get("subject_id"))
                         .and_then(|v| v.as_i64()),
                 };
-                // 科目已经不在字典里的成绩行直接跳过。留着会让成绩页报错。
+                // 科目已经不在字典里的成绩行直接跳过 —— 留着会让成绩页报错。
                 let Some(subject_id) = subject_id else {
                     continue;
                 };
@@ -870,7 +1067,7 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
             }
         }
     } else if let Some(arr) = data.get("exam_records").and_then(|v| v.as_array()) {
-        // 旧备份：一行六科，展开成一场 + 六行成绩。
+        // 老备份：一行六科，展开成一场 + 六行成绩。
         for row in arr {
             tx.execute(
                 r#"INSERT INTO exam_sessions (id, name, date, is_mock, created_at)
@@ -904,14 +1101,19 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
     // v1 旧备份没有这个键，补一条默认目标，不能报错也不能把表留空。
     if let Some(arr) = data.get("goals").and_then(|v| v.as_array()) {
         for row in arr {
+            let track_id = resolve_track_id(
+                &track_map,
+                fallback_track,
+                row.get("trackId")
+                    .or_else(|| row.get("track_id"))
+                    .and_then(|v| v.as_i64()),
+            );
             tx.execute(
                 r#"INSERT INTO goals (id, track_id, name, date, kind, is_primary, target_score, created_at)
                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, COALESCE(?8, datetime('now','localtime')))"#,
                 params![
                     row.get("id").and_then(|v| v.as_i64()),
-                    row.get("trackId")
-                        .or_else(|| row.get("track_id"))
-                        .and_then(|v| v.as_i64()),
+                    track_id,
                     row.get("name").and_then(|v| v.as_str()).unwrap_or(""),
                     row.get("date").and_then(|v| v.as_str()).unwrap_or(""),
                     row.get("kind")
@@ -934,29 +1136,15 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
         }
     } else {
         tx.execute(
-            "INSERT INTO goals (track_id, name, date, kind, is_primary) VALUES (NULL, ?1, ?2, ?3, 1)",
+            "INSERT INTO goals (track_id, name, date, kind, is_primary) VALUES (?1, ?2, ?3, ?4, 1)",
             params![
+                fallback_track,
                 crate::commands::goals::DEFAULT_GOAL_NAME,
                 crate::commands::goals::DEFAULT_GOAL_DATE,
                 crate::commands::goals::GOAL_KIND_EXAM
             ],
         )
         .map_err(|e| e.to_string())?;
-    }
-
-    if let Some(arr) = data.get("app_settings").and_then(|v| v.as_array()) {
-        for row in arr {
-            tx.execute(
-                r#"INSERT INTO app_settings (key, value, updated_at)
-                   VALUES (?1, ?2, COALESCE(?3, datetime('now')))"#,
-                params![
-                    row.get("key").and_then(|v| v.as_str()).unwrap_or(""),
-                    row.get("value").and_then(|v| v.as_str()).unwrap_or(""),
-                    row.get("updated_at").and_then(|v| v.as_str()),
-                ],
-            )
-            .map_err(|e| e.to_string())?;
-        }
     }
 
     // B 兜底：其它 FK（如 rescheduled_to）仍可能漏网；有违规则不 commit。

@@ -61,11 +61,17 @@ pub use commands::stats::{
     stats_completion_rate_impl, stats_daily_units_impl, stats_method_share_impl,
     stats_plan_vs_actual_impl, stats_tag_type_totals_impl,
 };
-pub use commands::subjects::{list_subjects_impl, subject_id_for_key, subject_label};
+pub use commands::subjects::{
+    list_subjects_impl, remove_subject_impl, subject_id_for_key, subject_label, upsert_subject_impl,
+};
 pub use commands::tasks::{
     advance_round_impl, archive_task_impl, delete_task_impl, fetch_task_impl,
     list_deleted_tasks_impl, list_tasks_impl, purge_task_impl, restore_task_impl,
     task_progress_impl, update_task_impl,
+};
+pub use commands::tracks::{
+    list_tracks_impl, primary_track, remove_track_impl, seed_default_track_impl, track_by_id,
+    upsert_track_impl,
 };
 pub use commands::textbook::{
     add_custom_knowledge_point_impl, add_graph_knowledge_point_impl, delete_knowledge_point_impl,
@@ -88,8 +94,8 @@ pub use models::{
     CreateMistakePayload, DailyUnitsRow, ExamScore, ExamScoreInput, ExamSession,
     ExamSessionWithScores, Goal, MethodShareRow, Mistake, PlanVsActualRow, RemainderSchedule,
     Subject, SubjectTargets, TagTypeRow, Task, TaskProgress, TaskSession, TopicMistake,
-    TopicMistakes, UpdateMistakePayload, UpdateNotePayload, UpdateTaskPayload,
-    UpsertGoalPayload, UserProfile,
+    TopicMistakes, Track, UpdateMistakePayload, UpdateNotePayload, UpdateTaskPayload,
+    UpsertGoalPayload, UpsertSubjectPayload, UpsertTrackPayload, UserProfile,
 };
 pub use pdf_outline::{
     extract_outline, extract_outline_lines, inspect_pdf_pages, outline_to_textbook,
@@ -137,6 +143,8 @@ pub fn run() {
             let pool = tauri::async_runtime::block_on(open_sqlx_pool(&path))?;
             let conn = open_db(&path)?;
             // 目标落库后第一次启动：空库时补一条默认目标，和以前 localStorage 里的兜底一致。
+            // 赛道同理：库里一条赛道都没有时补上默认的「高考」，并给它补齐六科。
+            seed_default_track_impl(&conn)?;
             seed_default_goal_impl(&conn)?;
             app.manage(pool);
             app.manage(DbState(Mutex::new(conn)));
@@ -280,6 +288,11 @@ pub fn run() {
             commands::get_user_profile,
             commands::update_user_profile,
             commands::list_subjects,
+            commands::upsert_subject,
+            commands::remove_subject,
+            commands::list_tracks,
+            commands::upsert_track,
+            commands::remove_track,
             commands::create_exam_session,
             commands::list_exam_sessions,
             commands::delete_exam_session,

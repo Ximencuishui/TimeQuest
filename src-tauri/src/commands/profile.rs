@@ -1,13 +1,9 @@
 use crate::db::{with_db, DbState};
-use crate::models::{SubjectTargets, UserProfile};
+use crate::models::UserProfile;
 use rusqlite::{params, Connection};
 use tauri::State;
 
 const AVATAR_MAX_CHARS: usize = 2_000_000;
-
-fn default_targets_json() -> String {
-    serde_json::to_string(&SubjectTargets::default()).expect("default subject targets serialize")
-}
 
 fn empty_to_none(value: Option<String>) -> Option<String> {
     value.and_then(|text| {
@@ -21,15 +17,17 @@ fn empty_to_none(value: Option<String>) -> Option<String> {
 }
 
 /// Insert the singleton when the table is empty. Existing rows stay untouched.
+///
+/// 3.x 留下来的那列「各科目标」不再由这里写入：4.0 起各科目标在 `subjects` 表里，
+/// 这里不再写它（列有默认值，插入时自动填）。
 pub fn ensure_user_profile(conn: &Connection) -> Result<(), String> {
     conn.execute(
-        r#"INSERT OR IGNORE INTO user_profile (id, avatar, grade, region, total_target, subject_targets)
-           VALUES (1, NULL, ?1, ?2, ?3, ?4)"#,
+        r#"INSERT OR IGNORE INTO user_profile (id, avatar, grade, region, total_target)
+           VALUES (1, NULL, ?1, ?2, ?3)"#,
         params![
             UserProfile::default().grade,
             UserProfile::default().region,
             UserProfile::default().total_target,
-            default_targets_json(),
         ],
     )
     .map_err(|e| e.to_string())?;
@@ -37,15 +35,14 @@ pub fn ensure_user_profile(conn: &Connection) -> Result<(), String> {
 }
 
 fn read_profile(conn: &Connection) -> Result<UserProfile, String> {
-    let (avatar, grade, region, total_target, targets): (
+    let (avatar, grade, region, total_target): (
         Option<String>,
         String,
         String,
         i64,
-        String,
     ) = conn
         .query_row(
-            "SELECT avatar, grade, region, total_target, subject_targets FROM user_profile WHERE id = 1",
+            "SELECT avatar, grade, region, total_target FROM user_profile WHERE id = 1",
             [],
             |row| {
                 Ok((
@@ -53,7 +50,6 @@ fn read_profile(conn: &Connection) -> Result<UserProfile, String> {
                     row.get(1)?,
                     row.get(2)?,
                     row.get(3)?,
-                    row.get(4)?,
                 ))
             },
         )
@@ -63,14 +59,11 @@ fn read_profile(conn: &Connection) -> Result<UserProfile, String> {
             }
             other => other.to_string(),
         })?;
-    let subject_targets = serde_json::from_str::<SubjectTargets>(&targets)
-        .unwrap_or_else(|_| SubjectTargets::default());
     Ok(UserProfile {
         avatar: empty_to_none(avatar),
         grade,
         region,
         total_target,
-        subject_targets,
     })
 }
 
@@ -82,19 +75,6 @@ pub fn get_user_profile_impl(conn: &Connection) -> Result<UserProfile, String> {
 fn validate_profile(profile: &UserProfile) -> Result<(), String> {
     if profile.total_target < 0 {
         return Err("总分目标不能为负数".to_string());
-    }
-    let scores = [
-        ("语文", profile.subject_targets.chinese),
-        ("数学", profile.subject_targets.math),
-        ("英语", profile.subject_targets.english),
-        ("物理", profile.subject_targets.physics),
-        ("化学", profile.subject_targets.chemistry),
-        ("生物", profile.subject_targets.biology),
-    ];
-    for (name, score) in scores {
-        if score < 0 {
-            return Err(format!("{name}目标不能为负数"));
-        }
     }
     if profile
         .avatar
@@ -117,14 +97,12 @@ pub fn update_user_profile_impl(
     profile.avatar = empty_to_none(profile.avatar);
     validate_profile(&profile)?;
     ensure_user_profile(conn)?;
-    let targets = serde_json::to_string(&profile.subject_targets).map_err(|e| e.to_string())?;
     conn.execute(
         r#"UPDATE user_profile SET
              avatar = ?1,
              grade = ?2,
              region = ?3,
              total_target = ?4,
-             subject_targets = ?5,
              updated_at = datetime('now','localtime')
            WHERE id = 1"#,
         params![
@@ -132,7 +110,6 @@ pub fn update_user_profile_impl(
             profile.grade,
             profile.region,
             profile.total_target,
-            targets,
         ],
     )
     .map_err(|e| e.to_string())?;
@@ -145,23 +122,20 @@ pub fn upsert_user_profile_row(
     profile: &UserProfile,
     updated_at: Option<&str>,
 ) -> Result<(), String> {
-    let targets = serde_json::to_string(&profile.subject_targets).map_err(|e| e.to_string())?;
     conn.execute(
-        r#"INSERT INTO user_profile (id, avatar, grade, region, total_target, subject_targets, updated_at)
-           VALUES (1, ?1, ?2, ?3, ?4, ?5, COALESCE(?6, datetime('now','localtime')))
+        r#"INSERT INTO user_profile (id, avatar, grade, region, total_target, updated_at)
+           VALUES (1, ?1, ?2, ?3, ?4, COALESCE(?5, datetime('now','localtime')))
            ON CONFLICT(id) DO UPDATE SET
              avatar = excluded.avatar,
              grade = excluded.grade,
              region = excluded.region,
              total_target = excluded.total_target,
-             subject_targets = excluded.subject_targets,
              updated_at = excluded.updated_at"#,
         params![
             profile.avatar,
             profile.grade,
             profile.region,
             profile.total_target,
-            targets,
             updated_at,
         ],
     )
@@ -170,6 +144,8 @@ pub fn upsert_user_profile_row(
 }
 
 /// Build a profile from an export object. Missing `id` means 1. `id != 1` is rejected.
+///
+/// 3.x 备份里的那列「各科目标」不再进档案：它只在导入时用来回填 `subjects.goal`。
 pub fn user_profile_from_export(
     value: &serde_json::Value,
 ) -> Result<(UserProfile, Option<String>), String> {
@@ -179,15 +155,6 @@ pub fn user_profile_from_export(
         }
     }
     let defaults = UserProfile::default();
-    let subject_targets = match value.get("subject_targets") {
-        Some(serde_json::Value::String(raw)) => {
-            serde_json::from_str(raw).unwrap_or_else(|_| SubjectTargets::default())
-        }
-        Some(other) => {
-            serde_json::from_value(other.clone()).unwrap_or_else(|_| SubjectTargets::default())
-        }
-        None => SubjectTargets::default(),
-    };
     let avatar = value
         .get("avatar")
         .and_then(|v| v.as_str())
@@ -213,7 +180,6 @@ pub fn user_profile_from_export(
                 .get("total_target")
                 .and_then(|v| v.as_i64())
                 .unwrap_or(defaults.total_target),
-            subject_targets,
         },
         updated_at,
     ))
