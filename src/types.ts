@@ -328,7 +328,8 @@ export type UserProfile = {
   avatar: string | null;
   grade: string;
   region: string;
-  total_target: number;
+  /** 总分目标，可空。空表示这条赛道不计总分。 */
+  total_target: number | null;
 };
 
 /**
@@ -484,6 +485,8 @@ export type UpsertGoalPayload = {
   /** 置成 true 时，其它目标同时降为普通目标。 */
   isPrimary?: boolean;
   targetScore?: number | null;
+  /** 置成 true 时把总分目标清空。`targetScore` 传 null 与「不传」同义。 */
+  clearTargetScore?: boolean;
 };
 
 export type PlanVsActualRow = {

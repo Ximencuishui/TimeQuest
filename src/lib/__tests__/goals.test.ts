@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   GOALS_MIGRATED_KEY,
+  GOALS_MIGRATING_KEY,
   LEGACY_EXAMS_KEY,
   migrateLegacyGoals,
   nextMockGoal,
@@ -235,5 +236,95 @@ describe("老目标一次性迁移", () => {
     await expect(migrateLegacyGoals()).rejects.toThrow("boom");
     expect(localStorage.getItem(GOALS_MIGRATED_KEY)).toBeNull();
     expect(localStorage.getItem(LEGACY_EXAMS_KEY)).not.toBeNull();
+    // 快照留着：下次启动按同一份快照重搬。
+    expect(localStorage.getItem(GOALS_MIGRATING_KEY)).not.toBeNull();
+  });
+
+  it("goals_migration_marks_done_only_after_the_rows_are_written", async () => {
+    localStorage.setItem(
+      LEGACY_EXAMS_KEY,
+      JSON.stringify([
+        { id: "gaokao", name: "高考", date: "2027-06-07", isPrimary: true },
+      ]),
+    );
+    apiMock.listGoals.mockResolvedValue([]);
+    // 搬迁途中标记不能先写：先写了的话，搬一半崩溃就把老目标永久丢下。
+    apiMock.upsertGoal.mockImplementation(async () => {
+      expect(localStorage.getItem(GOALS_MIGRATED_KEY)).toBeNull();
+      return goal({ id: 10, name: "高考", date: "2027-06-07" });
+    });
+
+    await migrateLegacyGoals();
+
+    expect(localStorage.getItem(GOALS_MIGRATED_KEY)).toBe("1");
+  });
+
+  it("goals_migration_replays_the_snapshot_after_a_crash", async () => {
+    // 模拟上次搬到一半崩了：快照还在，完成标记没写，老 key 也还在。
+    localStorage.setItem(
+      GOALS_MIGRATING_KEY,
+      JSON.stringify({
+        items: [
+          { id: "gaokao", name: "高考", date: "2027-06-07", isPrimary: true },
+        ],
+        startedAt: Date.now() - 60_000,
+      }),
+    );
+    apiMock.listGoals.mockResolvedValue([]);
+    apiMock.upsertGoal.mockResolvedValue(
+      goal({ id: 10, name: "高考", date: "2027-06-07" }),
+    );
+
+    const moved = await migrateLegacyGoals();
+
+    expect(moved).toBe(true);
+    // 用的是快照里的行，不是重新读 localStorage（老 key 可能已被清掉）。
+    expect(apiMock.upsertGoal).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "高考", date: "2027-06-07" }),
+    );
+    expect(localStorage.getItem(GOALS_MIGRATED_KEY)).toBe("1");
+    expect(localStorage.getItem(GOALS_MIGRATING_KEY)).toBeNull();
+  });
+
+  it("goals_migration_does_not_replay_while_another_window_is_moving", async () => {
+    localStorage.setItem(
+      GOALS_MIGRATING_KEY,
+      JSON.stringify({
+        items: [
+          { id: "gaokao", name: "高考", date: "2027-06-07", isPrimary: true },
+        ],
+        startedAt: Date.now(),
+      }),
+    );
+
+    const moved = await migrateLegacyGoals();
+
+    expect(moved).toBe(false);
+    expect(apiMock.upsertGoal).not.toHaveBeenCalled();
+  });
+
+  it("goals_migration_replaces_the_rows_left_by_a_previous_crash", async () => {
+    localStorage.setItem(
+      GOALS_MIGRATING_KEY,
+      JSON.stringify({
+        items: [
+          { id: "gaokao", name: "高考", date: "2027-06-07", isPrimary: true },
+        ],
+        startedAt: Date.now() - 60_000,
+      }),
+    );
+    // 上次搬了一半就留下了这一行：重跑要先删掉再重建，不然会攒出两条一样的。
+    apiMock.listGoals.mockResolvedValue([
+      goal({ id: 9, name: "高考", date: "2027-06-07" }),
+    ]);
+    apiMock.removeGoal.mockResolvedValue(undefined);
+    apiMock.upsertGoal.mockResolvedValue(
+      goal({ id: 10, name: "高考", date: "2027-06-07" }),
+    );
+
+    await migrateLegacyGoals();
+
+    expect(apiMock.removeGoal).toHaveBeenCalledWith(9);
+    expect(apiMock.upsertGoal).toHaveBeenCalledTimes(1);
   });
 });

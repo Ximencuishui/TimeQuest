@@ -223,7 +223,7 @@
 | clear_mock_data_removes_only_mock_rows | 有真实任务/场次/成绩/手记时，清除只删 `is_mock=1`（含指向演示场次的流水），XP 与连击不动；没有演示行时清除也不改 XP | `src-tauri/tests/mock_data_test.rs` |
 | clear_mock_data_resets_stats_when_no_real_rows | 只有演示数据时清除后三张表为空，`user_stats` 回到 XP 0、连击 0、等级 1 | `src-tauri/tests/mock_data_test.rs` |
 | import_missing_is_mock_defaults_to_zero | 旧备份没有 `is_mock` 时导入写成 0，不会被当成演示数据 | `src-tauri/tests/mock_data_test.rs` |
-| onboarding_real_start_saves_profile_and_skips_mock | 引导写入年级/地区/目标分并标记完成，不调用 `generate_mock_data`；2026-11 选高二时主考日写成 2028-06-07 | `src/components/__tests__/onboarding.test.tsx` |
+| onboarding_real_start_saves_profile_and_skips_mock | 引导写入年级/地区/目标分并标记完成，不调用 `generate_mock_data`；2026-11 选高二时主考日写成 2028-06-07；引导选的赛道会真的建出来并成为主赛道 | `src/components/__tests__/onboarding.test.tsx` |
 | onboarding_loads_hunan_demo_data | 「加载湖南高二演示数据」先存档案，再 `generate_mock_data`，最后写入完成标志 | `src/components/__tests__/onboarding.test.tsx` |
 | onboarding_hides_when_already_completed | `onboarding_completed=1` 时不渲染引导 | `src/components/__tests__/onboarding.test.tsx` |
 | settings_clear_mock_highlights_and_confirms_before_delete | 有演示数据时「清除所有演示数据」为橙色；取消不调用；确认后调用 `clear_mock_data` 并熄灭高亮 | `src/pages/Settings/__tests__/settings_mock_data.test.tsx` |
@@ -405,7 +405,7 @@
 | builds the subject tabs from the subject list | 科目 tab 由科目清单生成：传前两科就只有「总分 / 语文 / 数学」，不写死六科 | `src/components/__tests__/score_trend_chart.test.tsx` |
 | shortens a province suffix for the sidebar | 省份去「省 / 自治区 / 特别行政区」后缀；档案行是「年级 · 省份」 | `src/lib/__tests__/profile.test.ts` |
 | canonical province keeps the 34 short names | 34 个省级行政区的简称归一；认不出的返回 null | `src/lib/__tests__/profile.test.ts` |
-| 各科目标合计与总分目标一致 | 种子六科的目标合计等于总分目标；`targetHint` 三种差额文案 | `src/lib/__tests__/profile.test.ts` |
+| 各科目标合计与总分目标一致 | 种子六科的目标合计等于高考赛道模板的目标合计（不写死分值）；`targetHint` 三种差额文案 | `src/lib/__tests__/profile.test.ts` |
 | catalog_lists_builtin_plugins_not_installed_yet | 内置插件仓库清单非空；新装的应用没有已安装插件 | `src-tauri/tests/plugins_test.rs` |
 | install_plugin_writes_package_and_marks_installed | 安装后包落到 `plugins/<id>/plugin.json`；settings 记一条；列表标 installed | `src-tauri/tests/plugins_test.rs` |
 | install_plugin_twice_keeps_one_record | 重复下载不重复登记，settings 只占一行 | `src-tauri/tests/plugins_test.rs` |
@@ -781,7 +781,7 @@
 | rolls_to_the_next_year_once_the_anchor_has_passed | 锚点过了就顺延到下一年 | `src/lib/__tests__/examDate.test.ts` |
 | returns_an_empty_string_for_a_broken_anchor | 锚点坏了返回空串而不是崩 | `src/lib/__tests__/examDate.test.ts` |
 | total_full_marks_come_from_the_subject_list | 总分满分由科目清单算出 | `src/lib/__tests__/scoreScaling.test.ts` |
-| subjects_without_a_full_mark_do_not_break_the_scaling | 没有满分的科目不影响折算 | `src/lib/__tests__/scoreScaling.test.ts` |
+| subjects_without_a_full_mark_do_not_break_the_scaling | 没配满分的科目不进折算分母：折算总分按已配满分的那科算（90），不再虚高 | `src/lib/__tests__/scoreScaling.test.ts` |
 | scales_against_a_four_subject_paper | 四科卷按自己的满分折算 | `src/lib/__tests__/scoreScaling.test.ts` |
 | 新旧口径给出同一个折算总分 | 9 组样例下 4.0 前后折算口径逐位一致（实考和 / 已考满分 / 折算分 / 得分率 / 明细 / 说明行） | `src/lib/__tests__/scoreScalingParity.test.ts` |
 | 六科种子数据下总分仍是 610 | 六科种子数据的已考满分合计与折算总分都仍是 610 | `src/lib/__tests__/scoreScalingParity.test.ts` |
@@ -824,8 +824,51 @@
 | reason_counts_use_the_track_whitelist | 错因分布按赛道级白名单统计 | `src/lib/__tests__/mistakes.test.ts` |
 | reads_the_lines_out_of_a_track_pack | 从赛道包动机资源里读出语料行 | `src/lib/__tests__/motivation.test.ts` |
 | treats_a_broken_pack_as_no_pack | 坏包当作没有包 | `src/lib/__tests__/motivation.test.ts` |
+| seeding_rebinds_orphaned_subjects_to_the_primary_track | 播种时把没有赛道的科目绑到主赛道，不留孤儿科目 | `src-tauri/tests/tracks_test.rs` |
+| removed_subject_is_not_reseeded_on_next_startup | 用户删掉的科目下次启动不会被播种复活 | `src-tauri/tests/tracks_test.rs` |
+| export_import_round_trip_keeps_removed_subjects | 删除记录随导入导出往返，导入后不被复活 | `src-tauri/tests/tracks_test.rs` |
+| import_legacy_payload_seeds_subjects_on_the_primary_track | 导入 3.x 备份时按主赛道播种科目字典 | `src-tauri/tests/export_import_test.rs` |
+| import_legacy_payload_keeps_existing_subjects_on_the_primary_track | 导入不覆盖库里已有科目的赛道归属 | `src-tauri/tests/export_import_test.rs` |
+| import_legacy_exam_records_attach_sessions_to_the_primary_track | 导入的旧成绩场次挂到主赛道 | `src-tauri/tests/export_import_test.rs` |
+| imported_textbook_survives_export_import | 导入的教材随往返保留 | `src-tauri/tests/export_import_test.rs` |
+| export_import_round_trip_preserves_task_knowledge_points | 任务的知识点随往返保留 | `src-tauri/tests/export_import_test.rs` |
+| get_user_profile_reads_migration_default_and_reinserts_when_empty | 读档案拿迁移种下的那行；表空了自动补一行默认档案 | `src-tauri/tests/profile_test.rs` |
+| update_user_profile_overwrites_single_row_and_rejects_negative | 档案只保留一行；总分目标为负数报错且不落库 | `src-tauri/tests/profile_test.rs` |
+| user_profile_total_target_can_be_cleared | 档案总分目标能真的清空（留空 = 这条赛道不计总分） | `src-tauri/tests/profile_test.rs` |
+| user_profile_survives_export_import_and_old_backup_resets_default | 档案随导入导出往返；旧备份没有档案列时回落默认档案 | `src-tauri/tests/profile_test.rs` |
+| goal_total_target_can_be_cleared_explicitly | 清空总分目标走显式开关；不带开关时保持原值 | `src-tauri/tests/goals_test.rs` |
+| seeded_goal_leaves_the_total_target_empty_when_the_profile_has_none | 档案没设总分目标时，播种的主目标也不带分 | `src-tauri/tests/goals_test.rs` |
+| seeded_goal_copies_the_profile_total_target | 播种的主目标抄档案里的总分目标 | `src-tauri/tests/goals_test.rs` |
+| no_module_outside_the_domain_adapters_carries_domain_constants | 默认全量扫描：领域适配层白名单外的模块不许出现领域常量 | `src-tauri/tests/domain_isolation_test.rs` |
+| the_domain_adapter_list_is_not_a_blanket_exemption | 白名单不许膨胀：每一条都得真的含领域常量 | `src-tauri/tests/domain_isolation_test.rs` |
+| the_shared_layers_are_inside_the_scanned_set | 共享层（models / lib / profile）确实在受检范围内，且不在白名单里 | `src-tauri/tests/domain_isolation_test.rs` |
+| goals_migration_marks_done_only_after_the_rows_are_written | 数据写进库之后才打迁移标记，崩溃不会把旧目标丢在库里 | `src/lib/__tests__/goals.test.ts` |
+| goals_migration_replays_the_snapshot_after_a_crash | 崩溃后按快照重放，把没搬完的补齐 | `src/lib/__tests__/goals.test.ts` |
+| goals_migration_does_not_replay_while_another_window_is_moving | 别的窗口正在搬时不抢（时间戳锁） | `src/lib/__tests__/goals.test.ts` |
+| goals_migration_replaces_the_rows_left_by_a_previous_crash | 按 (name, date) 幂等替换上次崩溃留下的旧行 | `src/lib/__tests__/goals.test.ts` |
+| 未设总分目标时只报各科合计 | 总分目标为空时提示只报各科合计，不报错 | `src/lib/__tests__/profile.test.ts` |
+| 档案留空总分目标时不报错 | 留空 = 不设总分目标（按分科计的赛道没有总分） | `src/lib/__tests__/profile.test.ts` |
+| 档案填了非法总分目标时报错 | 非负整数以外的输入被拦下 | `src/lib/__tests__/profile.test.ts` |
+| a_scored_subject_without_a_full_mark_does_not_inflate_the_scaled_total | 已考但没配满分的科目不进折算分子分母，折算总分不虚高 | `src/lib/__tests__/scoreScaling.test.ts` |
+| %s 不该出现领域常量 | 前端共享层（types / constants）与内核（gamification）不许出现领域常量 | `src/lib/__tests__/domain_isolation.test.ts` |
+| 护栏不是空转的：领域适配层里确实有学科名 | 前端护栏自证不是空转：领域适配层里确实有学科名 | `src/lib/__tests__/domain_isolation.test.ts` |
+| settings_profile_save_invokes_update_user_profile | 档案只存头像/年级/地区/总分目标；各科目标走 `subjects` 表；总分目标留空时提示各科合计 | `src/pages/Settings/__tests__/settings_profile.test.tsx` |
+| settings_profile_grade_and_region_use_choices | 改年级先弹确认框；日期规则来自当前赛道，取消不写库，确认后写档案并改目标日 | `src/pages/Settings/__tests__/settings_profile.test.tsx` |
+| settings_grade_change_confirms_then_refreshes_countdown | 确认后目标日与倒计时一起刷新 | `src/pages/Settings/__tests__/settings_profile.test.tsx` |
+| shows the avatar and shortened grade region line | 侧边栏显示头像与「年级 · 省份」 | `src/pages/Settings/__tests__/settings_profile.test.tsx` |
 
 ## 已知实现约束
+
+### 赛道通用化（4.0）的几条硬约定
+
+- **赛道是权威源**：`tracks` + `subjects.track_id` + `goals.track_id` 才是真相。档案里的 `total_target` / `subject_targets` 降级成兼容留档，读侧不回头读；旧库升级时靠迁移把两者搬过去。
+- **科目软删**：删科目先把 key 记进 `removed_subjects`，播种时跳过。不做物理删除——否则下次启动会被种子重新种回来。删除记录随导入导出往返。
+- **总分目标可以为空**：`user_profile.total_target` 与 `goals.target_score` 都允许 NULL（按分科计的赛道压根没有总分）。接口层 `null` 与「不传」同义，所以「清空」走显式开关 `clear_target_score`，不靠 null 猜。
+- **迁移不清空历史分值**：`total_target` 变可空只改列定义，不动数据。迁移里的主目标靠 `seed_default_goal_impl` 从档案抄，抄不到就留空——清空会让老用户的目标线凭空消失。
+- **折算分子分母同口径**：折算只算「已考且配了满分」的科目。已录分但没配满分的科目单列在 `unscored` 里，不进分子也不进分母（否则折算总分虚高）。
+- **本地数据迁移：先搬后打标记**：localStorage → SQLite 必须数据落库后才写「搬完了」的标记，搬之前先落一份快照；崩溃后按快照重放，并按 (name, date) 幂等替换上次留下的旧行。同一时刻只让一个窗口搬（时间戳锁）。
+- **零污染护栏分三层**：L0 内核（gamification / planner / stats / sessions）不许出现领域常量；L1 共享层（models / lib / profile / types / constants）默认全量受检；L2 领域适配层走显式白名单，且白名单每一条都得真的含领域常量（不许膨胀）。
+- **前端插件清单要兜底**：`usePlugins()` 返回 `data ?? []`。赛道包清单要遍历找日期规则 / 语料包，null 传进去会直接抛 `packages is not iterable`。
 
 ### 排期建议与先修检查
 

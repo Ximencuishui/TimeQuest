@@ -10,7 +10,8 @@ use sqlx::sqlite::SqlitePoolOptions;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 use timequest_lib::{
-    complete_session_impl, export_json_impl, import_json_impl, stats_tag_type_totals_impl,
+    complete_session_impl, export_json_impl, import_json_impl, list_exam_sessions_impl,
+    list_subjects_impl, list_tracks_impl, seed_default_track_impl, stats_tag_type_totals_impl,
     task_progress_impl,
 };
 
@@ -539,6 +540,171 @@ async fn import_v1_payload_without_goals_key_still_succeeds() {
     assert_eq!(name, "高考");
     assert_eq!(date, "2027-06-07");
     assert_eq!(is_primary, 1);
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 3.x 旧备份不带科目字典：新库导入后六科要出现并挂在主赛道下。
+///
+/// 不然换机导入完成绩页是空的；而且播种自愈按 key 跳过，永远补不回来。
+#[tokio::test]
+async fn import_legacy_payload_seeds_subjects_on_the_primary_track() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    let legacy = serde_json::json!({
+        "version": 1,
+        "exported_at": "2026-11-01T00:00:00+08:00",
+        "tasks": [],
+        "task_sessions": [],
+        "actual_logs": [],
+        "notes": [],
+        "mistakes": [],
+        "user_stats": null,
+        "user_achievements": [],
+        "user_profile": { "subject_targets": { "chinese": 100, "math": 120 } },
+        "app_settings": [],
+        "imported_textbooks": [],
+        "exam_records": [],
+        "task_knowledge_points": [],
+    })
+    .to_string();
+
+    import_json_impl(&conn, &legacy).expect("import legacy payload");
+
+    let tracks = list_tracks_impl(&conn).expect("tracks");
+    let primary = tracks
+        .iter()
+        .find(|track| track.is_primary)
+        .expect("primary track");
+    let subjects = list_subjects_impl(&conn, Some(primary.id)).expect("subjects");
+    assert_eq!(subjects.len(), 6, "导入后六科仍然可见");
+    assert!(
+        subjects
+            .iter()
+            .all(|subject| subject.track_id == Some(primary.id)),
+        "六科都挂在主赛道下"
+    );
+
+    // 档案里的各科目标也要跟着回来。
+    let chinese = subjects
+        .iter()
+        .find(|subject| subject.key == "chinese")
+        .expect("chinese subject");
+    assert_eq!(chinese.goal, Some(100.0));
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 导入会先清空科目归属：老用户导入后六科必须重新挂回主赛道。
+///
+/// 不然导入后按赛道筛选一科都看不到 —— 升级路径上的必经场景。
+#[tokio::test]
+async fn import_legacy_payload_keeps_existing_subjects_on_the_primary_track() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    // 老用户本机已经有六科（带归属）。
+    seed_default_track_impl(&conn).expect("seed default track");
+    let tracks = list_tracks_impl(&conn).expect("tracks");
+    let primary = tracks
+        .iter()
+        .find(|track| track.is_primary)
+        .expect("primary track");
+    assert_eq!(
+        list_subjects_impl(&conn, Some(primary.id))
+            .expect("subjects")
+            .len(),
+        6,
+        "导入前六科都在主赛道下"
+    );
+
+    let legacy = serde_json::json!({
+        "version": 1,
+        "tasks": [],
+        "task_sessions": [],
+        "actual_logs": [],
+        "notes": [],
+        "mistakes": [],
+        "user_stats": null,
+        "user_achievements": [],
+        "user_profile": null,
+        "app_settings": [],
+        "imported_textbooks": [],
+        "exam_records": [],
+        "task_knowledge_points": [],
+    })
+    .to_string();
+
+    import_json_impl(&conn, &legacy).expect("import legacy payload");
+
+    // 导入会重建赛道表，track id 会变：重新取主赛道再断言。
+    let tracks_after = list_tracks_impl(&conn).expect("tracks after import");
+    let primary_after = tracks_after
+        .iter()
+        .find(|track| track.is_primary)
+        .expect("primary track after import");
+    let subjects = list_subjects_impl(&conn, Some(primary_after.id)).expect("subjects");
+    assert_eq!(subjects.len(), 6, "导入后六科仍然可见");
+    assert!(
+        subjects
+            .iter()
+            .all(|subject| subject.track_id == Some(primary_after.id)),
+        "导入清空归属后要重新挂回主赛道"
+    );
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 旧备份里的考试记录展开成场次后，也要挂到主赛道下。
+#[tokio::test]
+async fn import_legacy_exam_records_attach_sessions_to_the_primary_track() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    let legacy = serde_json::json!({
+        "version": 1,
+        "tasks": [],
+        "task_sessions": [],
+        "actual_logs": [],
+        "notes": [],
+        "mistakes": [],
+        "user_stats": null,
+        "user_achievements": [],
+        "user_profile": null,
+        "app_settings": [],
+        "imported_textbooks": [],
+        "exam_records": [{
+            "id": 1,
+            "exam_name": "一模",
+            "exam_date": "2026-10-08",
+            "is_mock": 0,
+            "chinese_score": 110,
+            "math_score": 120
+        }],
+        "task_knowledge_points": [],
+    })
+    .to_string();
+
+    import_json_impl(&conn, &legacy).expect("import legacy payload");
+
+    let tracks = list_tracks_impl(&conn).expect("tracks");
+    let primary = tracks
+        .iter()
+        .find(|track| track.is_primary)
+        .expect("primary track");
+    let sessions = list_exam_sessions_impl(&conn).expect("sessions");
+    assert_eq!(sessions.len(), 1, "旧考试记录展开成一场");
+    assert_eq!(
+        sessions[0].track_id,
+        Some(primary.id),
+        "历史场次要挂在主赛道下"
+    );
+    // 六科成绩行都在，其中两科有分，其余是没考的 NULL。
+    assert_eq!(sessions[0].scores.len(), 6, "六科成绩行都在");
+    let scored: Vec<_> = sessions[0]
+        .scores
+        .iter()
+        .filter(|score| score.score.is_some())
+        .collect();
+    assert_eq!(scored.len(), 2, "两科有分");
 
     let _ = std::fs::remove_file(&path);
 }

@@ -47,6 +47,7 @@ fn payload(name: &str, date: &str, is_primary: bool) -> UpsertGoalPayload {
         kind: None,
         is_primary: Some(is_primary),
         target_score: None,
+        clear_target_score: None,
     }
 }
 
@@ -121,6 +122,7 @@ async fn goals_crud_validates_and_keeps_one_primary() {
             kind: None,
             is_primary: Some(true),
             target_score: None,
+            clear_target_score: None,
         },
     )
     .expect("promote via upsert");
@@ -139,6 +141,7 @@ async fn goals_crud_validates_and_keeps_one_primary() {
             kind: Some("milestone".to_string()),
             is_primary: None,
             target_score: Some(650.0),
+            clear_target_score: None,
         },
     )
     .expect("update");
@@ -160,6 +163,7 @@ async fn goals_crud_validates_and_keeps_one_primary() {
             kind: None,
             is_primary: None,
             target_score: None,
+            clear_target_score: None,
         },
     )
     .expect_err("missing goal");
@@ -198,6 +202,70 @@ async fn goals_seed_default_goal_is_idempotent() {
     assert_eq!(list_goals_impl(&conn).unwrap().len(), 1);
 
     // 已经有目标时不再补默认目标。
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 总分目标必须真的能被清空：`COALESCE` 语义下 null 与「不传」同义，
+/// 所以清空要走显式开关（`clear_target_score`）。
+#[tokio::test]
+async fn goal_total_target_can_be_cleared_explicitly() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    let mut with_score = payload("高考", "2027-06-07", true);
+    with_score.target_score = Some(650.0);
+    let created = upsert_goal_impl(&conn, with_score).expect("create");
+    assert_eq!(created.target_score, Some(650.0));
+
+    // 不带清空开关的更新：总分目标保持原样。
+    let mut rename_only = payload("高考（普通类）", "2027-06-07", true);
+    rename_only.id = Some(created.id);
+    let kept = upsert_goal_impl(&conn, rename_only).expect("update without clear");
+    assert_eq!(kept.target_score, Some(650.0));
+
+    // 带上清空开关：总分目标被真的清掉。
+    let mut clear = payload("高考（普通类）", "2027-06-07", true);
+    clear.id = Some(created.id);
+    clear.clear_target_score = Some(true);
+    let cleared = upsert_goal_impl(&conn, clear).expect("update with clear");
+    assert_eq!(cleared.target_score, None);
+
+    let listed = list_goals_impl(&conn).unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].target_score, None);
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 档案里没有总分目标时，播种出来的目标也不该带分值。
+#[tokio::test]
+async fn seeded_goal_leaves_the_total_target_empty_when_the_profile_has_none() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    // 新档案：总分目标可空，默认就是空。
+    conn.execute("UPDATE user_profile SET total_target = NULL WHERE id = 1", [])
+        .expect("clear total target");
+
+    seed_default_goal_impl(&conn).expect("seed");
+    let listed = list_goals_impl(&conn).unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].target_score, None);
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 档案里的总分目标照旧搬到目标上（老用户的目标线不能丢）。
+#[tokio::test]
+async fn seeded_goal_copies_the_profile_total_target() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    conn.execute("UPDATE user_profile SET total_target = 565 WHERE id = 1", [])
+        .expect("set total target");
+
+    seed_default_goal_impl(&conn).expect("seed");
+    let listed = list_goals_impl(&conn).unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].target_score, Some(565.0));
+
     let _ = std::fs::remove_file(&path);
 }
 

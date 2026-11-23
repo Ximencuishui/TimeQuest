@@ -2,12 +2,14 @@ import { useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { useGoalMutations, useGoals } from "../hooks/useGoals";
+import { usePlugins } from "../hooks/usePlugins";
 import { useSubjectMutations, useSubjects } from "../hooks/useSubjects";
 import { useActiveTrack } from "../hooks/useTracks";
 import { useUpdateUserProfile, useUserProfile } from "../hooks/useUserProfile";
 import { DEFAULT_EXAM_DATE, DEFAULT_GOAL_NAME } from "../lib/constants";
-import { gaokaoDateForGrade } from "../lib/examDate";
+import { resolveDateRule } from "../lib/examDate";
 import { resolvePrimaryGoal } from "../lib/goals";
+import { dateRuleForTrack } from "../lib/track";
 import type { Subject, UserProfile } from "../types";
 import { RegionSelect } from "./RegionSelect";
 import {
@@ -103,7 +105,9 @@ export function ProfileSetting() {
   const { data: goals = [] } = useGoals();
   const { upsert: upsertGoal } = useGoalMutations();
   // 科目跟着当前赛道走：换赛道就是换一套科目。
-  const { trackId: activeTrackId } = useActiveTrack();
+  const { trackId: activeTrackId, track } = useActiveTrack();
+  // 赛道包：日期规则以包里的为准，没有包才用同名内置模板的。
+  const { data: plugins = [] } = usePlugins();
   const { data: subjects = [] } = useSubjects(activeTrackId);
   const { upsert: upsertSubject, remove: removeSubject } = useSubjectMutations();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -160,7 +164,14 @@ export function ProfileSetting() {
   };
 
   const addSubject = () => {
-    upsertSubject.mutate({ label: "新科目", goal: null, fullMark: null, unit: null });
+    upsertSubject.mutate({
+      label: "新科目",
+      goal: null,
+      fullMark: null,
+      unit: null,
+      // 新科目必须挂到当前赛道：不挂的话按赛道筛选时它立刻就看不见了。
+      trackId: activeTrackId,
+    });
   };
 
   const dropSubject = (subject: Subject) => {
@@ -202,7 +213,7 @@ export function ProfileSetting() {
    */
   const writePrimaryGoal = (options: {
     examDate: string | null;
-    totalTarget: number;
+    totalTarget: number | null;
   }) => {
     const primary = resolvePrimaryGoal(goals);
     upsertGoal.mutate({
@@ -212,6 +223,9 @@ export function ProfileSetting() {
       kind: primary?.kind ?? "exam",
       isPrimary: true,
       targetScore: options.totalTarget,
+      // 「清空总分目标」是显式动作：接口层 null 与「不传」同义，
+      // 光传 null 分不清「不改」和「清空」。
+      clearTargetScore: options.totalTarget == null,
     });
   };
 
@@ -225,8 +239,13 @@ export function ProfileSetting() {
   const onSave = async () => {
     if (!parsed.ok) return;
     setError("");
-    const nextDate = gaokaoDateForGrade(parsed.profile.grade);
     const primary = resolvePrimaryGoal(goals);
+    // 目标日期按当前赛道的规则算。没有规则的赛道保留用户已有的日期，
+    // 不能拿别的赛道的规则盖上去。
+    const rule = dateRuleForTrack(track?.name, plugins);
+    const nextDate = rule
+      ? resolveDateRule(rule, parsed.profile.grade)
+      : primary?.date ?? "";
     const gradeChanged = parsed.profile.grade !== savedGrade;
     if (gradeChanged && primary?.date !== nextDate) {
       setPendingExamDate(nextDate);
@@ -467,9 +486,9 @@ export function ProfileSetting() {
             aria-labelledby="grade-exam-date-title"
             className="rounded-xl border border-white/10 bg-surface p-3 text-sm"
           >
-            <p id="grade-exam-date-title">年级会改高考日期</p>
+            <p id="grade-exam-date-title">年级会改目标日期</p>
             <p className="mt-1 text-ink-muted">
-              年级改为「{view.grade}」后，高考倒计时将改为 {pendingExamDate}。
+              年级改为「{view.grade}」后，目标日期将改为 {pendingExamDate}。
             </p>
             <div className="mt-3 flex gap-2">
               <button
@@ -477,7 +496,7 @@ export function ProfileSetting() {
                 className="rounded-lg bg-accent px-3 py-1.5 text-sm text-white"
                 onClick={() => void confirmGradeDate()}
               >
-                更新高考日期
+                更新目标日期
               </button>
               <button
                 type="button"

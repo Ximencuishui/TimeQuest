@@ -101,6 +101,29 @@ describe("score scaling", () => {
     expect(breakdown.missing.map((m) => m.label)).toEqual(["丙"]);
     expect(breakdown.takenFullMarks).toBe(100);
     // 甲、丙没有满分，不进折算的分母。
-    expect(breakdown.scaledTotal).toBe(170);
+    expect(breakdown.scaledTotal).toBe(90);
+  });
+
+  it("a_scored_subject_without_a_full_mark_does_not_inflate_the_scaled_total", () => {
+    const noFullMark: Subject[] = [
+      { id: 21, key: "a", label: "甲", fullMark: null, goal: null, unit: null, orderIndex: 0, trackId: 1 },
+      { id: 22, key: "b", label: "乙", fullMark: 100, goal: 100, unit: "分", orderIndex: 1, trackId: 1 },
+      { id: 23, key: "c", label: "丙", fullMark: null, goal: null, unit: null, orderIndex: 2, trackId: 1 },
+    ];
+    const session = examSession(4, "三科", "2026-11-04", [80, 90, null], noFullMark);
+    const breakdown = examScoreBreakdown(session, noFullMark);
+
+    // 实考总分含甲的 80 分（它确实考了）。
+    expect(breakdown.sum).toBe(170);
+    // 但甲没有满分基准，不参与折算：分子分母口径一致，折算分不会虚高。
+    // 旧口径是 170 × 100 ÷ 100 = 170，等于把甲的 80 分按乙的满分算了一遍。
+    expect(breakdown.unscored.map((item) => item.label)).toEqual(["甲"]);
+    expect(breakdown.scaledSum).toBe(90);
+    expect(breakdown.takenFullMarks).toBe(100);
+    expect(breakdown.scaledTotal).toBe(90);
+    expect(breakdown.rate).toBeCloseTo(0.9);
+    expect(scaledTotalNote(session, noFullMark)).toBe(
+      "实考 170 · 折算 90 / 100（甲 未配满分，不参与折算）",
+    );
   });
 });

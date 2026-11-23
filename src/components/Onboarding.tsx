@@ -4,7 +4,6 @@ import { api } from "../api/tauri";
 import { useAppSetting, useSetSetting } from "../hooks/useAppSetting";
 import { usePlugins } from "../hooks/usePlugins";
 import { useSubjects } from "../hooks/useSubjects";
-import { useActiveTrack } from "../hooks/useTracks";
 import { useUpdateUserProfile, useUserProfile } from "../hooks/useUserProfile";
 import { RegionSelect } from "./RegionSelect";
 import {
@@ -69,8 +68,6 @@ function Onboarding({ initial }: { initial: UserProfile }) {
   const { data: storedSubjects = [] } = useSubjects();
   // 赛道包：装上就多一条赛道、一套科目和一组目标（含日期规则）。
   const plugins = usePlugins();
-  // 播种的科目与目标都归当前主赛道：否则成绩页按赛道筛选时看不到它们。
-  const { trackId: activeTrackId } = useActiveTrack();
   const subjectRows = useMemo(
     () => mergeTemplateSubjects(template, storedSubjects, false),
     [template, storedSubjects],
@@ -94,7 +91,7 @@ function Onboarding({ initial }: { initial: UserProfile }) {
   const score = parseTarget(target, template.maxScore);
   const regionOk = canonicalProvince(region) != null;
   const needsRegion = template.requiresGaokaoContext;
-  const needsGrade = templateNeedsGrade(template);
+  const needsGrade = templateNeedsGrade(template, plugins.data ?? []);
   // 目标日期的规则以赛道包为准，没装包就用内置模板里的那份。
   const packageRule = useMemo(
     () => dateRuleFromPackages(plugins.data ?? [], template.name),
@@ -137,9 +134,26 @@ function Onboarding({ initial }: { initial: UserProfile }) {
           ...initial,
           grade,
           region: canonicalProvince(region) ?? region.trim(),
-          total_target: score ?? initial.total_target,
+          // 按用户填的来：没填就是「这条赛道不计总分」。
+          // 不能拿旧档案里的默认值顶上去——那是上一条赛道的分值。
+          total_target: score,
         });
       }
+      // 引导选的赛道要真的建出来：只换科目模板的话，库里还是那条「高考」，
+      // 赛道名和科目集自相矛盾，设置里也看不到这条赛道。
+      const tracks = (await api.listTracks()) ?? [];
+      const existing = tracks.find((item) => item.name === template.name);
+      const track = await api.upsertTrack({
+        id: existing?.id ?? null,
+        name: template.name,
+        kind: template.kind,
+        // 不计总分的赛道（技能习得这类）按分科计。
+        scoreMode: template.maxScore > 0 ? "total" : "per_subject",
+        isPrimary: true,
+        color: null,
+      });
+      const trackId = track.id;
+
       // 各科目标落在科目字典，不跟档案一起存。每条赛道都要播种自己的科目。
       // 科目标识全库唯一：已存在的带上 id 改，不存在的才新建。
       const existingSubjects = (await api.listSubjects()) ?? [];
@@ -149,7 +163,7 @@ function Onboarding({ initial }: { initial: UserProfile }) {
         const goal = /^\d+$/.test(raw) ? Number(raw) : subject.goal;
         await api.upsertSubject({
           id: subjectIds.get(subject.key) ?? null,
-          trackId: activeTrackId,
+          trackId,
           key: subject.key,
           label: subject.label,
           fullMark: subject.fullMark,
@@ -162,7 +176,7 @@ function Onboarding({ initial }: { initial: UserProfile }) {
       const primary = goals.find((item) => item.isPrimary) ?? goals[0];
       await api.upsertGoal({
         id: primary?.id,
-        trackId: activeTrackId,
+        trackId,
         name: goalName.trim(),
         date: goalDate,
         kind: primary?.kind ?? "exam",
@@ -176,9 +190,10 @@ function Onboarding({ initial }: { initial: UserProfile }) {
       await qc.invalidateQueries({ queryKey: ["sessions"] });
       await qc.invalidateQueries({ queryKey: ["sessions-range"] });
       await qc.invalidateQueries({ queryKey: ["user-stats"] });
-      await qc.invalidateQueries({ queryKey: ["examRecords"] });
+      await qc.invalidateQueries({ queryKey: ["examSessions"] });
       await qc.invalidateQueries({ queryKey: ["goals"] });
       await qc.invalidateQueries({ queryKey: ["subjects"] });
+      await qc.invalidateQueries({ queryKey: ["tracks"] });
       await qc.invalidateQueries({ queryKey: ["hasMockData"] });
       await qc.invalidateQueries({ queryKey: ["stats"] });
     } catch (cause) {

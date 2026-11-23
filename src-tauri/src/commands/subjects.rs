@@ -237,8 +237,24 @@ pub fn upsert_subject_impl(
 ///
 /// 它的历史成绩行一起清掉：`exam_scores.subject_id` 指向科目，
 /// 外键开着时留着会让成绩页算出不存在的科目。
+///
+/// 删掉的科目 key 会记进 `removed_subjects`：默认赛道的出厂科目每次启动
+/// 都会重播一遍，不记一笔的话下次启动这科就带着满分目标回来了。
 pub fn remove_subject_impl(conn: &Connection, id: i64) -> Result<(), String> {
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let key: Option<String> = tx
+        .query_row("SELECT key FROM subjects WHERE id = ?1", params![id], |r| {
+            r.get(0)
+        })
+        .optional()
+        .map_err(|e| e.to_string())?;
+    if let Some(key) = key {
+        tx.execute(
+            "INSERT OR IGNORE INTO removed_subjects (key) VALUES (?1)",
+            params![key],
+        )
+        .map_err(|e| e.to_string())?;
+    }
     tx.execute("DELETE FROM exam_scores WHERE subject_id = ?1", params![id])
         .map_err(|e| e.to_string())?;
     let changed = tx

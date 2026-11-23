@@ -237,15 +237,40 @@ pub fn seed_default_track_impl(conn: &Connection) -> Result<Track, String> {
 }
 
 /// 给赛道补齐出厂科目。已有的按 key 跳过，不改用户改过的满分与目标。
-fn seed_track_subjects(conn: &Connection, track: &Track) -> Result<(), String> {
+///
+/// 导入旧备份时也可能用到：老备份不带科目字典，库里一科都没有时要补齐。
+pub(crate) fn seed_track_subjects(conn: &Connection, track: &Track) -> Result<(), String> {
     for (index, (key, label, full_mark)) in DEFAULT_TRACK_SUBJECTS.iter().enumerate() {
-        let exists: Option<i64> = conn
-            .query_row("SELECT id FROM subjects WHERE key = ?1", params![key], |r| {
-                r.get(0)
-            })
+        // 用户主动删过的科目不再补回来：删了就是删了，下次启动也一样。
+        let removed: bool = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM removed_subjects WHERE key = ?1)",
+                params![key],
+                |r| r.get::<_, i64>(0),
+            )
+            .map(|value| value != 0)
+            .map_err(|e| e.to_string())?;
+        if removed {
+            continue;
+        }
+        let existing: Option<(i64, Option<i64>)> = conn
+            .query_row(
+                "SELECT id, track_id FROM subjects WHERE key = ?1",
+                params![key],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
             .optional()
             .map_err(|e| e.to_string())?;
-        if exists.is_some() {
+        if let Some((id, track_id)) = existing {
+            // 科目还在但没挂赛道（导入时归属被清空过）：补挂回当前赛道。
+            // 播种是按 key 跳过的，不补的话它会一直当孤儿，重启也救不回来。
+            if track_id.is_none() {
+                conn.execute(
+                    "UPDATE subjects SET track_id = ?1 WHERE id = ?2 AND track_id IS NULL",
+                    params![track.id, id],
+                )
+                .map_err(|e| e.to_string())?;
+            }
             continue;
         }
         conn.execute(

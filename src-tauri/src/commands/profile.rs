@@ -39,7 +39,7 @@ fn read_profile(conn: &Connection) -> Result<UserProfile, String> {
         Option<String>,
         String,
         String,
-        i64,
+        Option<i64>,
     ) = conn
         .query_row(
             "SELECT avatar, grade, region, total_target FROM user_profile WHERE id = 1",
@@ -73,7 +73,7 @@ pub fn get_user_profile_impl(conn: &Connection) -> Result<UserProfile, String> {
 }
 
 fn validate_profile(profile: &UserProfile) -> Result<(), String> {
-    if profile.total_target < 0 {
+    if profile.total_target.is_some_and(|value| value < 0) {
         return Err("总分目标不能为负数".to_string());
     }
     if profile
@@ -176,10 +176,8 @@ pub fn user_profile_from_export(
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string(),
-            total_target: value
-                .get("total_target")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(defaults.total_target),
+            // 3.x 备份里没有这一列，或者存的是 null，都按「没设总分目标」处理。
+            total_target: value.get("total_target").and_then(|v| v.as_i64()),
         },
         updated_at,
     ))

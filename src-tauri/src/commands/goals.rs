@@ -94,6 +94,9 @@ pub fn upsert_goal_impl(
     if payload.target_score.is_some_and(|value| value < 0.0) {
         return Err("目标分数不能为负数".to_string());
     }
+    // 清空总分目标是显式动作：`target_score` 传 null 与「不传」同义，
+    // 光靠它分不清「不改」和「清空」。
+    let clear_target_score = payload.clear_target_score.unwrap_or(false);
 
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let id = match payload.id {
@@ -108,18 +111,20 @@ pub fn upsert_goal_impl(
                 return Err("目标不存在".to_string());
             }
             // track_id / target_score 没传就保持原样，别把已有的赛道与总分目标抹掉。
+            // 显式要清空总分目标时（clear_target_score）才写 NULL。
             tx.execute(
                 r#"UPDATE goals
                       SET name = ?1,
                           date = ?2,
                           kind = ?3,
-                          target_score = COALESCE(?4, target_score),
-                          track_id = COALESCE(?5, track_id)
-                    WHERE id = ?6"#,
+                          target_score = CASE WHEN ?4 = 1 THEN NULL ELSE COALESCE(?5, target_score) END,
+                          track_id = COALESCE(?6, track_id)
+                    WHERE id = ?7"#,
                 params![
                     name,
                     date,
                     kind,
+                    if clear_target_score { 1 } else { 0 },
                     payload.target_score,
                     payload.track_id,
                     id
@@ -129,6 +134,11 @@ pub fn upsert_goal_impl(
             id
         }
         _ => {
+            let target_score: Option<f64> = if clear_target_score {
+                None
+            } else {
+                payload.target_score
+            };
             tx.execute(
                 r#"INSERT INTO goals (track_id, name, date, kind, is_primary, target_score)
                    VALUES (?1, ?2, ?3, ?4, 0, ?5)"#,
@@ -137,7 +147,7 @@ pub fn upsert_goal_impl(
                     name,
                     date,
                     kind,
-                    payload.target_score
+                    target_score
                 ],
             )
             .map_err(|e| e.to_string())?;
@@ -226,12 +236,14 @@ pub fn seed_default_goal_impl(conn: &Connection) -> Result<(), String> {
         )
         .optional()
         .map_err(|e| e.to_string())?;
+    // 总分目标从旧档案搬过来；档案里没设就是「不设总分目标」。
     let target_score: Option<f64> = conn
         .query_row("SELECT total_target FROM user_profile WHERE id = 1", [], |r| {
-            r.get::<_, i64>(0).map(|value| value as f64)
+            r.get::<_, Option<i64>>(0).map(|value| value.map(|v| v as f64))
         })
         .optional()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?
+        .flatten();
     conn.execute(
         "INSERT INTO goals (track_id, name, date, kind, is_primary, target_score)
          VALUES (?1, ?2, ?3, ?4, 1, ?5)",

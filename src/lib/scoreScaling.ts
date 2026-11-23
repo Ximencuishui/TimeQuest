@@ -22,13 +22,17 @@ export type ExamScoreBreakdown = {
   filled: { key: string; label: string; score: number }[];
   /** 缺考的科目。 */
   missing: { key: string; label: string }[];
-  /** 实考总分。 */
+  /** 实考总分（全部已考科目，包括没配满分的）。 */
   sum: number;
-  /** 已考科目的满分之和（缺考科目不计入）。 */
+  /** 已录分但没配满分的科目：没有满分基准，折算时不算它们。 */
+  unscored: { key: string; label: string }[];
+  /** 参与折算的科目满分之和（已考且配了满分的）。 */
   takenFullMarks: number;
+  /** 参与折算的科目实考分之和。 */
+  scaledSum: number;
   /** 折算到全科口径的总分；科目全齐时就是实考总分。一科都没考时是 null。 */
   scaledTotal: number | null;
-  /** 实考总分 ÷ 已考满分。 */
+  /** 参与折算科目的得分率。 */
   rate: number;
 };
 
@@ -36,8 +40,12 @@ export type ExamScoreBreakdown = {
  * 拆开一次考试：哪些考了、哪些缺考、实考多少分、
  * 缺考时按比例折算成多少分。
  *
- * 折算口径：`折算总分 = 实考总分 × 全科满分 ÷ 已考科目满分之和`，
+ * 折算口径：`折算总分 = 参与折算的实考分 × 全科满分 ÷ 参与折算的满分之和`，
  * 也就是把缺考科目按已考科目的得分率补齐，得到和「科目都考了」可比的分数。
+ *
+ * 没配满分的科目（`fullMark` 为空）没有折算基准：它的分数照收（实考总分照算），
+ * 但不进折算的分子也不进分母——不然它的分会被按别的科目的满分比例放大，
+ * 折出来的总分虚高。
  */
 export function examScoreBreakdown(
   session: ExamSession,
@@ -45,7 +53,9 @@ export function examScoreBreakdown(
 ): ExamScoreBreakdown {
   const filled: ExamScoreBreakdown["filled"] = [];
   const missing: ExamScoreBreakdown["missing"] = [];
+  const unscored: ExamScoreBreakdown["unscored"] = [];
   let sum = 0;
+  let scaledSum = 0;
   let takenFullMarks = 0;
 
   for (const subject of subjects) {
@@ -56,7 +66,12 @@ export function examScoreBreakdown(
     }
     filled.push({ key: subject.key, label: subject.label, score });
     sum += score;
-    takenFullMarks += subject.fullMark ?? 0;
+    if (subject.fullMark == null) {
+      unscored.push({ key: subject.key, label: subject.label });
+      continue;
+    }
+    scaledSum += score;
+    takenFullMarks += subject.fullMark;
   }
 
   let scaledTotal: number | null = null;
@@ -64,28 +79,37 @@ export function examScoreBreakdown(
     if (filled.length === subjects.length) {
       scaledTotal = sum;
     } else if (takenFullMarks > 0) {
-      scaledTotal = Math.round((sum * totalFullMarks(subjects)) / takenFullMarks);
+      scaledTotal = Math.round((scaledSum * totalFullMarks(subjects)) / takenFullMarks);
     }
   }
 
   return {
     filled,
     missing,
+    unscored,
     sum,
     takenFullMarks,
+    scaledSum,
     scaledTotal,
-    rate: takenFullMarks === 0 ? 0 : sum / takenFullMarks,
+    rate: takenFullMarks === 0 ? 0 : scaledSum / takenFullMarks,
   };
 }
 
 /**
  * 「实考 500 / 530 · 折算 575 / 610」。
  * 科目都考了（或只记了一科）时返回 null，表示不需要说明。
+ *
+ * 有科目没配满分时，实考总分里含了这些没有基准的分，
+ * 分母就对不上了，所以改成另一种说法并点名是哪几科。
  */
 export function scaledTotalNote(session: ExamSession, subjects: Subject[]): string | null {
   const breakdown = examScoreBreakdown(session, subjects);
   if (breakdown.missing.length === 0) return null;
   if (breakdown.filled.length < MIN_SUBJECTS_FOR_SCALING) return null;
   if (breakdown.scaledTotal == null) return null;
+  if (breakdown.unscored.length > 0) {
+    const labels = breakdown.unscored.map((item) => item.label).join("、");
+    return `实考 ${breakdown.sum} · 折算 ${breakdown.scaledTotal} / ${totalFullMarks(subjects)}（${labels} 未配满分，不参与折算）`;
+  }
   return `实考 ${breakdown.sum} / ${breakdown.takenFullMarks} · 折算 ${breakdown.scaledTotal} / ${totalFullMarks(subjects)}`;
 }

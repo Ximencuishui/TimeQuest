@@ -158,10 +158,14 @@ export function trackTemplateById(id: TrackTemplateId): TrackTemplate {
  * 这条赛道要不要问年级。
  *
  * 高考要问（目标日期按年级推算）；别的赛道只要规则里带了年级偏移
- * 才需要问。
+ * 才需要问。赛道包提供的规则也算数 —— 只看模板会漏掉包里的年级偏移。
  */
-export function templateNeedsGrade(template: TrackTemplate): boolean {
-  return template.requiresGaokaoContext || Boolean(template.dateRule?.grade_offsets);
+export function templateNeedsGrade(
+  template: TrackTemplate,
+  packages: PluginInfo[] = [],
+): boolean {
+  const rule = template.dateRule ?? dateRuleFromPackages(packages, template.name);
+  return template.requiresGaokaoContext || Boolean(rule?.grade_offsets);
 }
 
 /**
@@ -200,6 +204,24 @@ export function dateRuleFromPackages(
     if (rule) return rule;
   }
   return null;
+}
+
+/**
+ * 一条赛道的日期规则。
+ *
+ * 赛道包优先（包里的 date_rule 是权威来源），没有包就用同名内置模板的兜底。
+ * 找不到规则返回 null —— 调用方要保留用户已有的日期，
+ * 不能拿别的赛道的规则盖上去。
+ */
+export function dateRuleForTrack(
+  trackName: string | null | undefined,
+  packages: PluginInfo[] = [],
+): DateRule | null {
+  if (!trackName) return null;
+  const fromPackage = dateRuleFromPackages(packages, trackName);
+  if (fromPackage) return fromPackage;
+  const template = TRACK_TEMPLATES.find((item) => item.name === trackName);
+  return template?.dateRule ?? null;
 }
 
 /** 模板的科目满分合计。没有科目就是 0。 */

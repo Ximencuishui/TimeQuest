@@ -9,8 +9,8 @@ use std::path::PathBuf;
 use timequest_lib::{
     create_exam_session_impl, export_json_impl, import_json_impl, list_exam_sessions_impl,
     list_subjects_impl, list_tracks_impl, remove_subject_impl, remove_track_impl,
-    upsert_subject_impl, upsert_track_impl, CreateExamSessionPayload, ExamScoreInput,
-    UpsertSubjectPayload, UpsertTrackPayload,
+    seed_default_track_impl, upsert_subject_impl, upsert_track_impl, CreateExamSessionPayload,
+    ExamScoreInput, UpsertSubjectPayload, UpsertTrackPayload,
 };
 
 async fn open_rusqlite_migrated() -> (PathBuf, Connection) {
@@ -332,4 +332,99 @@ async fn export_import_round_trip_keeps_tracks_and_subject_ownership() {
     assert!(subjects2
         .iter()
         .all(|subject| subject.track_id == Some(primary.id)));
+}
+
+/// 导入把科目归属清空后，播种要能把它们补挂回赛道。
+///
+/// 不补的话它们会永远当孤儿：按 key 查得到，播种不会再插一次；
+/// 按赛道筛选又查不到 —— 六科就这么从界面上消失了，重启也救不回来。
+#[tokio::test]
+async fn seeding_rebinds_orphaned_subjects_to_the_primary_track() {
+    let (_path, conn) = open_rusqlite_migrated().await;
+    seed_default_track_impl(&conn).expect("seed default track");
+    let tracks = list_tracks_impl(&conn).expect("tracks");
+    let track_id = tracks[0].id;
+
+    // 模拟导入流程：归属被清空。
+    conn.execute("UPDATE subjects SET track_id = NULL", [])
+        .expect("clear ownership");
+    assert!(
+        list_subjects_impl(&conn, Some(track_id))
+            .expect("subjects")
+            .is_empty(),
+        "归属清空后按赛道查不到任何科目"
+    );
+
+    // 启动时的播种要能把它们补挂回来。
+    seed_default_track_impl(&conn).expect("re-seed");
+
+    let rebound = list_subjects_impl(&conn, Some(track_id)).expect("subjects after seed");
+    assert_eq!(rebound.len(), 6, "六科被补挂回主赛道");
+    assert!(rebound
+        .iter()
+        .all(|subject| subject.track_id == Some(track_id)));
+}
+
+/// 用户删掉的科目不能在下次启动时复活。
+///
+/// 出厂科目每次启动都重播一遍：不记删除事实的话，删掉「物理」重启后
+/// 它就带着满分目标回来了，而它的历史成绩在删除时已经被清掉。
+#[tokio::test]
+async fn removed_subject_is_not_reseeded_on_next_startup() {
+    let (_path, conn) = open_rusqlite_migrated().await;
+    seed_default_track_impl(&conn).expect("seed default track");
+    let tracks = list_tracks_impl(&conn).expect("tracks");
+    let track_id = tracks[0].id;
+
+    let physics: i64 = conn
+        .query_row(
+            "SELECT id FROM subjects WHERE key = 'physics'",
+            [],
+            |r| r.get(0),
+        )
+        .expect("physics row");
+    remove_subject_impl(&conn, physics).expect("remove physics");
+
+    // 下次启动的播种不能把它带回来。
+    seed_default_track_impl(&conn).expect("re-seed");
+
+    let subjects = list_subjects_impl(&conn, Some(track_id)).expect("subjects");
+    assert_eq!(subjects.len(), 5, "删掉的科目不再回来");
+    assert!(
+        subjects.iter().all(|subject| subject.key != "physics"),
+        "物理不该复活"
+    );
+}
+
+/// 删除记录要跟着备份走：换机导入后科目同样不能复活。
+#[tokio::test]
+async fn export_import_round_trip_keeps_removed_subjects() {
+    let (_path, conn) = open_rusqlite_migrated().await;
+    seed_default_track_impl(&conn).expect("seed default track");
+
+    let physics: i64 = conn
+        .query_row(
+            "SELECT id FROM subjects WHERE key = 'physics'",
+            [],
+            |r| r.get(0),
+        )
+        .expect("physics row");
+    remove_subject_impl(&conn, physics).expect("remove physics");
+
+    let payload = export_json_impl(&conn).expect("export");
+    let (_path2, conn2) = open_rusqlite_migrated().await;
+    import_json_impl(&conn2, &payload).expect("import");
+
+    seed_default_track_impl(&conn2).expect("re-seed after import");
+    let tracks2 = list_tracks_impl(&conn2).expect("tracks after import");
+    let primary = tracks2
+        .iter()
+        .find(|track| track.is_primary)
+        .expect("primary track");
+    let subjects2 = list_subjects_impl(&conn2, Some(primary.id)).expect("subjects after import");
+    assert_eq!(subjects2.len(), 5, "换机后删掉的科目仍然不回来");
+    assert!(
+        subjects2.iter().all(|subject| subject.key != "physics"),
+        "物理不该复活"
+    );
 }

@@ -7,8 +7,10 @@ import { SUBJECT_FIXTURES } from "../../test/subjectFixtures";
 import type {
   Goal,
   PluginInfo,
+  Track,
   UpsertGoalPayload,
   UpsertSubjectPayload,
+  UpsertTrackPayload,
   UserProfile,
 } from "../../types";
 import { ONBOARDING_KEY, OnboardingGate } from "../Onboarding";
@@ -32,12 +34,14 @@ describe("Onboarding", () => {
   let saved: UserProfile | null = null;
   let goals: Goal[] = [];
   let plugins: PluginInfo[] = [];
+  let tracks: Track[] = [];
 
   beforeEach(() => {
     completed = false;
     saved = null;
     calls.length = 0;
     plugins = [];
+    tracks = [];
     goals = [
       {
         id: 1,
@@ -68,6 +72,35 @@ describe("Onboarding", () => {
       if (cmd === "list_goals") return goals;
       if (cmd === "list_plugins") return plugins;
       if (cmd === "list_subjects") return SUBJECT_FIXTURES;
+      // 引导会把用户选的赛道真的建出来：库里没有就先建一条。
+      if (cmd === "list_tracks") return tracks;
+      if (cmd === "upsert_track") {
+        const payload = (args as { payload: UpsertTrackPayload }).payload;
+        const existing =
+          payload.id != null ? tracks.find((track) => track.id === payload.id) : undefined;
+        const next: Track = existing
+          ? {
+              ...existing,
+              name: payload.name,
+              kind: payload.kind ?? existing.kind,
+              scoreMode: payload.scoreMode ?? existing.scoreMode,
+              isPrimary: payload.isPrimary ?? existing.isPrimary,
+              color: payload.color ?? existing.color,
+            }
+          : {
+              id: tracks.reduce((max, track) => Math.max(max, track.id), 0) + 1,
+              name: payload.name,
+              kind: payload.kind ?? "exam",
+              scoreMode: payload.scoreMode ?? "total",
+              isPrimary: payload.isPrimary ?? false,
+              color: payload.color ?? null,
+              createdAt: "2026-11-06 12:00:00",
+            };
+        tracks = existing
+          ? tracks.map((track) => (track.id === next.id ? next : track))
+          : [...tracks, next];
+        return next;
+      }
       if (cmd === "upsert_subject") {
         const payload = (args as { payload: UpsertSubjectPayload }).payload;
         return { ...payload, id: payload.id ?? 0 };
@@ -180,6 +213,22 @@ describe("Onboarding", () => {
       "upsert_subject",
       expect.objectContaining({
         payload: expect.objectContaining({ key: "math", goal: 130 }),
+      }),
+    );
+    // 引导选的赛道要真的建出来，而且这次建的才是主赛道。
+    expect(mockedInvoke).toHaveBeenCalledWith(
+      "upsert_track",
+      expect.objectContaining({
+        payload: expect.objectContaining({ name: "高考", isPrimary: true }),
+      }),
+    );
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0]).toMatchObject({ name: "高考", isPrimary: true });
+    // 科目挂到刚建的那条赛道上。
+    expect(mockedInvoke).toHaveBeenCalledWith(
+      "upsert_subject",
+      expect.objectContaining({
+        payload: expect.objectContaining({ key: "math", trackId: tracks[0]?.id }),
       }),
     );
   });

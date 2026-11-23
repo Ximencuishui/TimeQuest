@@ -72,7 +72,8 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   avatar: null,
   grade: "高三",
   region: "",
-  total_target: 610,
+  // 总分目标默认不设：它属于赛道，不同赛道的满分体系不一样。
+  total_target: null,
 };
 
 /**
@@ -112,7 +113,8 @@ export function profileLine(grade: string, region: string): string {
   return g || r;
 }
 
-export function targetHint(sum: number, total: number): string {
+export function targetHint(sum: number, total: number | null): string {
+  if (total == null) return `各科合计 ${sum}，未设总分目标`;
   if (sum === total) return `各科合计 ${sum}，与总分目标一致`;
   const gap = Math.abs(sum - total);
   if (sum > total) return `各科合计 ${sum}，比总分目标多 ${gap} 分`;
@@ -131,7 +133,7 @@ export function profileToDraft(profile: UserProfile): ProfileDraft {
     avatar: profile.avatar,
     grade: profile.grade,
     region: profile.region,
-    totalTarget: String(profile.total_target),
+    totalTarget: profile.total_target == null ? "" : String(profile.total_target),
   };
 }
 
@@ -145,8 +147,10 @@ function parseScore(raw: string): number | null {
 export function parseProfileDraft(
   draft: ProfileDraft,
 ): { ok: true; profile: UserProfile } | { ok: false; message: string } {
-  const total = parseScore(draft.totalTarget.trim());
-  if (total == null) {
+  // 留空 = 不设总分目标（这条赛道按分科计）；填了就得是非负整数。
+  const rawTotal = draft.totalTarget.trim();
+  const total = rawTotal === "" ? null : parseScore(rawTotal);
+  if (rawTotal !== "" && total == null) {
     return { ok: false, message: "总分目标请输入非负整数" };
   }
   const regionRaw = draft.region.trim();

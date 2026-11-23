@@ -403,7 +403,11 @@ pub struct UserProfile {
     pub avatar: Option<String>,
     pub grade: String,
     pub region: String,
-    pub total_target: i64,
+    /// 总分目标，可空。
+    ///
+    /// 空表示「这条赛道不计总分」（技能习得这类按分科计的赛道）。
+    /// 内核不认识具体分值，这里只当一个可清空的数字看待。
+    pub total_target: Option<i64>,
 }
 
 impl Default for UserProfile {
@@ -412,7 +416,7 @@ impl Default for UserProfile {
             avatar: None,
             grade: "高三".to_string(),
             region: String::new(),
-            total_target: 610,
+            total_target: None,
         }
     }
 }
@@ -584,5 +588,11 @@ pub struct UpsertGoalPayload {
     pub kind: Option<String>,
     /// 置成 true 时，其它目标同时降为普通目标。
     pub is_primary: Option<bool>,
+    /// 目标分数。不传表示「保持原样」。
     pub target_score: Option<f64>,
+    /// 置成 true 时把总分目标清空。
+    ///
+    /// `target_score` 传 null 与「不传」同义，光靠它分不清「不改」和「清空」，
+    /// 所以清空单独用一个开关表达。
+    pub clear_target_score: Option<bool>,
 }

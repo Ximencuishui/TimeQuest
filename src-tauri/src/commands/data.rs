@@ -308,7 +308,7 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
             Option<String>,
             String,
             String,
-            i64,
+            Option<i64>,
             String,
             String,
         ) = conn
@@ -485,6 +485,24 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         rows
     };
 
+    // 用户删过的科目：没有这笔记录，换机导入后下次启动科目就回来了。
+    let removed_subjects: Vec<Value> = {
+        let mut stmt = conn
+            .prepare("SELECT key, removed_at FROM removed_subjects ORDER BY key")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(json!({
+                    "key": r.get::<_, String>(0)?,
+                    "removedAt": r.get::<_, String>(1)?,
+                }))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    };
+
     let task_knowledge_points: Vec<Value> = {
         let mut stmt = conn
             .prepare(
@@ -559,6 +577,7 @@ pub fn export_json_impl(conn: &Connection) -> Result<String, String> {
         "exam_records": Vec::<Value>::new(),
         "task_knowledge_points": task_knowledge_points,
         "goals": goals,
+        "removed_subjects": removed_subjects,
     });
     serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())
 }
@@ -588,6 +607,7 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
             DELETE FROM exam_sessions;
             DELETE FROM exam_records;
             DELETE FROM goals;
+            DELETE FROM removed_subjects;
             UPDATE subjects SET track_id = NULL;
             DELETE FROM tracks;
             UPDATE user_stats SET total_xp=0, current_level=1, current_streak=0, longest_streak=0, last_done_date=NULL WHERE id=1;
@@ -696,6 +716,15 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
             }
         }
     }
+
+    // 老备份（v1 / 3.x）不带赛道归属：科目一律挂到主赛道。
+    // 不然导入后按赛道筛选一科都看不到（track_id 为 NULL 不匹配任何赛道），
+    // 而播种自愈按 key 跳过，这些科目会永远当孤儿。
+    tx.execute(
+        "UPDATE subjects SET track_id = ?1 WHERE track_id IS NULL",
+        params![fallback_track],
+    )
+    .map_err(|e| e.to_string())?;
 
     if let Some(arr) = data.get("tasks").and_then(|v| v.as_array()) {
         for t in arr {
@@ -983,6 +1012,20 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
     // 3.x 旧备份没有 `subjects` 键：各科目标从档案里的 `subject_targets` 回填，
     // 否则导入后成绩页的目标虚线会退回默认值。
     if !data.get("subjects").and_then(|v| v.as_array()).is_some() {
+        // 本机也没有科目字典时（换机 / 新装）按主赛道补齐出厂科目。
+        // 不补的话后面展开旧 exam_records 时找不到科目，成绩行会被整段丢掉。
+        let subject_count: i64 = tx
+            .query_row("SELECT COUNT(*) FROM subjects", [], |r| r.get(0))
+            .map_err(|e| e.to_string())?;
+        if subject_count == 0 {
+            if let Some(track_id) = fallback_track {
+                let track = crate::commands::tracks::track_by_id(&tx, track_id)
+                    .map_err(|e| e.to_string())?
+                    .ok_or_else(|| "赛道不存在".to_string())?;
+                crate::commands::tracks::seed_track_subjects(&tx, &track)?;
+            }
+        }
+
         let legacy_targets = data
             .get("user_profile")
             .and_then(|profile| profile.get("subject_targets"))
@@ -1001,6 +1044,22 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
                 )
                 .map_err(|e| e.to_string())?;
             }
+        }
+    }
+
+    // 用户删过的科目：备份里带着，换机后不会被出厂科目重新播种回来。
+    if let Some(arr) = data.get("removed_subjects").and_then(|v| v.as_array()) {
+        for row in arr {
+            let key = row.get("key").and_then(|v| v.as_str()).unwrap_or("");
+            if key.is_empty() {
+                continue;
+            }
+            tx.execute(
+                r#"INSERT OR IGNORE INTO removed_subjects (key, removed_at)
+                   VALUES (?1, COALESCE(?2, datetime('now','localtime')))"#,
+                params![key, row.get("removedAt").and_then(|v| v.as_str())],
+            )
+            .map_err(|e| e.to_string())?;
         }
     }
 
@@ -1073,10 +1132,11 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
         // 老备份：一行六科，展开成一场 + 六行成绩。
         for row in arr {
             tx.execute(
-                r#"INSERT INTO exam_sessions (id, name, date, is_mock, created_at)
-                   VALUES (?1, ?2, ?3, ?4, COALESCE(?5, datetime('now','localtime')))"#,
+                r#"INSERT INTO exam_sessions (id, track_id, name, date, is_mock, created_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5, COALESCE(?6, datetime('now','localtime')))"#,
                 params![
                     row.get("id").and_then(|v| v.as_i64()),
+                    fallback_track,
                     row.get("exam_name").and_then(|v| v.as_str()).unwrap_or(""),
                     row.get("exam_date").and_then(|v| v.as_str()).unwrap_or(""),
                     row.get("is_mock").and_then(|v| v.as_i64()).unwrap_or(0),
@@ -1099,6 +1159,14 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
             }
         }
     }
+
+    // 历史场次补赛道归属：旧备份展开出来的场次没带赛道，
+    // 备份里显式留空的也一并兜底 —— 成绩页按赛道筛选时这些场次不能消失。
+    tx.execute(
+        "UPDATE exam_sessions SET track_id = ?1 WHERE track_id IS NULL",
+        params![fallback_track],
+    )
+    .map_err(|e| e.to_string())?;
 
     // 目标：4.0 起落在 `goals` 表。
     // v1 旧备份没有这个键，补一条默认目标，不能报错也不能把表留空。

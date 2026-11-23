@@ -13,7 +13,7 @@ import {
   setGoalFixtures,
 } from "../../../test/mockGoals";
 import { SUBJECT_FIXTURES } from "../../../test/subjectFixtures";
-import type { UpsertSubjectPayload, UserProfile } from "../../../types";
+import type { Track, UpsertSubjectPayload, UserProfile } from "../../../types";
 import { Settings } from "../../Settings.tsx";
 
 vi.mock("../../../hooks/useGoals", async () => await import("../../../test/mockGoals"));
@@ -39,7 +39,23 @@ const LOADED: UserProfile = {
   ...DEFAULT_USER_PROFILE,
   region: "湖南省",
   avatar: "data:image/png;base64,qq",
+  // 总分目标属于赛道：档案里没设就是 null（4.0 起默认不预填）。
+  // 这份夹具显式带上，才能测「各科合计 vs 总分目标」的对照。
+  total_target: 610,
 };
+
+/** 当前主赛道。目标日期按这条赛道的规则算，没有赛道就按不处理。 */
+const TRACK_FIXTURES: Track[] = [
+  {
+    id: 1,
+    name: "高考",
+    kind: "exam",
+    scoreMode: "total",
+    isPrimary: true,
+    color: null,
+    createdAt: "2026-11-06 12:00:00",
+  },
+];
 
 function renderSettings() {
   const client = new QueryClient({
@@ -69,6 +85,7 @@ describe("Settings profile", () => {
         return (args as { profile: UserProfile }).profile;
       }
       if (cmd === "list_subjects") return SUBJECT_FIXTURES;
+      if (cmd === "list_tracks") return TRACK_FIXTURES;
       if (cmd === "upsert_subject") {
         return (args as { payload: UpsertSubjectPayload }).payload;
       }
@@ -149,7 +166,8 @@ describe("Settings profile", () => {
     fireEvent.change(screen.getByLabelText("地区"), { target: { value: "广东" } });
     fireEvent.click(screen.getByRole("button", { name: "保存档案" }));
 
-    expect(screen.getByRole("dialog", { name: "年级会改高考日期" })).toHaveTextContent(
+    // 年级会改目标日期：规则来自当前赛道（这里是「高考」）。
+    expect(screen.getByRole("dialog", { name: "年级会改目标日期" })).toHaveTextContent(
       "2029-06-07",
     );
     expect(
@@ -160,7 +178,7 @@ describe("Settings profile", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "取消" }));
-    expect(screen.queryByRole("dialog", { name: "年级会改高考日期" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "年级会改目标日期" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("年级")).toHaveValue("高三");
     expect(
       mockedInvoke.mock.calls.filter((call) => call[0] === "update_user_profile"),
@@ -168,7 +186,7 @@ describe("Settings profile", () => {
 
     fireEvent.change(screen.getByLabelText("年级"), { target: { value: "高一" } });
     fireEvent.click(screen.getByRole("button", { name: "保存档案" }));
-    fireEvent.click(screen.getByRole("button", { name: "更新高考日期" }));
+    fireEvent.click(screen.getByRole("button", { name: "更新目标日期" }));
 
     await waitFor(() => {
       const calls = mockedInvoke.mock.calls.filter(
@@ -195,11 +213,11 @@ describe("Settings profile", () => {
 
     fireEvent.change(screen.getByLabelText("年级"), { target: { value: "高二" } });
     fireEvent.click(screen.getByRole("button", { name: "保存档案" }));
-    expect(screen.getByRole("dialog", { name: "年级会改高考日期" })).toHaveTextContent(
+    expect(screen.getByRole("dialog", { name: "年级会改目标日期" })).toHaveTextContent(
       "2028-06-07",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "更新高考日期" }));
+    fireEvent.click(screen.getByRole("button", { name: "更新目标日期" }));
 
     await waitFor(() => {
       expect(screen.getByText("目标日 2028-06-07")).toBeInTheDocument();

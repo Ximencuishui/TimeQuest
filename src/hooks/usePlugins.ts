@@ -3,10 +3,13 @@ import { api } from "../api/tauri";
 
 /** 工具箱的插件列表（内置仓库 + 已安装标记）。 */
 export function usePlugins() {
-  return useQuery({
+  const query = useQuery({
     queryKey: ["plugins"],
     queryFn: () => api.listPlugins(),
   });
+  // 后端永远返回数组，这里再兜一层：拿到 null 也不让下游崩。
+  // 赛道包清单要遍历（找日期规则 / 语料包），null 传进去会直接抛。
+  return { ...query, data: query.data ?? [] };
 }
 
 /** 下载 / 卸载插件。 */

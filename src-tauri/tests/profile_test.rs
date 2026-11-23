@@ -47,8 +47,13 @@ async fn get_user_profile_reads_migration_default_and_reinserts_when_empty() {
 
     assert_eq!(profile_count(&conn), 1, "migration inserts the singleton");
     let seeded = get_user_profile_impl(&conn).expect("read seed");
-    assert_eq!(seeded, UserProfile::default());
-    assert_eq!(seeded.total_target, 610);
+    assert_eq!(seeded.grade, UserProfile::default().grade);
+    assert_eq!(seeded.region, UserProfile::default().region);
+    assert_eq!(seeded.avatar, UserProfile::default().avatar);
+    // 迁移留下的历史值：4.0 之前档案里就存着总分目标，升级后原样保留。
+    // 新的默认档案（`UserProfile::default()`）不预填任何分值——
+    // 总分目标属于赛道，不能由产品硬塞一个。
+    assert_eq!(seeded.total_target, Some(610));
     assert!(seeded.avatar.is_none());
 
     conn.execute("DELETE FROM user_profile", [])
@@ -69,13 +74,13 @@ async fn update_user_profile_overwrites_single_row_and_rejects_negative() {
     let mut next = UserProfile::default();
     next.grade = " 高三 ".to_string();
     next.region = " 湖南省 ".to_string();
-    next.total_target = 600;
+    next.total_target = Some(600);
     next.avatar = Some("data:image/png;base64,abc".to_string());
 
     let saved = update_user_profile_impl(&conn, next.clone()).expect("update");
     assert_eq!(saved.grade, "高三");
     assert_eq!(saved.region, "湖南省");
-    assert_eq!(saved.total_target, 600);
+    assert_eq!(saved.total_target, Some(600));
     assert_eq!(saved.avatar.as_deref(), Some("data:image/png;base64,abc"));
     assert_eq!(profile_count(&conn), 1, "update stays one row");
 
@@ -83,14 +88,36 @@ async fn update_user_profile_overwrites_single_row_and_rejects_negative() {
     assert_eq!(again, saved);
 
     let mut bad = saved.clone();
-    bad.total_target = -1;
+    bad.total_target = Some(-1);
     let err = update_user_profile_impl(&conn, bad).expect_err("negative total");
     assert!(err.contains("不能为负数"), "got {err}");
     assert_eq!(
         get_user_profile_impl(&conn)
             .expect("unchanged")
             .total_target,
-        600
+        Some(600)
+    );
+
+    let _ = std::fs::remove_file(&path);
+}
+
+#[tokio::test]
+async fn user_profile_total_target_can_be_cleared() {
+    let (path, conn) = open_rusqlite_migrated().await;
+
+    let mut with_target = UserProfile::default();
+    with_target.total_target = Some(600);
+    update_user_profile_impl(&conn, with_target).expect("set target");
+
+    // 留空 = 这条赛道不计总分：总分目标必须真的能被清掉。
+    let mut cleared = UserProfile::default();
+    cleared.grade = "高三".to_string();
+    cleared.total_target = None;
+    let saved = update_user_profile_impl(&conn, cleared).expect("clear target");
+    assert_eq!(saved.total_target, None);
+    assert_eq!(
+        get_user_profile_impl(&conn).expect("read back").total_target,
+        None
     );
 
     let _ = std::fs::remove_file(&path);
@@ -102,7 +129,7 @@ async fn user_profile_survives_export_import_and_old_backup_resets_default() {
 
     let mut custom = UserProfile::default();
     custom.region = "湖南省".to_string();
-    custom.total_target = 600;
+    custom.total_target = Some(600);
     custom.avatar = Some("data:image/png;base64,qq".to_string());
     update_user_profile_impl(&conn, custom.clone()).expect("seed custom");
 
@@ -119,7 +146,7 @@ async fn user_profile_survives_export_import_and_old_backup_resets_default() {
     import_json_impl(&conn, &exported).expect("round trip");
     let restored = get_user_profile_impl(&conn).expect("after import");
     assert_eq!(restored.region, "湖南省");
-    assert_eq!(restored.total_target, 600);
+    assert_eq!(restored.total_target, Some(600));
     assert_eq!(restored.avatar.as_deref(), Some("data:image/png;base64,qq"));
 
     let mut without_profile = parsed.clone();
