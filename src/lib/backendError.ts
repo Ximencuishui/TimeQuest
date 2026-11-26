@@ -1,3 +1,12 @@
+/** 所有 Tauri command 失败时广播到全局错误提示的事件名。 */
+export const BACKEND_ERROR_EVENT = "timequest:backend-error";
+
+/** 让全局提示层收到一次后端失败；调用方仍可照常 catch 并做自己的处理。 */
+export function notifyBackendError(err: unknown): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(BACKEND_ERROR_EVENT, { detail: err }));
+}
+
 /**
  * 后端错误的用户可见文案。
  *

@@ -32,6 +32,11 @@ function renderField() {
   );
 }
 
+async function openEditor() {
+  fireEvent.click(screen.getByRole("button", { name: "编辑常用时长" }));
+  await screen.findByLabelText("第 1 段名称");
+}
+
 function callsOf(command: string): { key?: string; value?: string; input?: unknown }[] {
   return mockedInvoke.mock.calls
     .filter((call) => call[0] === command)
@@ -65,7 +70,7 @@ describe("常用时长编辑器", () => {
   it("duration_gear_opens_the_editor", async () => {
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时长" }));
+    await openEditor();
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByLabelText("第 1 段名称")).toHaveValue("番茄 1");
@@ -75,7 +80,7 @@ describe("常用时长编辑器", () => {
   it("duration_editor_saves_presets_and_syncs_future_sessions", async () => {
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时长" }));
+    await openEditor();
     fireEvent.change(screen.getByLabelText("第 1 段分钟"), {
       target: { value: "30" },
     });
@@ -111,7 +116,7 @@ describe("常用时长编辑器", () => {
   it("duration_editor_label_only_edit_does_not_touch_the_plan", async () => {
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时长" }));
+    await openEditor();
     fireEvent.change(screen.getByLabelText("第 1 段名称"), {
       target: { value: "晨读番茄" },
     });
@@ -126,7 +131,7 @@ describe("常用时长编辑器", () => {
   it("duration_editor_rejects_invalid_minutes", async () => {
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时长" }));
+    await openEditor();
     fireEvent.change(screen.getByLabelText("第 1 段分钟"), {
       target: { value: "0" },
     });
@@ -140,7 +145,7 @@ describe("常用时长编辑器", () => {
   it("duration_editor_can_generate_from_the_pomodoro_algorithm", async () => {
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时长" }));
+    await openEditor();
     fireEvent.change(screen.getByLabelText("番茄钟专注分钟"), {
       target: { value: "30" },
     });
@@ -155,7 +160,7 @@ describe("常用时长编辑器", () => {
   it("duration_editor_can_add_and_delete_presets", async () => {
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时长" }));
+    await openEditor();
     fireEvent.click(screen.getByRole("button", { name: "添加时长" }));
     expect(screen.getByLabelText("第 6 段名称")).toHaveValue("自定义");
 
@@ -166,7 +171,7 @@ describe("常用时长编辑器", () => {
   it("duration_editor_applies_the_shift_before_saving_settings", async () => {
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时长" }));
+    await openEditor();
     fireEvent.change(screen.getByLabelText("第 1 段分钟"), {
       target: { value: "30" },
     });
@@ -195,7 +200,7 @@ describe("常用时长编辑器", () => {
     });
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时长" }));
+    await openEditor();
     fireEvent.change(screen.getByLabelText("第 1 段分钟"), {
       target: { value: "30" },
     });
@@ -209,7 +214,7 @@ describe("常用时长编辑器", () => {
   it("duration_editor_warns_when_the_pomodoro_plan_is_too_long_for_one_day", async () => {
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时长" }));
+    await openEditor();
     fireEvent.change(screen.getByLabelText("番茄钟专注分钟"), {
       target: { value: "180" },
     });

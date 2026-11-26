@@ -1,4 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { notifyBackendError } from "../lib/backendError";
 import type {
   ActualLog,
   ApplyPresetDurationChangesInput,
@@ -51,6 +52,16 @@ import type {
   UserProfile,
   UserStats,
 } from "../types";
+
+/** 统一的 command 入口：失败时广播一次，调用方仍拿到原始错误。 */
+function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  // 不传参数时保持单次调用，避免改变 invoke 的调用形状（测试与后端都依赖它）。
+  const pending = args === undefined ? tauriInvoke<T>(cmd) : tauriInvoke<T>(cmd, args);
+  return pending.catch((error: unknown) => {
+    notifyBackendError(error);
+    throw error;
+  });
+}
 
 export const api = {
   // tasks

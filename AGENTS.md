@@ -31,8 +31,8 @@
 ## 版本规范
 
 - 遵循 SemVer：主版本号.次版本号.修订号（`MAJOR.MINOR.PATCH`）。
-- 版本号同时存在于 `package.json`、`src-tauri/Cargo.toml` 的 `[package].version`、`src-tauri/tauri.conf.json` 的 `version`。三处必须一致。设置页底部的版本文案从 `package.json` 读取。
-- 所有发布的构建必须使用 `pnpm bump <version>` 统一更新三端版本（脚本：`scripts/bump-version.mjs`）。
+- 版本号同时存在于 `package.json`、`src-tauri/Cargo.toml` 的 `[package].version`、`src-tauri/tauri.conf.json` 的 `version`、`src-tauri/Cargo.lock` 的 `timequest` 包条目，以及 `README.md` 的版本与下载链接。五处必须一致。设置页底部的版本文案从 `package.json` 读取。
+- 所有发布的构建必须使用 `pnpm bump <version>` 统一更新这五处版本（脚本：`scripts/bump-version.mjs`，单测：`pnpm test:scripts`）。支持 `4.0.1` 与 `4.1.0-beta.1` 等 SemVer。
 - 禁止手改某一端的版本号。
 
 ## 测试规范
@@ -829,6 +829,7 @@
 | seeding_rebinds_orphaned_subjects_to_the_primary_track | 播种时把没有赛道的科目绑到主赛道，不留孤儿科目 | `src-tauri/tests/tracks_test.rs` |
 | removed_subject_is_not_reseeded_on_next_startup | 用户删掉的科目下次启动不会被播种复活 | `src-tauri/tests/tracks_test.rs` |
 | export_import_round_trip_keeps_removed_subjects | 删除记录随导入导出往返，导入后不被复活 | `src-tauri/tests/tracks_test.rs` |
+| import_keeps_subject_that_was_readded_after_removal | 删除标记仍在但备份明确带该科目时，导入保留重新加回的科目 | `src-tauri/tests/tracks_test.rs` |
 | import_legacy_payload_seeds_subjects_on_the_primary_track | 导入 3.x 备份时按主赛道播种科目字典 | `src-tauri/tests/export_import_test.rs` |
 | import_legacy_payload_keeps_existing_subjects_on_the_primary_track | 导入不覆盖库里已有科目的赛道归属 | `src-tauri/tests/export_import_test.rs` |
 | import_legacy_exam_records_attach_sessions_to_the_primary_track | 导入的旧成绩场次挂到主赛道 | `src-tauri/tests/export_import_test.rs` |
@@ -855,6 +856,7 @@
 | %s 不该出现领域常量 | 前端共享层（types / constants）与内核（gamification）不许出现领域常量 | `src/lib/__tests__/domain_isolation.test.ts` |
 | 护栏不是空转的：领域适配层里确实有学科名 | 前端护栏自证不是空转：领域适配层里确实有学科名 | `src/lib/__tests__/domain_isolation.test.ts` |
 | settings_profile_save_invokes_update_user_profile | 档案只存头像/年级/地区/总分目标；各科目标走 `subjects` 表；总分目标留空时提示各科合计 | `src/pages/Settings/__tests__/settings_profile.test.tsx` |
+| settings_profile_clearing_total_target_sends_explicit_clear_flag | 总分目标留空时档案写 null，主目标收到显式 clearTargetScore=true | `src/pages/Settings/__tests__/settings_profile.test.tsx` |
 | settings_profile_grade_and_region_use_choices | 改年级先弹确认框；日期规则来自当前赛道，取消不写库，确认后写档案并改目标日 | `src/pages/Settings/__tests__/settings_profile.test.tsx` |
 | settings_grade_change_confirms_then_refreshes_countdown | 确认后目标日与倒计时一起刷新 | `src/pages/Settings/__tests__/settings_profile.test.tsx` |
 | shows the avatar and shortened grade region line | 侧边栏显示头像与「年级 · 省份」 | `src/pages/Settings/__tests__/settings_profile.test.tsx` |
@@ -864,7 +866,7 @@
 ### 赛道通用化（4.0）的几条硬约定
 
 - **赛道是权威源**：`tracks` + `subjects.track_id` + `goals.track_id` 才是真相。档案里的 `total_target` / `subject_targets` 降级成兼容留档，读侧不回头读；旧库升级时靠迁移把两者搬过去。
-- **科目软删**：删科目先把 key 记进 `removed_subjects`，播种时跳过。不做物理删除——否则下次启动会被种子重新种回来。删除记录随导入导出往返。
+- **科目软删**：删科目先把 key 记进 `removed_subjects`，播种时跳过。不做物理删除——否则下次启动会被种子重新种回来。导入先恢复删除标记并清掉备份中不存在的已删科目，再导入科目字典；备份明确包含的重新加回科目保留。删除记录随导入导出往返。
 - **总分目标可以为空**：`user_profile.total_target` 与 `goals.target_score` 都允许 NULL（按分科计的赛道压根没有总分）。接口层 `null` 与「不传」同义，所以「清空」走显式开关 `clear_target_score`，不靠 null 猜。
 - **迁移不清空历史分值**：`total_target` 变可空只改列定义，不动数据。迁移里的主目标靠 `seed_default_goal_impl` 从档案抄，抄不到就留空——清空会让老用户的目标线凭空消失。
 - **折算分子分母同口径**：折算只算「已考且配了满分」的科目。已录分但没配满分的科目单列在 `unscored` 里，不进分子也不进分母（否则折算总分虚高）。

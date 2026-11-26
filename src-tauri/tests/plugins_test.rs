@@ -371,6 +371,44 @@ async fn plugin_resource_path_traversal_is_rejected() {
 }
 
 #[tokio::test]
+async fn plugin_resource_rejects_traversal_plugin_id() {
+    let (path, conn) = open_rusqlite_migrated().await;
+    let dir = scratch_dir("traversal-id");
+    let plugin = plugin_with_resources(&conn);
+    let resource = plugin.resources.first().expect("resource");
+
+    for bad in ["../secret", "..\\secret", "/etc/passwd", "no-such-plugin"] {
+        let error = plugin_resource_text(&dir, bad, &resource.path).expect_err("must fail");
+        assert!(!error.is_empty(), "插件 id {bad:?} 要有明确报错");
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_file(&path);
+}
+
+#[tokio::test]
+async fn uninstall_rejects_traversal_id_without_touching_other_dirs() {
+    let (path, conn) = open_rusqlite_migrated().await;
+    let dir = scratch_dir("uninstall-traversal");
+    std::fs::create_dir_all(&dir).expect("create plugins dir");
+    let victim = dir
+        .parent()
+        .expect("parent")
+        .join(format!("timequest-victim-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&victim).expect("create victim");
+    std::fs::write(victim.join("keep.txt"), "keep").expect("write victim");
+
+    let traversal = format!("../{}", victim.file_name().unwrap().to_string_lossy());
+    let error = uninstall_plugin_impl(&conn, &dir, &traversal).expect_err("must reject traversal");
+    assert!(error.contains("不合法"), "报错要说明 id 不合法：{error}");
+    assert!(victim.join("keep.txt").is_file(), "插件外目录不能被删掉");
+
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&victim);
+    let _ = std::fs::remove_file(&path);
+}
+
+#[tokio::test]
 async fn missing_plugin_resource_reports_the_path() {
     let (path, conn) = open_rusqlite_migrated().await;
     let dir = scratch_dir("missing-resource");

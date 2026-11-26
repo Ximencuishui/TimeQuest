@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { api } from "../api/tauri";
 import { backendErrorDetail } from "../lib/backendError";
 import { useDurationPresets, usePomodoroPlan } from "../hooks/useDurationPresets";
@@ -39,24 +39,38 @@ type Props = {
  * 已经完成的历史不动，改过去会撞车的保持原样。
  */
 export function DurationPresetEditor({ open, onClose, onSaved }: Props) {
-  const { presets: stored, savePresets } = useDurationPresets();
-  const { plan: storedPlan, savePlan } = usePomodoroPlan();
+  const {
+    presets: stored,
+    savePresets,
+    isFetched: presetsFetched,
+  } = useDurationPresets();
+  const {
+    plan: storedPlan,
+    savePlan,
+    isFetched: planFetched,
+  } = usePomodoroPlan();
+  const ready = presetsFetched && planFetched;
   const qc = useQueryClient();
   const [draft, setDraft] = useState<DurationPreset[]>([]);
   const [plan, setPlan] = useState<PomodoroPlan>(DEFAULT_POMODORO_PLAN);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const wasOpen = useRef(false);
+  const draftLoaded = useRef(false);
 
-  // 只在「打开的那一刻」灌一次草稿，之后的数据刷新不覆盖用户正在改的东西。
-  useEffect(() => {
-    if (open && !wasOpen.current) {
+  // 两项设置都读回来才灌草稿：没读回来时 parse 出来的是默认值，
+  // 一旦用户在这个瞬间保存，就会把自定义时长整体重置。
+  useLayoutEffect(() => {
+    if (!open) {
+      draftLoaded.current = false;
+      return;
+    }
+    if (!draftLoaded.current && ready) {
       setDraft(stored.map((preset) => ({ ...preset })));
       setPlan({ ...storedPlan });
       setError(null);
+      draftLoaded.current = true;
     }
-    wasOpen.current = open;
-  }, [open, stored, storedPlan]);
+  }, [open, stored, storedPlan, ready]);
 
   const update = (index: number, patch: Partial<DurationPreset>) => {
     setError(null);
@@ -77,6 +91,7 @@ export function DurationPresetEditor({ open, onClose, onSaved }: Props) {
   };
 
   const save = async () => {
+    if (!ready) return;
     for (let index = 0; index < draft.length; index += 1) {
       const preset = draft[index];
       if (preset.label.trim() === "") {
@@ -141,7 +156,7 @@ export function DurationPresetEditor({ open, onClose, onSaved }: Props) {
           </button>
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || !ready}
             className="rounded-lg border border-white/20 bg-surface-3 px-4 py-2 text-ink hover:bg-white/10 disabled:opacity-50"
             onClick={() => void save()}
           >
@@ -156,7 +171,13 @@ export function DurationPresetEditor({ open, onClose, onSaved }: Props) {
         已经完成的历史不动，改过去会撞车的场次保持原样。
       </p>
 
-      <section className="rounded-xl border border-white/10 bg-surface-3/60 p-3">
+      {!ready ? (
+        <p className="mb-3 text-sm text-ink-muted" role="status">
+          正在读取已保存的时长…
+        </p>
+      ) : null}
+      <fieldset disabled={!ready} className="disabled:opacity-60">
+        <section className="rounded-xl border border-white/10 bg-surface-3/60 p-3">
         <h3 className="text-sm text-ink">番茄钟推荐</h3>
         <p className="mt-1 text-xs text-ink-muted">
           经典节奏：专注 25 分钟 + 短休息 5 分钟，攒够 4 个番茄再来一次 15 分钟长休息。
@@ -311,6 +332,7 @@ export function DurationPresetEditor({ open, onClose, onSaved }: Props) {
           {draft.map((preset) => formatDurationPresetLabel(preset)).join("、")}
         </p>
       ) : null}
+      </fieldset>
 
       {error ? (
         <p className="mt-3 text-sm text-amber-200" role="alert">

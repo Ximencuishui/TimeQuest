@@ -8,6 +8,7 @@ use chrono::{Local, NaiveDate};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use tauri::State;
 
 /// 教材导入的默认时段池：一天最多三场，彼此不重叠。
@@ -377,6 +378,25 @@ pub async fn import_textbook_json(
 ///
 /// PDF 里找不到目录页、或者目录里没有可用的章节时直接报错，
 /// 不写一条空教材进库。
+fn validate_import_pdf(file: &str) -> Result<PathBuf, String> {
+    let file = file.trim();
+    if file.is_empty() {
+        return Err("教材文件路径不能为空".into());
+    }
+    let path = Path::new(file);
+    let is_pdf = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("pdf"));
+    if !is_pdf {
+        return Err("只能导入 .pdf 文件".into());
+    }
+    if !path.is_file() {
+        return Err("教材文件不存在或不是普通文件".into());
+    }
+    Ok(path.to_path_buf())
+}
+
 #[tauri::command]
 pub async fn import_textbook_pdf(
     pool: State<'_, SqlitePool>,
@@ -385,9 +405,14 @@ pub async fn import_textbook_pdf(
     version: String,
     volume: String,
 ) -> Result<ImportTextbookResult, String> {
-    let bytes = tokio::fs::read(&file)
+    let path = validate_import_pdf(&file)?;
+    let bytes = tokio::fs::read(&path)
         .await
         .map_err(|err| format!("读取教材文件失败：{err}"))?;
+    // 明显不是 PDF 的内容直接拒绝，不让任意文本文件走到解析器里。
+    if !bytes.windows(5).take(1024).any(|head| head == b"%PDF-") {
+        return Err("不是有效的 PDF 文件".into());
+    }
     let chapters = extract_outline(&bytes).map_err(|err| format!("解析教材目录失败：{err}"))?;
     let outline = outline_to_textbook(&chapters, &subject, &version, &volume)?;
     let json = serde_json::to_string(&outline).map_err(|err| err.to_string())?;
@@ -699,4 +724,28 @@ pub async fn delete_knowledge_point(
     delete_knowledge_point_impl(pool.inner(), id)
         .await
         .map_err(Into::into)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_import_pdf;
+
+    #[test]
+    fn import_pdf_rejects_non_pdf_and_missing_paths() {
+        assert!(validate_import_pdf("").is_err());
+        assert!(validate_import_pdf("book.txt").is_err());
+        assert!(validate_import_pdf("missing.pdf").is_err());
+    }
+
+    #[test]
+    fn import_pdf_accepts_real_pdf_path() {
+        let path = std::env::temp_dir().join(format!(
+            "timequest-import-{}.pdf",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(&path, b"%PDF-1.4 test").expect("write temp pdf");
+        let resolved = validate_import_pdf(path.to_string_lossy().as_ref()).expect("valid pdf");
+        assert_eq!(resolved, path);
+        std::fs::remove_file(path).ok();
+    }
 }

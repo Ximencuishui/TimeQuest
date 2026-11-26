@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TimeRangeField } from "../TimeRangeField";
@@ -30,6 +30,11 @@ function renderField() {
       <Harness />
     </QueryClientProvider>,
   );
+}
+
+async function openEditor() {
+  fireEvent.click(screen.getByRole("button", { name: "编辑常用时段" }));
+  await screen.findByLabelText("第 1 段名称");
 }
 
 function callsOf(command: string): { key?: string; value?: string; input?: unknown }[] {
@@ -66,7 +71,7 @@ describe("常用时段编辑器", () => {
   it("time_range_field_gear_opens_the_editor", async () => {
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时段" }));
+    await openEditor();
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByLabelText("第 1 段名称")).toHaveValue("早读");
@@ -76,7 +81,7 @@ describe("常用时段编辑器", () => {
   it("preset_editor_saves_presets_and_syncs_future_sessions", async () => {
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时段" }));
+    await openEditor();
     fireEvent.change(screen.getByLabelText("第 5 段开始时间"), {
       target: { value: "15:00" },
     });
@@ -119,7 +124,7 @@ describe("常用时段编辑器", () => {
   it("preset_editor_label_only_edit_does_not_touch_the_plan", async () => {
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时段" }));
+    await openEditor();
     fireEvent.change(screen.getByLabelText("第 1 段名称"), {
       target: { value: "晨读" },
     });
@@ -134,7 +139,7 @@ describe("常用时段编辑器", () => {
   it("preset_editor_rejects_end_before_start", async () => {
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时段" }));
+    await openEditor();
     fireEvent.change(screen.getByLabelText("第 1 段结束时间"), {
       target: { value: "06:00" },
     });
@@ -148,7 +153,7 @@ describe("常用时段编辑器", () => {
   it("preset_editor_can_add_and_delete_presets", async () => {
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时段" }));
+    await openEditor();
     fireEvent.click(screen.getByRole("button", { name: "添加时段" }));
     expect(screen.getByLabelText("第 11 段名称")).toHaveValue("自定义");
 
@@ -159,7 +164,7 @@ describe("常用时段编辑器", () => {
   it("preset_editor_applies_the_shift_before_saving_settings", async () => {
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时段" }));
+    await openEditor();
     fireEvent.change(screen.getByLabelText("第 5 段开始时间"), {
       target: { value: "15:00" },
     });
@@ -188,7 +193,7 @@ describe("常用时段编辑器", () => {
     });
     renderField();
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑常用时段" }));
+    await openEditor();
     fireEvent.change(screen.getByLabelText("第 5 段开始时间"), {
       target: { value: "15:00" },
     });
@@ -201,5 +206,30 @@ describe("常用时段编辑器", () => {
     // 排期没挪成，设置也就不存：两边不能对不上。
     expect(callsOf("set_setting")).toHaveLength(0);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("preset_editor_disables_save_until_settings_are_fetched", async () => {
+    let release = false;
+    const pending: Array<() => void> = [];
+    mockedInvoke.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_setting" && !release) {
+        await new Promise<void>((resolve) => {
+          pending.push(resolve);
+        });
+      }
+      return null;
+    });
+    renderField();
+
+    fireEvent.click(screen.getByRole("button", { name: "编辑常用时段" }));
+    expect(screen.getByText("正在读取已保存的时段…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+
+    await act(async () => {
+      release = true;
+      pending.splice(0).forEach((resolve) => resolve());
+    });
+    expect(await screen.findByLabelText("第 1 段名称")).toHaveValue("早读");
+    expect(screen.getByRole("button", { name: "保存" })).toBeEnabled();
   });
 });

@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { BackendErrorToast } from "./components/BackendErrorToast";
 import { ExamDateSync } from "./components/ExamDateSync";
 import { Layout } from "./components/Layout";
 import { OnboardingGate } from "./components/Onboarding";
@@ -83,6 +84,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <BootSync />
+        <BackendErrorToast />
         <AutoSchedule />
         <GoalsMigration />
         <ExamDateSync />

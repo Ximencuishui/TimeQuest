@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { api } from "../api/tauri";
 import { backendErrorDetail } from "../lib/backendError";
 import { useTimePresets } from "../hooks/useTimePresets";
@@ -46,21 +46,27 @@ function nextFreeSlot(presets: TimePreset[]): { start: string; end: string } {
  * 已经完成的历史不动，挪过去会撞车的保持原样。
  */
 export function TimePresetEditor({ open, onClose, onSaved }: Props) {
-  const { presets: stored, savePresets } = useTimePresets();
+  const { presets: stored, savePresets, isFetched } = useTimePresets();
   const qc = useQueryClient();
   const [draft, setDraft] = useState<TimePreset[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const wasOpen = useRef(false);
+  const draftLoaded = useRef(false);
 
-  // 只在「打开的那一刻」灌一次草稿，之后的数据刷新不覆盖用户正在改的东西。
-  useEffect(() => {
-    if (open && !wasOpen.current) {
+  // 查询没回来时 parseTimePresets(undefined) 会给出默认十段，和「用户没设过」
+  // 无法区分。等 isFetched 再灌草稿，且只在本次打开时灌一次；关闭后重置，
+  // 下次打开重新读最新值。
+  useLayoutEffect(() => {
+    if (!open) {
+      draftLoaded.current = false;
+      return;
+    }
+    if (!draftLoaded.current && isFetched) {
       setDraft(stored.map((preset) => ({ ...preset })));
       setError(null);
+      draftLoaded.current = true;
     }
-    wasOpen.current = open;
-  }, [open, stored]);
+  }, [open, stored, isFetched]);
 
   const update = (index: number, patch: Partial<TimePreset>) => {
     setError(null);
@@ -76,6 +82,7 @@ export function TimePresetEditor({ open, onClose, onSaved }: Props) {
   };
 
   const save = async () => {
+    if (!isFetched) return;
     for (let index = 0; index < draft.length; index += 1) {
       const preset = draft[index];
       if (preset.label.trim() === "") {
@@ -134,7 +141,7 @@ export function TimePresetEditor({ open, onClose, onSaved }: Props) {
           </button>
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || !isFetched}
             className="rounded-lg border border-white/20 bg-surface-3 px-4 py-2 text-ink hover:bg-white/10 disabled:opacity-50"
             onClick={() => void save()}
           >
@@ -149,7 +156,13 @@ export function TimePresetEditor({ open, onClose, onSaved }: Props) {
         已经完成的历史不动，挪过去会撞车的场次保持原样。
       </p>
 
-      <ul className="space-y-2">
+      {!isFetched ? (
+        <p className="mb-3 text-sm text-ink-muted" role="status">
+          正在读取已保存的时段…
+        </p>
+      ) : null}
+      <fieldset disabled={!isFetched} className="disabled:opacity-60">
+        <ul className="space-y-2">
         {draft.length === 0 ? (
           <li className="text-sm text-ink-muted">
             还没有常用时段，点「添加时段」或「恢复默认」。
@@ -227,6 +240,7 @@ export function TimePresetEditor({ open, onClose, onSaved }: Props) {
           {draft.map((preset) => formatTimePresetLabel(preset)).join("、")}
         </p>
       ) : null}
+      </fieldset>
 
       {error ? (
         <p className="mt-3 text-sm text-amber-200" role="alert">

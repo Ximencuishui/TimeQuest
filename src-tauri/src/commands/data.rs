@@ -615,6 +615,41 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
 
+    // 删除标记要先于科目导入恢复：新库迁移会预置六科，不按标记清掉本机残留，
+    // 用户主动删过的科目就会在换机恢复后复活。备份里仍带着的科目（后来又加回的）
+    // 不能误删，所以只清「标记里有、备份科目里没有」的 key。
+    let mut removed_subject_keys: Vec<String> = Vec::new();
+    if let Some(arr) = data.get("removed_subjects").and_then(|v| v.as_array()) {
+        for row in arr {
+            let key = row.get("key").and_then(|v| v.as_str()).unwrap_or("");
+            if key.is_empty() {
+                continue;
+            }
+            tx.execute(
+                r#"INSERT OR IGNORE INTO removed_subjects (key, removed_at)
+                   VALUES (?1, COALESCE(?2, datetime('now','localtime')))"#,
+                params![key, row.get("removedAt").and_then(|v| v.as_str())],
+            )
+            .map_err(|e| e.to_string())?;
+            removed_subject_keys.push(key.to_string());
+        }
+    }
+    let backup_subject_keys: HashSet<&str> = data
+        .get("subjects")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|row| row.get("key").and_then(|v| v.as_str()))
+                .collect()
+        })
+        .unwrap_or_default();
+    for key in &removed_subject_keys {
+        if !backup_subject_keys.contains(key.as_str()) {
+            tx.execute("DELETE FROM subjects WHERE key = ?1", params![key])
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
     // 设置先回来：错因白名单、学习方式都存在 `app_settings` 里，
     // 导入错题时要按同一份白名单归一，前后端口径不能分叉。
     if let Some(arr) = data.get("app_settings").and_then(|v| v.as_array()) {
@@ -1044,22 +1079,6 @@ pub fn import_json_impl(conn: &Connection, json: &str) -> Result<(), String> {
                 )
                 .map_err(|e| e.to_string())?;
             }
-        }
-    }
-
-    // 用户删过的科目：备份里带着，换机后不会被出厂科目重新播种回来。
-    if let Some(arr) = data.get("removed_subjects").and_then(|v| v.as_array()) {
-        for row in arr {
-            let key = row.get("key").and_then(|v| v.as_str()).unwrap_or("");
-            if key.is_empty() {
-                continue;
-            }
-            tx.execute(
-                r#"INSERT OR IGNORE INTO removed_subjects (key, removed_at)
-                   VALUES (?1, COALESCE(?2, datetime('now','localtime')))"#,
-                params![key, row.get("removedAt").and_then(|v| v.as_str())],
-            )
-            .map_err(|e| e.to_string())?;
         }
     }
 

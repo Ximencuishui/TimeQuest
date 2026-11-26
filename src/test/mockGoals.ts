@@ -59,7 +59,9 @@ export const upsert = {
                 date: payload.date,
                 kind: payload.kind ?? goal.kind,
                 isPrimary: payload.isPrimary ?? goal.isPrimary,
-                targetScore: payload.targetScore ?? goal.targetScore,
+                targetScore: payload.clearTargetScore
+                  ? null
+                  : (payload.targetScore ?? goal.targetScore),
               }
             : goal,
         ),

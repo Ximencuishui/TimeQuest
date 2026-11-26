@@ -11,6 +11,7 @@ import {
   makeGoal,
   resetGoalMocks,
   setGoalFixtures,
+  upsert,
 } from "../../../test/mockGoals";
 import { SUBJECT_FIXTURES } from "../../../test/subjectFixtures";
 import type { Track, UpsertSubjectPayload, UserProfile } from "../../../types";
@@ -150,6 +151,34 @@ describe("Settings profile", () => {
         goal: 140,
       });
     });
+  });
+
+  it("settings_profile_clearing_total_target_sends_explicit_clear_flag", async () => {
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("总分目标")).toHaveValue("610");
+    });
+    fireEvent.change(screen.getByLabelText("总分目标"), { target: { value: "" } });
+    expect(screen.getByText("各科合计 610，未设总分目标")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "保存档案" }));
+
+    await waitFor(() => {
+      const calls = mockedInvoke.mock.calls.filter(
+        (call) => call[0] === "update_user_profile",
+      );
+      expect(calls).toHaveLength(1);
+      expect((calls[0]?.[1] as { profile: UserProfile }).profile.total_target).toBeNull();
+    });
+    expect(upsert.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 1,
+        targetScore: null,
+        clearTargetScore: true,
+      }),
+    );
+    expect(getGoalFixtures().find((goal) => goal.isPrimary)?.targetScore).toBeNull();
   });
 
   it("settings_profile_grade_and_region_use_choices", async () => {

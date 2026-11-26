@@ -428,3 +428,37 @@ async fn export_import_round_trip_keeps_removed_subjects() {
         "物理不该复活"
     );
 }
+
+/// 删除标记还在、但备份里又把这一科加回来了：导入不能把它当残留清掉。
+#[tokio::test]
+async fn import_keeps_subject_that_was_readded_after_removal() {
+    let (_path, conn) = open_rusqlite_migrated().await;
+    seed_default_track_impl(&conn).expect("seed default track");
+    let tracks = list_tracks_impl(&conn).expect("tracks");
+    let track_id = tracks[0].id;
+
+    let physics: i64 = conn
+        .query_row(
+            "SELECT id FROM subjects WHERE key = 'physics'",
+            [],
+            |r| r.get(0),
+        )
+        .expect("physics row");
+    remove_subject_impl(&conn, physics).expect("remove physics");
+    let mut readded = subject_payload("physics", "物理（重新加回）");
+    readded.track_id = Some(track_id);
+    upsert_subject_impl(&conn, readded).expect("readd physics");
+
+    let backup = export_json_impl(&conn).expect("export");
+    let (_path2, conn2) = open_rusqlite_migrated().await;
+    import_json_impl(&conn2, &backup).expect("import");
+
+    let label: String = conn2
+        .query_row(
+            "SELECT label FROM subjects WHERE key = 'physics'",
+            [],
+            |r| r.get(0),
+        )
+        .expect("备份里明确带着的科目不能被清掉");
+    assert_eq!(label, "物理（重新加回）");
+}

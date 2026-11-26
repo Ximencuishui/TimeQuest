@@ -313,6 +313,18 @@ fn is_safe_relative_path(path: &str) -> bool {
         .any(|segment| segment == ".." || segment == ".")
 }
 
+/// 插件 id 必须是单个安全目录名，不能带分隔符或回退段。
+/// 不能只查内置白名单：图谱类功能允许测试/外部目录里放同名结构的插件资源。
+fn is_safe_plugin_id(id: &str) -> bool {
+    let id = id.trim();
+    !id.is_empty()
+        && !Path::new(id).is_absolute()
+        && !id.contains(['/', '\\'])
+        && id != "."
+        && id != ".."
+        && !id.chars().any(char::is_control)
+}
+
 /// 插件内置的资源文件：相对路径 + 内容。
 pub fn builtin_plugin_resources(plugin_id: &str) -> Vec<(&'static str, &'static str)> {
     BUILTIN_PLUGIN_RESOURCES
@@ -711,6 +723,11 @@ pub fn plugin_resource_text(
     path: &str,
 ) -> Result<String, String> {
     let plugin_id = plugin_id.trim();
+    // 资源路径校验只管住了 path，id 带 `../` 时仍能把读取基目录挪到
+    // appData 之外；这里只要求它是单个安全目录名，不限制必须是内置插件。
+    if !is_safe_plugin_id(plugin_id) {
+        return Err(format!("插件 id 不合法：{plugin_id}"));
+    }
     let path = path.trim();
     if !is_safe_relative_path(path) {
         return Err(format!("资源路径不合法：{path}"));
@@ -738,6 +755,11 @@ pub fn uninstall_plugin_impl(
     id: &str,
 ) -> Result<(), String> {
     let id = id.trim();
+    // id 带 `../` 时，下面的 remove_dir_all 会删到 appData 之外。
+    // 未知但安全的 id 仍然幂等成功，只是没有目录可删。
+    if !is_safe_plugin_id(id) {
+        return Err(format!("插件 id 不合法：{id}"));
+    }
     let target_dir = plugins_dir.join(id);
     if target_dir.exists() {
         std::fs::remove_dir_all(&target_dir).map_err(|err| format!("删除插件目录失败：{err}"))?;

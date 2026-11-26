@@ -14,7 +14,7 @@
 
 <p align="center">
   目标倒计时 · 自习推进器<br />
-  当前版本 <strong>3.4.0</strong>
+  当前版本 <strong>4.0.1</strong>
 </p>
 
 ## 效果预览
@@ -68,11 +68,12 @@
 
 ### 下载安装
 
-Windows 安装包在 [v3.4.0 Release](https://github.com/Ximencuishui/TimeQuest/releases/tag/v3.4.0)：
+Windows 安装包在 [v4.0.1 Release](https://github.com/Ximencuishui/TimeQuest/releases/tag/v4.0.1)：
 
-**[下载 TimeQuest 3.4.0（MSI）](https://github.com/Ximencuishui/TimeQuest/releases/download/v3.4.0/TimeQuest_3.4.0_x64_en-US.msi)**
+- **[下载 TimeQuest 4.0.1（MSI）](https://github.com/Ximencuishui/TimeQuest/releases/download/v4.0.1/TimeQuest_4.0.1_x64_zh-CN.msi)**
+- **[下载 TimeQuest 4.0.1（NSIS EXE）](https://github.com/Ximencuishui/TimeQuest/releases/download/v4.0.1/TimeQuest_4.0.1_x64-setup.exe)**
 
-系统需能使用 WebView2（Windows 11 已内置）。数据写在本机 `timequest.db`，不注册账号。
+Windows 11 与 Win10 1803+ 已内置 WebView2；更早或未安装的机器，安装时需要联网下载 WebView2 引导程序，应用运行本身不联网。数据写在本机 `timequest.db`，不注册账号。
 
 ### 本地开发
 
@@ -96,6 +97,12 @@ pnpm tauri build
 ```
 
 产物在 `src-tauri/target/release/bundle/`。
+
+## 已知限制
+
+- 当前版本不含自动更新与代码签名，请只从本项目的 Release 页获取安装包。
+- 备份导出/导入与头像选取只能访问应用数据目录、下载、文档、桌面、图片和临时目录；其它磁盘位置请先复制到这些目录。
+- 暂不支持多端同步与国际化，详见 `PRD.md` 的范围外项。
 
 ## 技术栈
 
